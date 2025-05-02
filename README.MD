@@ -1,4 +1,4 @@
-###Brickwork graph transpiler
+## Brickwork graph transpiler
 
 Takes a unitary circuit and transpiles it into a brickwork graph state. The program builds the brickwork
 graph by combining bicks (i.e., arbitrary single qubit rotations and CX gates). Graphix (https://github.com/TeamGraphix/graphix)
