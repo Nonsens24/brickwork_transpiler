@@ -1,6 +1,8 @@
 from graphix.transpiler import Circuit
 import numpy as np
 
+# Used for sanity check with measurement angles
+
 def print_pattern():
 
     print("Graphix angle transpilation (no optimisation):")
