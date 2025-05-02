@@ -1,0 +1,57 @@
+# -------------------------
+# Python
+# -------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Test coverage and logs
+coverage.*
+.cache/
+nosetests.xml
+*.log
+*.out
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# -------------------------
+# PyCharm
+# -------------------------
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# -------------------------
+# macOS and Linux
+# -------------------------
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# -------------------------
+# VS Code (if used)
+# -------------------------
+.vscode/
+
+# -------------------------
+# pyproject-related tools
+# -------------------------
+.mypy_cache/
+.pytest_cache/
+.tox/
