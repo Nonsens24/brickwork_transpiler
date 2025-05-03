@@ -18,7 +18,7 @@ def assert_equal_up_to_global_phase(state1, state2, tol=1e-6):
     norm1 = np.linalg.norm(state1)
     norm2 = np.linalg.norm(state2)
 
-    if norm1 == 0 or norm2 == 0:
+    if np.isclose(norm1, 0.0, atol=tol) or np.isclose(norm2, 0.0, atol=tol):
         raise AssertionError("One of the states is zero-norm (cannot compare).")
 
     state1 /= norm1
@@ -27,11 +27,12 @@ def assert_equal_up_to_global_phase(state1, state2, tol=1e-6):
     inner_product = np.vdot(state1, state2)
     magnitude = np.abs(inner_product)
 
-    if not np.isclose(magnitude, 1.0, atol=tol):
+    if not np.isclose(magnitude, 1.0, atol=tol, rtol=0.0): # added rtol for border checking
         raise AssertionError(
             f"States are not equal up to global phase.\n"
             f"Inner product: {inner_product}\n"
             f"Absolute value: {magnitude:.6f} (should be close to 1)"
         )
+        # return False
 
     else: return True
