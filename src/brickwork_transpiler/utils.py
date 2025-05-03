@@ -19,7 +19,7 @@ def assert_equal_up_to_global_phase(state1, state2, tol=1e-6):
     norm2 = np.linalg.norm(state2)
 
     if np.isclose(norm1, 0.0, atol=tol) or np.isclose(norm2, 0.0, atol=tol):
-        raise AssertionError("One of the states is zero-norm (cannot compare).")
+        raise AssertionError(f"One of the states' norms is zero (cannot compare)")
 
     state1 /= norm1
     state2 /= norm2

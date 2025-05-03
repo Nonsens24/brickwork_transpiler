@@ -21,22 +21,21 @@ def test_not_equal_states():
     a = [1, 0]
     b = [0, 1]
 
-    with pytest.raises(AssertionError, match="States are not equal up to global phase"):
+    with pytest.raises(
+        AssertionError,
+        match="States are not equal up to global phase"
+    ):
         utils.assert_equal_up_to_global_phase(a, b)
 
 def test_zero_norm_vector_raises():
     a = [0, 0]
     b = [1, 0]
 
-    # 1) Catch the AssertionError
-    with pytest.raises(AssertionError) as excinfo:
+    with pytest.raises(
+        AssertionError,
+        match=r"One of the states' norms is zero \(cannot compare\)"
+    ):
         utils.assert_equal_up_to_global_phase(a, b)
-
-    # 2) Now excinfo is guaranteed to be an ExceptionInfo
-    #    and excinfo.value is the actual AssertionError.
-    err_msg = str(excinfo.value)
-    assert "zero-norm" in err_msg, f"Unexpected message: {err_msg}"
-
 
 def test_numerical_tolerance():
     a = [1/np.sqrt(2), 1/np.sqrt(2)]
