@@ -41,7 +41,7 @@ def CX_brick(inputs=None):
     inside_graph.add_edge((0, 2), (1, 2))
     inside_graph.add_edge((0, 4), (1, 4))
 
-    visualiser.plot_graph(inside_graph)
+    # visualiser.plot_graph(inside_graph)
 
     # invert angle sign because ... (SOURCE) graphix
     angles = {

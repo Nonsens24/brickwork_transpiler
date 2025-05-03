@@ -123,3 +123,20 @@ def test_arbitrary_rotations_random_angles_from_plus():
     ref_state = Statevector.from_instruction(qc).data
 
     assert utils.assert_equal_up_to_global_phase(test_result_state, ref_state)
+
+
+def test_CX_plus_input():
+
+    test_pattern = bricks.CX_brick()
+    test_result_state = test_pattern.simulate_pattern(backend='statevector').flatten()
+
+    qc = QuantumCircuit(2)
+    # Initialise to |+>
+    qc.h(0)
+    qc.h(1)
+
+    qc.cx(0, 1)
+
+    ref_state = Statevector.from_instruction(qc).data
+
+    assert utils.assert_equal_up_to_global_phase(test_result_state, ref_state)
