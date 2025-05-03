@@ -1,6 +1,6 @@
 import networkx as nx
 from graphix.generator import generate_from_graph
-from src.brickwork_transpiler import graph_builder
+from src.brickwork_transpiler import graph_builder, visualiser
 
 
 #Follows a, b, c, 0 scheme
@@ -31,26 +31,37 @@ def arbitrary_brick(a, b, c, input=None):
 
 
 #TODO:
-def CZ_brick():
+def CX_brick(inputs=None):
 
-    G = nx.Graph()
-    # label them A, B, C, D in a square:
-    #  A — B
-    #  |    |
-    #  C — D
-    for n in ["A","B","C","D"]:
-        G.add_node(n)
-    G.add_edges_from([("A","B"), ("A","C"), ("B","D"), ("C","D")])
+    # Layout:
+    #  (0, 0) -- (0, 1) -- (0, 2) -- (0, 3) -- (0, 4)
+    #                        |                   |
+    #  (1, 0) -- (1, 1) -- (1, 2) -- (1, 3) -- (1, 4)
+    inside_graph = graph_builder.create_tuple_node_graph(2, 5)
+    inside_graph.add_edge((0, 2), (1, 2))
+    inside_graph.add_edge((0, 4), (1, 4))
 
-    # meas = {
-    #     "B": Measurement(0, Plane.XY),
-    #     "C": Measurement(0, Plane.XY),
-    # }
+    visualiser.plot_graph(inside_graph)
 
-    inputs  = ["A","D"]
-    outputs = ["A","D"]   # A and D survive as the two output wires
-    # og = OpenGraph(G, meas, inputs, outputs) # -------- Change this to generate_from_graph!!!
-    # this is exactly a CZ between A→D (up to Pauli).
-    # pattern = og.to_pattern()
-    # pattern.perform_pauli_measurements()
-    # return pattern
+    # invert angle sign because ... (SOURCE) graphix
+    angles = {
+        (0, 0): 0.0,
+        (0, 1): 0.0,
+        (0, 2): -1/4,
+        (0, 3): 0.0,
+        (1, 0): 0.0,
+        (1, 1): -1/4,
+        (1, 2): 0.0,
+        (1, 3): 1/4
+    }
+
+    if input is None:
+        inputs = [] # Initialise to |+> state
+    else:
+        inputs = [(0, 0), (1, 0)]
+
+    outputs = [(0, 4), (1, 4)]
+
+    brick_pattern = generate_from_graph(inside_graph, angles, inputs, outputs)
+
+    return brick_pattern
