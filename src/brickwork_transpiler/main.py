@@ -28,7 +28,7 @@ def main():
 
     # CX gate:
     print("Laying a brick:")
-    pattern = bricks.CX_brick()
+    pattern = bricks.CX_bottom_target_brick()
 
     outstate = pattern.simulate_pattern(backend='statevector').flatten()
     print("brick MBQC output:", outstate)
