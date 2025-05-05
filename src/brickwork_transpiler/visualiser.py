@@ -67,7 +67,7 @@ def print_matrix(matrix):
     num_cols   = len(matrix[0])
 
     # build header
-    header = ["Qubit \\ Column"] + [f"Column {c}" for c in range(num_cols)]
+    header = ["Qubit \\ Gate Group"] + [f"Group {c}" for c in range(num_cols)]
 
     # build rows
     rows = []

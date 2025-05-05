@@ -1,4 +1,6 @@
 import networkx as nx
+from qiskit import QuantumCircuit
+
 
 # Generates a single brick row graph
 def create_tuple_node_graph(rows, cols):
@@ -64,7 +66,6 @@ def generate_brickwork_graph_from_instruction_matrix(matrix):
         'width':  n_cols,
         'height': n_rows
     }
-
 
 
 def to_networkx_graph(brickwork):

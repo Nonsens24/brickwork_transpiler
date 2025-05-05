@@ -1,16 +1,121 @@
 from qiskit import QuantumCircuit, transpile
-from qiskit_aer import AerSimulator
+from qiskit.converters import circuit_to_dag
+from qiskit.dagcircuit import DAGOpNode
 
-
-def decompose_qc_to_bricks_qiskit(qc):
+def decompose_qc_to_bricks_qiskit(qc, opt=1, draw=False):
 
     basis = ['rz', 'rx', 'cx', 'id']  # include 'id' for explicit barriers/timing
-    qc_basis = transpile(qc, basis_gates=basis, optimization_level=0)
+    qc_basis = transpile(qc, basis_gates=basis, optimization_level=opt)
 
-    print(qc_basis.draw())
+    if draw:
+        print(qc_basis.draw())
 
     return qc_basis
 
+
+def group_with_dag_atomic_rotations(qc: QuantumCircuit):
+    """
+    DAG + saturated two-phase scheduling, but:
+      • In the rotation phase we IGNORE qubit conflicts,
+        so that rz–rx–rz (or any chain) on the *same* qubit
+        all go into the *same* rotation column.
+      • In the CX phase we still pack non-overlapping CXs per column.
+    """
+    dag = circuit_to_dag(qc)
+    op_nodes = list(dag.topological_op_nodes())
+    total = len(op_nodes)
+    scheduled = set()
+    columns = []
+
+    while len(scheduled) < total:
+        # --- rotation phase: drain *all* ready rotations (rz/rx) ---
+        rot_layer = []
+        while True:
+            added = False
+            for node in op_nodes:
+                if node in scheduled or node in rot_layer:
+                    continue
+                if node.op.name not in ('rz', 'rx'):
+                    continue
+                # only consider op-node predecessors
+                preds = [p for p in dag.predecessors(node)
+                         if isinstance(p, DAGOpNode)]
+                # all preds must be already in scheduled OR in this layer
+                if any((p not in scheduled and p not in rot_layer) for p in preds):
+                    continue
+
+                # *no* busy/conflict check here — we allow multiple on same qubit
+                rot_layer.append(node)
+                added = True
+
+            if not added:
+                break
+
+        if rot_layer:
+            columns.append([
+                (node.op, node.qargs, node.cargs) for node in rot_layer
+            ])
+            scheduled.update(rot_layer)
+
+        # --- CX phase: drain all ready non-conflicting CXs ---
+        cx_layer = []
+        busy_qubits = set()
+        while True:
+            added = False
+            for node in op_nodes:
+                if node in scheduled or node in cx_layer:
+                    continue
+                if node.op.name != 'cx':
+                    continue
+                preds = [p for p in dag.predecessors(node)
+                         if isinstance(p, DAGOpNode)]
+                if any((p not in scheduled and p not in cx_layer) for p in preds):
+                    continue
+                qs = [q._index for q in node.qargs]
+                if any(q in busy_qubits for q in qs):
+                    continue
+
+                cx_layer.append(node)
+                busy_qubits.update(qs)
+                added = True
+
+            if not added:
+                break
+
+        if cx_layer:
+            columns.append([
+                (node.op, node.qargs, node.cargs) for node in cx_layer
+            ])
+            scheduled.update(cx_layer)
+
+        # sanity check: if we got *nothing* in both phases, there's a real stall
+        if not rot_layer and not cx_layer:
+            raise RuntimeError(
+                "Stalled scheduling: no ready rotations or CXs; "
+                "circuit may have a cycle"
+            )
+
+    return columns
+
+
+def instructions_to_matrix_dag(qc: QuantumCircuit):
+    """
+    Builds the per-qubit × per-column instruction matrix
+    from the atomic-rotation grouping above.
+    """
+    cols = group_with_dag_atomic_rotations(qc)
+    n_q = qc.num_qubits
+    n_c = len(cols)
+    matrix = [[[] for _ in range(n_c)] for _ in range(n_q)]
+
+    for c_idx, col in enumerate(cols):
+        for instr, qargs, _ in col:
+            for q in qargs:
+                matrix[q._index][c_idx].append(instr)
+
+    return matrix
+
+##### Iterative method below not used #####
 
 def group_into_columns(qc: QuantumCircuit):
     """
