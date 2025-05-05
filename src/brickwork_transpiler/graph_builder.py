@@ -45,13 +45,13 @@ def generate_brickwork_graph_from_instruction_matrix(matrix):
 
     # 2) brickwork vertical links with proper bounds checks
     for col in range(n_cols):
-        if col+1 % 8 == 3:
+        if (col+1) % 8 == 3:    # col + 1 since indexing has to start at 0 but mod 8 has to
             # connect even‐indexed rows at this column (and at col+2 if in range)
             for row in range(0, n_rows - 1, 2):
                 edges.append(((row, col),     (row + 1, col)))
                 if col + 2 < n_cols:
                     edges.append(((row, col + 2), (row + 1, col + 2)))
-        elif col+1 % 8 == 7:
+        elif (col+1) % 8 == 7:
             # connect odd‐indexed rows at this column (and at col+2 if in range)
             for row in range(1, n_rows - 1, 2):
                 edges.append(((row, col),     (row + 1, col)))

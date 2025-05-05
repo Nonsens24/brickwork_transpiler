@@ -11,14 +11,16 @@ from src.brickwork_transpiler import decomposer, graph_builder
 def main():
 
     # Decomposer
-    qc = QuantumCircuit(4)
+    qc = QuantumCircuit(5)
     qc.h(1)
     qc.h(0)
     qc.cx(0, 1)
 
-    # qc.h(2)
-    # qc.t(3)
-    # qc.s(3)
+    qc.h(2)
+    qc.t(3)
+    qc.s(3)
+
+    qc.cx(2,3)
 
 
     decomposed_qc = decomposer.decompose_qc_to_bricks_qiskit(qc)
