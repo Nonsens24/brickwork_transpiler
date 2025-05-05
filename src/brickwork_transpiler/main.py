@@ -5,22 +5,20 @@ from qiskit.quantum_info import Statevector
 import bricks
 import utils
 import visualiser
-from src.brickwork_transpiler import decomposer
+from src.brickwork_transpiler import decomposer, graph_builder
 
 
 def main():
 
     # Decomposer
     qc = QuantumCircuit(4)
-
-    qc.h(2)
-    qc.h(3)
+    qc.h(1)
     qc.h(0)
     qc.cx(0, 1)
-    qc.s(0)
-    qc.s(0)
-    qc.t(1)
-    qc.cx(0, 1)
+
+    # qc.h(2)
+    # qc.t(3)
+    # qc.s(3)
 
 
     decomposed_qc = decomposer.decompose_qc_to_bricks_qiskit(qc)
@@ -28,6 +26,12 @@ def main():
     qc_mat = decomposer.instuctions_to_matrix(decomposed_qc)
 
     visualiser.print_matrix(qc_mat)
+
+    bw_graph_data = graph_builder.generate_brickwork_graph_from_instruction_matrix(qc_mat)
+
+    bw_nx_graph = graph_builder.to_networkx_graph(bw_graph_data)
+
+    visualiser.plot_graph(bw_nx_graph)
 
     # print("Laying a brick:")
     # pattern = bricks.arbitrary_brick(1/4, 1/4, 1/4)

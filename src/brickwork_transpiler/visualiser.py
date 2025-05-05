@@ -1,13 +1,58 @@
 import networkx as nx
 from matplotlib import pyplot as plt
 
+import matplotlib.pyplot as plt
+import networkx as nx
 
-def plot_graph(G):
 
-    pos = {node: (node[1], -node[0]) for node in G.nodes()}
-    plt.figure(figsize=(5,5))
-    nx.draw(G, pos, with_labels=True, node_color='lightblue', node_size=600)
-    plt.axis('equal'); plt.show()
+def plot_graph(G, cell_size=0.5, margin=0.5):
+    """
+    Draw G so that each adjacent node pair is spaced by `cell_size` inches.
+
+    Parameters
+    ----------
+    G : networkx.Graph
+        Graph whose nodes are (row, col) tuples.
+    cell_size : float, optional
+        Size in inches of each grid cell (distance between adjacent nodes).
+    margin : float, optional
+        Extra padding around the grid, in grid‐cells.
+    """
+    # 1) figure out grid dimensions
+    rows = [r for (r, _) in G.nodes()]
+    cols = [c for (_, c) in G.nodes()]
+    n_rows = max(rows) + 1
+    n_cols = max(cols) + 1
+
+    # 2) build pos mapping (x = col, y = row)
+    pos = {(r, c): (c, r) for (r, c) in G.nodes()}
+
+    # 3) compute figure size so each cell is cell_size inches
+    fig_w = cell_size * (n_cols + 2 * margin)
+    fig_h = cell_size * (n_rows + 2 * margin)
+    fig, ax = plt.subplots(figsize=(fig_w, fig_h))
+
+    # 4) draw with constant node spacing
+    nx.draw(
+        G,
+        pos=pos,
+        with_labels=True,
+        node_color='lightblue',
+        node_size=600,
+        font_size=8,
+        ax=ax
+    )
+
+    # 5) square aspect & invert so row=0 is at top
+    ax.set_aspect('equal')
+    ax.invert_yaxis()
+
+    # 6) pad the axes so nodes aren’t flush to the border
+    ax.set_xlim(-margin, n_cols - 1 + margin)
+    ax.set_ylim(n_rows - 1 + margin, -margin)
+
+    plt.tight_layout()
+    plt.show()
 
 
 def print_matrix(matrix):
