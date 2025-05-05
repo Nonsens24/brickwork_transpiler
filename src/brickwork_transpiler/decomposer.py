@@ -1,6 +1,8 @@
+from numpy.matlib import empty
 from qiskit import QuantumCircuit, transpile
 from qiskit.converters import circuit_to_dag
 from qiskit.dagcircuit import DAGOpNode
+import copy
 
 def decompose_qc_to_bricks_qiskit(qc, opt=1, draw=False):
 
@@ -115,7 +117,191 @@ def instructions_to_matrix_dag(qc: QuantumCircuit):
 
     return matrix
 
-##### Iterative method below not used #####
+def enumerate_cx_in_cols(matrix):
+    num_qubits = len(matrix)
+    num_cols   = len(matrix[0])
+
+    for c in range(num_cols):
+        cx_counter = 0
+        r = 0
+        while r < num_qubits - 1:
+            cell = matrix[r][c]
+            if cell and 'cx' in cell[0].name:
+
+                # 1) clone the two instrs
+                m0 = copy.deepcopy(cell[0])
+                m1 = copy.deepcopy(matrix[r+1][c][0])
+
+                # 2) rename them
+                m0.name = f"cx{cx_counter}"
+                m1.name = f"cx{cx_counter}"
+
+                # 3) write them back
+                matrix[r][c][0]   = m0
+                matrix[r+1][c][0] = m1
+
+                cx_counter    += 1
+                r += 2
+                continue
+
+            r += 1
+
+    return matrix
+
+
+def incorporate_bricks(matrix):
+    n_q = len(matrix)
+    n_c = len(matrix[0])
+    new_cols = []
+    brick_idx = 0
+
+    matrix = enumerate_cx_in_cols(matrix)
+
+    for c in range(n_c):
+        # 1) collect rotations
+        rotations = [
+            [instr for instr in matrix[q][c] if instr.name in ('rz', 'rx')]
+            for q in range(n_q)
+        ]
+        # 2) map each numeric suffix to its starting qubit i
+        num_to_i = {}
+        for i in range(n_q - 1):
+            names_i   = {instr.name for instr in matrix[i][c]   if instr.name.startswith('cx')}
+            names_ip1 = {instr.name for instr in matrix[i+1][c] if instr.name.startswith('cx')}
+            for full in names_i & names_ip1:
+                num_to_i[full[2:]] = i
+
+        # 3) no CNOTs → pure‐rotation brick
+        if not num_to_i:
+            new_cols.append(rotations)
+            brick_idx += 1
+            continue
+
+        # 4) schedule in as few bricks as possible, grouping same‐parity, non‐conflicting CNOTs
+        unscheduled = list(num_to_i.keys())
+        while unscheduled:
+            parity   = brick_idx % 2
+            # pick all groups whose i has correct parity
+            to_place = [n for n in unscheduled if (num_to_i[n] % 2) == parity]
+            if not to_place:
+                # nothing fits → blank brick
+                new_cols.append([[] for _ in range(n_q)])
+                brick_idx += 1
+                continue
+
+            # build a brick with all rotations + all selected cx<n>
+            layer = []
+            for q in range(n_q):
+                ops = list(rotations[q])
+                for n in to_place:
+                    i = num_to_i[n]
+                    if q == i or q == i+1:
+                        # grab the cx<n> on this wire
+                        for instr in matrix[q][c]:
+                            if instr.name == f'cx{n}':
+                                ops.append(instr)
+                                break
+                layer.append(ops)
+
+            new_cols.append(layer)
+            brick_idx += 1
+            # mark them done
+            for n in to_place:
+                unscheduled.remove(n)
+
+    # transpose back to [qubit][brick]
+    return [
+        [new_cols[b][q] for b in range(len(new_cols))]
+        for q in range(n_q)
+    ]
+
+
+
+# def incorporate_bricks(matrix):
+#     """
+#     Inserts the minimal number of identity‐only bricks so that, for each original column c:
+#       • Each CNOT(i,i+1) goes into a brick whose index % 2 == i % 2.
+#       • If multiple CNOTs in c have mixed parity, they’re split into separate bricks.
+#       • All rotations (rz/rx) appear in every emitted brick.
+#
+#     Args:
+#       matrix: List[List[List[Instruction]]], shape (n_qubits, n_cols),
+#               where matrix[q][c] is the list of Instruction objects
+#               (rz, rx, cx) acting on qubit q in original column c.
+#
+#     Returns:
+#       new_matrix: same format, with identity‐only columns inserted
+#                   to enforce the even/odd‐brick requirement.
+#     """
+#     n_q = len(matrix)
+#     n_c = len(matrix[0])
+#     new_cols = []
+#     brick_idx = 0  # counts output bricks (0-based)
+#
+#     for c in range(n_c):
+#         # 1) Extract all rz/rx rotations from this column
+#         rotations = [
+#             [instr for instr in matrix[q][c] if instr.name in ('rz', 'rx')]
+#             for q in range(n_q)
+#         ]
+#
+#         # 2) Reconstruct the list of adjacent‐qubit CNOTs in this column
+#         #    by looking for pairs (i, i+1) both carrying a cx.
+#         cx_pairs = []
+#         for i in range(n_q - 1):
+#             has_i = any(instr.name == 'cx' for instr in matrix[i][c])
+#             has_ip1 = any(instr.name == 'cx' for instr in matrix[i + 1][c])
+#             if has_i and has_ip1:
+#                 cx_pairs.append(i)  # store the “i” of (i, i+1)
+#
+#         if not cx_pairs:
+#             # --- No CNOTs: one brick carrying just the rotations ---
+#             new_cols.append(rotations)
+#             brick_idx += 1
+#             continue
+#
+#         # 3) Schedule each CNOT(i,i+1) in its own or shared brick, in pass order:
+#         unscheduled = list(cx_pairs)
+#         while unscheduled:
+#             curr_parity = brick_idx % 2
+#             # find all pairs that can go here
+#             to_place = [i for i in unscheduled if (i % 2) == curr_parity]
+#
+#             if not to_place:
+#                 # no matching CNOTs ⇒ pad an identity brick
+#                 new_cols.append([[] for _ in range(n_q)])
+#                 brick_idx += 1
+#                 continue
+#
+#             # build a brick: add all rotations + only the cx for these pairs
+#             layer = []
+#             for q in range(n_q):
+#                 ops = list(rotations[q])
+#                 for i in to_place:
+#                     if q == i or q == i + 1:
+#                         # grab exactly one of the original cx instrs for this wire
+#                         for instr in matrix[q][c]:
+#                             if instr.name == 'cx':
+#                                 ops.append(instr)
+#                                 break
+#                 layer.append(ops)
+#
+#             new_cols.append(layer)
+#             brick_idx += 1
+#
+#             # mark those CNOTs done
+#             for i in to_place:
+#                 unscheduled.remove(i)
+#
+#     # transpose back into [qubit][brick] format
+#     n_new = len(new_cols)
+#     return [
+#         [new_cols[b][q] for b in range(n_new)]
+#         for q in range(n_q)
+#     ]
+
+
+##### Iterative method below -- not used #####
 
 def group_into_columns(qc: QuantumCircuit):
     """
