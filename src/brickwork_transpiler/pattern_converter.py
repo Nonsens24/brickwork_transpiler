@@ -1,4 +1,3 @@
-# invert angle sign because ... (SOURCE) graphix
 import numpy as np
 from graphix import generate_from_graph
 
@@ -9,8 +8,8 @@ def parse_euler_angles(cell):
     for instr in cell:
         if instr.name == 'rz':
             if index != 0 and index != 2:
-                raise AssertionError(f"INDEX IS WRONG {index}, instuction: {instr}")
-            rotations[index] = -float(instr.params[0]) / np.pi # - for convetion graphix
+                raise AssertionError(f"Index wrong: {index}, instuction: {instr}")
+            rotations[index] = -float(instr.params[0]) / np.pi # - for convetion graphix -- add source
         elif instr.name == 'rx':
             rotations[1] = -float(instr.params[0]) / np.pi #rx is always the second entry
         index = index + 1
@@ -34,7 +33,7 @@ def lay_brick(angles, brick_type, r, c, cell):
             (r, (c * 4) + 2): local_angles[2],
             (r, (c * 4) + 3): local_angles[3],
         })
-
+    # target bottom only for now
     elif brick_type == "CX":
         angles.update({
             (r, (c * 4) + 0): 0.0,
@@ -47,31 +46,33 @@ def lay_brick(angles, brick_type, r, c, cell):
             (r+1, (c * 4) + 2): 0.0,
             (r+1, (c * 4) + 3): 1/4,
         })
+
+    # TODO: Discern between target top and bottom
     # CX target top
     elif brick_type == "CXtt":
         angles.update({
             (r, (c * 4) + 0): 0.0,
-            (r, (c * 4) + 1): 0.0,
+            (r, (c * 4) + 1): -1/4,
             (r, (c * 4) + 2): 0.0,
-            (r, (c * 4) + 3): 0.0,
+            (r, (c * 4) + 3): 1/4,
 
-            (r, (c * 4) + 0): 0.0,
-            (r, (c * 4) + 1): 0.0,
-            (r, (c * 4) + 2): 0.0,
-            (r, (c * 4) + 3): 0.0,
+            (r+1, (c * 4) + 0): 0.0,
+            (r+1, (c * 4) + 1): 0/0,
+            (r+1, (c * 4) + 2): -1/4,
+            (r+1, (c * 4) + 3): 0.0,
         })
     # CX target bottom
     elif brick_type == "CXtb":
         angles.update({
             (r, (c * 4) + 0): 0.0,
             (r, (c * 4) + 1): 0.0,
-            (r, (c * 4) + 2): 0.0,
+            (r, (c * 4) + 2): -1/4,
             (r, (c * 4) + 3): 0.0,
 
-            (r, (c * 4) + 0): 0.0,
-            (r, (c * 4) + 1): 0.0,
-            (r, (c * 4) + 2): 0.0,
-            (r, (c * 4) + 3): 0.0,
+            (r+1, (c * 4) + 0): 0.0,
+            (r+1, (c * 4) + 1): -1/4,
+            (r+1, (c * 4) + 2): 0.0,
+            (r+1, (c * 4) + 3): 1/4,
         })
     else:
         raise AssertionError(f"Unknown brick type: {brick_type} instuction type: {cell}")

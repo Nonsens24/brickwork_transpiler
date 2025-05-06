@@ -1,3 +1,4 @@
+import numpy as np
 from qiskit import QuantumCircuit
 from qiskit.quantum_info import Statevector
 
@@ -25,7 +26,7 @@ def test_bell_proj_from_plus():
     assert utils.assert_equal_up_to_global_phase(outstate, output_ref.data)
 
 
-def test_cx_from_0():
+def test_cx_from_zero():
     # 1) Create the |++> state directly
     input_vec = Statevector.from_label('++')  # two-qubit plus state
 
@@ -37,7 +38,7 @@ def test_cx_from_0():
 
     # Transpile!
     bw_pattern, output_ref = brickwork_transpiler.transpile(qc, input_vec)
-    visualiser.plot_brickwork_graph_from_pattern(bw_pattern, title="bw: test_cx_from_0")
+    visualiser.plot_brickwork_graph_from_pattern(bw_pattern, title="bw: test_cx_from_zero")
 
     # Simulate the generated pattern
     outstate = bw_pattern.simulate_pattern(backend='statevector').flatten()
@@ -45,6 +46,7 @@ def test_cx_from_0():
     # Compare output up to global phase
     assert utils.assert_equal_up_to_global_phase(outstate, output_ref.data)
 
+# 49qubits >12min
 def test_system_shift():
     # 1) Create the |++> state directly
     input_vec = Statevector.from_label('+++')  # three-qubit plus state
@@ -96,7 +98,7 @@ def test_five_in_optimise_gates():
     qc = QuantumCircuit(5)
     qc.cx(0, 1)
     qc.s(2)
-    qc.rx(np.pi/2, 2)
+    qc.rx(np.pi/3, 2)
     qc.t(2)
     qc.x(2)
     qc.cx(3, 4)
