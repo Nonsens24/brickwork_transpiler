@@ -1,4 +1,5 @@
 # invert angle sign because ... (SOURCE) graphix
+import numpy as np
 from graphix import generate_from_graph
 
 def parse_euler_angles(cell):
@@ -9,9 +10,9 @@ def parse_euler_angles(cell):
         if instr.name == 'rz':
             if index != 0 and index != 2:
                 raise AssertionError(f"INDEX IS WRONG {index}, instuction: {instr}")
-            rotations[index] = -float(instr.params[0]) # - for convetion graphix
+            rotations[index] = -float(instr.params[0]) / np.pi # - for convetion graphix
         elif instr.name == 'rx':
-            rotations[1] = -float(instr.params[0]) #rx is always the second entry
+            rotations[1] = -float(instr.params[0]) / np.pi #rx is always the second entry
         index = index + 1
 
     return rotations
@@ -41,10 +42,10 @@ def lay_brick(angles, brick_type, r, c, cell):
             (r, (c * 4) + 2): -1/4,
             (r, (c * 4) + 3): 0.0,
 
-            (r, (c * 4) + 0): 0.0,
-            (r, (c * 4) + 1): -1/4,
-            (r, (c * 4) + 2): 0.0,
-            (r, (c * 4) + 3): 1/4,
+            (r+1, (c * 4) + 0): 0.0,
+            (r+1, (c * 4) + 1): -1/4,
+            (r+1, (c * 4) + 2): 0.0,
+            (r+1, (c * 4) + 3): 1/4,
         })
     # CX target top
     elif brick_type == "CXtt":
@@ -81,10 +82,16 @@ def to_pattern(insturction_matrix, structure_graph):
     num_cols = len(insturction_matrix[0])
 
     angles = {}
+    cx_placed = False
 
 
     for c in range(num_cols):
         for r in range(num_qubits):
+            # skip the next row brick since cx already made it
+            if cx_placed:
+                cx_placed = False
+                continue
+
             cell = insturction_matrix[r][c]
 
             if cell == []:
@@ -96,33 +103,18 @@ def to_pattern(insturction_matrix, structure_graph):
                     if instr.name.startswith('cx'):
                         # print("lay cx brick")
                         lay_brick(angles=angles, brick_type="CX", r=r, c=c, cell=cell)
+                        cx_placed = True
                     elif instr.name == 'rz' or instr.name == 'rx':
                         # print("lay euler rotation brick")
                         lay_brick(angles=angles, brick_type="euler_rot", r=r, c=c, cell=cell)
                     else:
                         raise AssertionError(f"Unrecognized instruction: {instr.name}")
 
-    print("Angles: ", angles)
-
-
-
-
-    # angles = {
-    #     (0, 0): 0.0,
-    #     (0, 1): 0.0,
-    #     (0, 2): -1 / 4,
-    #     (0, 3): 0.0,
-    #     (1, 0): 0.0,
-    #     (1, 1): -1 / 4,
-    #     (1, 2): 0.0,
-    #     (1, 3): 1 / 4
-    # }
+    # print("Angles: ", angles)
 
     inputs = []  # Initialise to the |+> state as with ubqc
+    outputs = [(i, (num_cols * 4)) for i in range(num_qubits)] # 4 times the amount of bricks
 
+    brickwork_pattern = generate_from_graph(structure_graph, angles, inputs, outputs)
 
-    outputs = [(0, 4), (1, 4)]
-
-    # brickwork_pattern = generate_from_graph(structure_graph, angles, inputs, outputs)
-
-    # return brickwork_pattern
+    return brickwork_pattern
