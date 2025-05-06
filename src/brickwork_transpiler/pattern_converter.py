@@ -16,7 +16,7 @@ def parse_euler_angles(cell):
 
     return rotations
 
-def lay_brick(angles, brick_type, r, c, cell):
+def lay_brick(angles, brick_type, r, c, cell, node_colours):
 
     if brick_type == "id":
         angles.update({
@@ -25,6 +25,12 @@ def lay_brick(angles, brick_type, r, c, cell):
             (r, (c * 4) + 2): 0.0,
             (r, (c * 4) + 3): 0.0,
         })
+        node_colours.update({
+            (r, (c * 4) + 0): 'lightblue',
+            (r, (c * 4) + 1): 'lightblue',
+            (r, (c * 4) + 2): 'lightblue',
+            (r, (c * 4) + 3): 'lightblue',
+        })
     elif brick_type == "euler_rot":
         local_angles = parse_euler_angles(cell)
         angles.update({
@@ -32,6 +38,12 @@ def lay_brick(angles, brick_type, r, c, cell):
             (r, (c * 4) + 1): local_angles[1],
             (r, (c * 4) + 2): local_angles[2],
             (r, (c * 4) + 3): local_angles[3],
+        })
+        node_colours.update({
+            (r, (c * 4) + 0): 'lightgreen',
+            (r, (c * 4) + 1): 'lightgreen',
+            (r, (c * 4) + 2): 'lightgreen',
+            (r, (c * 4) + 3): 'lightgreen',
         })
     # target bottom only for now
     elif brick_type == "CX":
@@ -46,8 +58,19 @@ def lay_brick(angles, brick_type, r, c, cell):
             (r+1, (c * 4) + 2): 0.0,
             (r+1, (c * 4) + 3): 1/4,
         })
+        node_colours.update({
+            (r, (c * 4) + 0): 'lightcoral',
+            (r, (c * 4) + 1): 'lightcoral',
+            (r, (c * 4) + 2): 'lightcoral',
+            (r, (c * 4) + 3): 'lightcoral',
 
-    # TODO: Discern between target top and bottom
+            (r + 1, (c * 4) + 0): 'lightcoral',
+            (r + 1, (c * 4) + 1): 'lightcoral',
+            (r + 1, (c * 4) + 2): 'lightcoral',
+            (r + 1, (c * 4) + 3): 'lightcoral',
+        })
+
+    # TODO: Discern between target top and bottom - also add colours (different shade??)
     # CX target top
     elif brick_type == "CXtt":
         angles.update({
@@ -83,6 +106,7 @@ def to_pattern(insturction_matrix, structure_graph):
     num_cols = len(insturction_matrix[0])
 
     angles = {}
+    node_colours = {} # keep track of bricks to mae the graph readable
     cx_placed = False
 
 
@@ -97,17 +121,17 @@ def to_pattern(insturction_matrix, structure_graph):
 
             if cell == []:
                 # print("lay identity brick")
-                lay_brick(angles=angles, brick_type="id", r=r, c=c, cell=None)
+                lay_brick(angles=angles, brick_type="id", r=r, c=c, cell=None, node_colours=node_colours)
             else:
                 for instr in cell:
                     # print("instr:", instr)
                     if instr.name.startswith('cx'):
                         # print("lay cx brick")
-                        lay_brick(angles=angles, brick_type="CX", r=r, c=c, cell=cell)
+                        lay_brick(angles=angles, brick_type="CX", r=r, c=c, cell=cell, node_colours=node_colours)
                         cx_placed = True
                     elif instr.name == 'rz' or instr.name == 'rx':
                         # print("lay euler rotation brick")
-                        lay_brick(angles=angles, brick_type="euler_rot", r=r, c=c, cell=cell)
+                        lay_brick(angles=angles, brick_type="euler_rot", r=r, c=c, cell=cell, node_colours=node_colours)
                     else:
                         raise AssertionError(f"Unrecognized instruction: {instr.name}")
 
@@ -118,4 +142,4 @@ def to_pattern(insturction_matrix, structure_graph):
 
     brickwork_pattern = generate_from_graph(structure_graph, angles, inputs, outputs)
 
-    return brickwork_pattern
+    return brickwork_pattern, node_colours
