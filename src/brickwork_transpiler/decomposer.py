@@ -1,8 +1,10 @@
-from numpy.matlib import empty
+import copy
+
 from qiskit import QuantumCircuit, transpile
+from qiskit.circuit import Instruction
 from qiskit.converters import circuit_to_dag
 from qiskit.dagcircuit import DAGOpNode
-import copy
+
 
 def decompose_qc_to_bricks_qiskit(qc, opt=1, draw=False):
 
@@ -128,25 +130,25 @@ def enumerate_cx_in_cols(matrix):
             cell = matrix[r][c]
             if cell and 'cx' in cell[0].name:
 
-                # TODO: integrate mutable matrices
-                # Tests
-                # m0 = copy.deepcopy(cell[0])
-                # m1 = copy.deepcopy(matrix[r+1][c][0])
+                # Qiskit instruction
+                if isinstance(cell[0], Instruction):
+                    m0 = cell[0].to_mutable()
+                    m1 = matrix[r + 1][c][0].to_mutable()
+                # Dummy test instruction
+                else:
+                    m0 = copy.deepcopy(cell[0])
+                    m1 = copy.deepcopy(matrix[r+1][c][0])
 
-                # Main
-                m0 = cell[0].to_mutable()
-                m1 = matrix[r + 1][c][0].to_mutable()
-
-                # 2) rename them
+                # Set values
                 m0.name = f"cx{cx_counter}"
                 m1.name = f"cx{cx_counter}"
 
-                # 3) write them back
+                # Update
                 matrix[r][c][0]   = m0
                 matrix[r+1][c][0] = m1
 
-                cx_counter    += 1
-                r += 2
+                cx_counter += 1
+                r += 2  # CX comes in pairs
                 continue
 
             r += 1
