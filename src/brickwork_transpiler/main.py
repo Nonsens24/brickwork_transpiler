@@ -12,12 +12,12 @@ from src.brickwork_transpiler.visualiser import plot_graph
 
 def main():
 
-    psi = Statevector.from_label('+')  # ∣+⟩
+    # 1) Create the |++> state directly
+    psi = Statevector.from_label('++')  # two-qubit plus state
+
+    # 2) Define your 2-qubit circuit (no H gates needed)
     qc = QuantumCircuit(2)
-    qc.cnot(0, 1)
-    # … add further gates only for your algorithm …
-    psi_out = psi.evolve(qc)  # Applies qc to ∣+⟩
-    print(psi_out.data)
+    qc.cx(0, 1)
 
 
     # Decomposer
@@ -65,10 +65,14 @@ def main():
     outstate = bw_pattern.simulate_pattern(backend='statevector').flatten()
     print("Graphix simulator output:", outstate)
 
-    sv2 = Statevector.from_instruction(qc).data
-    print("Qiskit reference output: ", sv2)
+    # Calculate reference statevector
+    psi_out = psi.evolve(qc)
+    print("Qiskit reference state vector: ", psi_out.data)
 
-    utils.assert_equal_up_to_global_phase(outstate, sv2)
+    # sv2 = Statevector.from_instruction(qc).data
+    # print("Qiskit reference output: ", sv2)
+
+    utils.assert_equal_up_to_global_phase(outstate, psi_out.data)
 
     # print("Laying a brick:")
     # pattern = bricks.arbitrary_brick(1/4, 1/4, 1/4)
