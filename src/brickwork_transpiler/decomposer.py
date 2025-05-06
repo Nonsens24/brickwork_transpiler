@@ -128,9 +128,14 @@ def enumerate_cx_in_cols(matrix):
             cell = matrix[r][c]
             if cell and 'cx' in cell[0].name:
 
-                # 1) clone the two instrs
-                m0 = copy.deepcopy(cell[0])
-                m1 = copy.deepcopy(matrix[r+1][c][0])
+                # TODO: integrate mutable matrices
+                # Tests
+                # m0 = copy.deepcopy(cell[0])
+                # m1 = copy.deepcopy(matrix[r+1][c][0])
+
+                # Main
+                m0 = cell[0].to_mutable()
+                m1 = matrix[r + 1][c][0].to_mutable()
 
                 # 2) rename them
                 m0.name = f"cx{cx_counter}"

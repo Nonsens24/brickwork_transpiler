@@ -5,7 +5,7 @@ from qiskit.quantum_info import Statevector
 import bricks
 import utils
 import visualiser
-from src.brickwork_transpiler import decomposer, graph_builder
+from src.brickwork_transpiler import decomposer, graph_builder, pattern_converter
 
 
 def main():
@@ -36,9 +36,6 @@ def main():
     qc_mat = decomposer.instructions_to_matrix_dag(decomposed_qc)
     visualiser.print_matrix(qc_mat)
 
-    enum = decomposer.enumerate_cx_in_cols(qc_mat)
-    visualiser.print_matrix(enum)
-
     qc_mat = decomposer.incorporate_bricks(qc_mat)
     visualiser.print_matrix(qc_mat)
 
@@ -47,6 +44,8 @@ def main():
     bw_nx_graph = graph_builder.to_networkx_graph(bw_graph_data)
 
     visualiser.plot_graph(bw_nx_graph)
+
+    pattern_converter.to_pattern(qc_mat, bw_nx_graph)
 
     # print("Laying a brick:")
     # pattern = bricks.arbitrary_brick(1/4, 1/4, 1/4)
