@@ -46,8 +46,9 @@ def main():
     # 150 dpi × 6in = 900px wide, for instance
 
     # 4) Save to disk in any vector or raster format
-    fig.savefig("qc_diagram.svg", format="svg", bbox_inches="tight")  # vector
-    fig.savefig("qc_diagram.png", format="png", dpi=150, bbox_inches="tight")  # raster
+    # fig.savefig("qc_diagram.svg", format="svg", bbox_inches="tight")  # vector
+    fig.savefig("qc_diagram.pdf", format="pdf", bbox_inches="tight")  # vector
+    # fig.savefig("qc_diagram.png", format="png", dpi=150, bbox_inches="tight")  # raster
 
     # 5) If you just want to display in a script or notebook:
     plt.show()
