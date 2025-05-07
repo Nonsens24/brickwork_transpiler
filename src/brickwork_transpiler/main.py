@@ -15,10 +15,10 @@ from src.brickwork_transpiler.visualiser import plot_graph
 def main():
 
     # 1) Create the |++> state directly
-    psi = Statevector.from_label('+++++')  # two-qubit plus state
+    psi = Statevector.from_label('++++++++')  # two-qubit plus state
 
     # 2) Define your 2-qubit circuit (no H gates needed)
-    qc = QuantumCircuit(5)
+    qc = QuantumCircuit(8)
     qc.h(0)
     qc.rx(np.pi/3, 0)
     qc.cx(0, 1)
@@ -27,15 +27,26 @@ def main():
     qc.rz(-np.pi/4, 1)
     qc.cx(0, 1)
     qc.rx(np.pi/3, 3)
-    qc.cx(1, 2)
     qc.rz(np.pi/2, 2)
     qc.rz(-np.pi/4, 4)
-    qc.cx(1, 2)
     qc.cx(3, 4)
     qc.rz(np.pi/2, 4)
     qc.rz(np.pi / 2, 3)
     qc.rz(np.pi / 2, 4)
     qc.rx(np.pi / 2, 4)
+
+    qc.rz(np.pi / 2, 6)
+    qc.rz(np.pi / 2, 7)
+    qc.rx(np.pi / 2, 4)
+    qc.cx(5, 6)
+    qc.rz(np.pi / 2, 3)
+    qc.rz(np.pi / 2, 6)
+    qc.rx(np.pi / 2, 5)
+    qc.cx(6, 7)
+    qc.rz(np.pi / 2, 4)
+    qc.rx(np.pi / 2, 5)
+    qc.rz(np.pi / 2, 6)
+    qc.rz(np.pi / 2, 7)
 
     # 2) Draw as an mpl Figure
     #    output='mpl' returns a matplotlib.figure.Figure
@@ -48,7 +59,7 @@ def main():
     # 4) Save to disk in any vector or raster format
     # fig.savefig("qc_diagram.svg", format="svg", bbox_inches="tight")  # vector
     fig.savefig("qc_diagram.pdf", format="pdf", bbox_inches="tight")  # vector
-    # fig.savefig("qc_diagram.png", format="png", dpi=150, bbox_inches="tight")  # raster
+    fig.savefig("qc_diagram.png", format="png", dpi=300, bbox_inches="tight")  # raster
 
     # 5) If you just want to display in a script or notebook:
     plt.show()

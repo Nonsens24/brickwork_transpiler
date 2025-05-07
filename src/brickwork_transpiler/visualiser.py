@@ -227,6 +227,7 @@ def plot_brickwork_graph_from_pattern(
     plt.show()
     #Save vector graphics img
     fig.savefig("brickwork_graph.pdf", format="pdf", bbox_inches="tight")
+    fig.savefig("brickwork_graph.png", format="png", dpi=300, bbox_inches="tight")
 
 
 
