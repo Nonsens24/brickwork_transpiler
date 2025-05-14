@@ -5,6 +5,9 @@ from qiskit.circuit import Instruction
 from qiskit.converters import circuit_to_dag
 from qiskit.dagcircuit import DAGOpNode
 
+from qiskit.visualization import dag_drawer
+
+
 
 def decompose_qc_to_bricks_qiskit(qc, opt=1, draw=False):
 
@@ -30,6 +33,10 @@ def group_with_dag_atomic_rotations(qc: QuantumCircuit):
     total = len(op_nodes)
     scheduled = set()
     columns = []
+
+    dag_drawer(dag) #Vis
+    # Save the DAGDependency graph to a file
+    dag_drawer(dag,  filename='dag_dependency.png')
 
     while len(scheduled) < total:
         # --- rotation phase: drain *all* ready rotations (rz/rx) ---
