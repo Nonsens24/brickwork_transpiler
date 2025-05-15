@@ -80,12 +80,23 @@ def lay_brick(angles, brick_type, r, c, cell, node_colours):
             (r, (c * 4) + 3): 1/4,
 
             (r+1, (c * 4) + 0): 0.0,
-            (r+1, (c * 4) + 1): 0/0,
+            (r+1, (c * 4) + 1): 0.0,
             (r+1, (c * 4) + 2): -1/4,
             (r+1, (c * 4) + 3): 0.0,
         })
+        node_colours.update({
+            (r, (c * 4) + 0): 'LightSalmon',
+            (r, (c * 4) + 1): 'LightSalmon',
+            (r, (c * 4) + 2): 'LightSalmon',
+            (r, (c * 4) + 3): 'LightSalmon',
+
+            (r + 1, (c * 4) + 0): 'LightSalmon',
+            (r + 1, (c * 4) + 1): 'LightSalmon',
+            (r + 1, (c * 4) + 2): 'LightSalmon',
+            (r + 1, (c * 4) + 3): 'LightSalmon',
+        })
     # CX target bottom
-    elif brick_type == "CXtb":
+    elif brick_type == "CXct":
         angles.update({
             (r, (c * 4) + 0): 0.0,
             (r, (c * 4) + 1): 0.0,
@@ -97,11 +108,25 @@ def lay_brick(angles, brick_type, r, c, cell, node_colours):
             (r+1, (c * 4) + 2): 0.0,
             (r+1, (c * 4) + 3): 1/4,
         })
+        node_colours.update({
+            (r, (c * 4) + 0): 'lightcoral',
+            (r, (c * 4) + 1): 'lightcoral',
+            (r, (c * 4) + 2): 'lightcoral',
+            (r, (c * 4) + 3): 'lightcoral',
+
+            (r + 1, (c * 4) + 0): 'lightcoral',
+            (r + 1, (c * 4) + 1): 'lightcoral',
+            (r + 1, (c * 4) + 2): 'lightcoral',
+            (r + 1, (c * 4) + 3): 'lightcoral',
+        })
     else:
         raise AssertionError(f"Unknown brick type: {brick_type} instuction type: {cell}")
 
 
 def to_pattern(insturction_matrix, structure_graph):
+
+    print("Inserting angles...", end=" ")
+
     num_qubits = len(insturction_matrix)
     num_cols = len(insturction_matrix[0])
 
@@ -125,9 +150,12 @@ def to_pattern(insturction_matrix, structure_graph):
             else:
                 for instr in cell:
                     # print("instr:", instr)
-                    if instr.name.startswith('cx'):
+                    if instr.name.startswith('cx') and instr.name.endswith('t'):
                         # print("lay cx brick")
-                        lay_brick(angles=angles, brick_type="CX", r=r, c=c, cell=cell, node_colours=node_colours)
+                        lay_brick(angles=angles, brick_type="CXtt", r=r, c=c, cell=cell, node_colours=node_colours)
+                        cx_placed = True
+                    elif instr.name.startswith('cx') and instr.name.endswith('c'):
+                        lay_brick(angles=angles, brick_type="CXct", r=r, c=c, cell=cell, node_colours=node_colours)
                         cx_placed = True
                     elif instr.name == 'rz' or instr.name == 'rx':
                         # print("lay euler rotation brick")
@@ -142,4 +170,5 @@ def to_pattern(insturction_matrix, structure_graph):
 
     brickwork_pattern = generate_from_graph(structure_graph, angles, inputs, outputs)
 
+    print("Done")
     return brickwork_pattern, node_colours

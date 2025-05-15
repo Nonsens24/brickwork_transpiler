@@ -12,11 +12,15 @@ from src.brickwork_transpiler import visualiser
 
 def decompose_qc_to_bricks_qiskit(qc, opt=1, draw=False):
 
+    print("Decomposing Quantum circuit to generator set...", end=" ")
+
     basis = ['rz', 'rx', 'cx', 'id']  # include 'id' for explicit barriers/timing
     qc_basis = transpile(qc, basis_gates=basis, optimization_level=opt)
 
     if draw:
         print(qc_basis.draw())
+
+    print("Done")
 
     return qc_basis
 
@@ -29,6 +33,8 @@ def group_with_dag_atomic_rotations(qc: QuantumCircuit):
         all go into the *same* rotation column.
       • In the CX phase we still pack non-overlapping CXs per column.
     """
+    print("Building dependency graph...", end=" ")
+
     dag = circuit_to_dag(qc)
     op_nodes = list(dag.topological_op_nodes())
     total = len(op_nodes)
@@ -107,6 +113,7 @@ def group_with_dag_atomic_rotations(qc: QuantumCircuit):
                 "circuit may have a cycle"
             )
 
+    print("Done")
     return columns
 
 
@@ -114,36 +121,33 @@ def instructions_to_matrix_dag(qc: QuantumCircuit):
     """
     Builds the per-qubit × per-column instruction matrix
     from the atomic-rotation grouping above.
+    Also encodes all necessary gate info into the matrix
     """
-    print("Building dependency graph...")
+
     cols = group_with_dag_atomic_rotations(qc)
     n_q = qc.num_qubits
     n_c = len(cols)
     matrix = [[[] for _ in range(n_c)] for _ in range(n_q)]
 
-    print("Building instruction matrix")
+    print("Building instruction matrix...", end=" ")
 
     for c_idx, col in enumerate(cols):  # c_idx is column index
         cx_idx = 0
         for instr, qargs, _ in col:     # qargs[0] is the control qubit
-            control_qubit = True
+            control_qubit = True        # Hence the first iteration is always control
             for q in qargs:
-                # print(f"ISNTR: {instr}")
-                # print(f"qargs: {qargs[0]}")
                 # Enhance Instruction data for CX
                 instr_mut = instr.to_mutable()
                 if instr_mut.name == 'cx' and control_qubit:
-                    print(f"{cx_idx}c -- CONTROL inserted into name -- {instr_mut.name}")
                     instr_mut.name = f"cx{cx_idx}c"
                     control_qubit = False
                 elif instr_mut.name == 'cx' and not control_qubit:
                     instr_mut.name = f"cx{cx_idx}t"
-                    print(f"{cx_idx}t -- TARGET inserted into name -- {instr_mut.name}")
 
                 matrix[q._index][c_idx].append(instr_mut)
             cx_idx += 1 # increment CX id after both parts of CX have been identified and logged
 
-    visualiser.print_matrix(matrix)
+    print("Done")
     return matrix
 
 # top control bot target
@@ -159,111 +163,197 @@ def instructions_to_matrix_dag(qc: QuantumCircuit):
 # qargs: (Qubit(QuantumRegister(2, 'q'), 1), Qubit(QuantumRegister(2, 'q'), 0))
 
 
-def enumerate_cx_in_cols(matrix):
-    num_qubits = len(matrix)
-    num_cols   = len(matrix[0])
+# def enumerate_cx_in_cols(matrix):
+#     num_qubits = len(matrix)
+#     num_cols   = len(matrix[0])
+#
+#     for c in range(num_cols):
+#         cx_counter = 0
+#         r = 0
+#         while r < num_qubits - 1:
+#             cell = matrix[r][c]
+#             if cell and 'cx' in cell[0].name:
+#                 print(f"Cell name: {cell[0].name}")
+#
+#                 # Qiskit instruction
+#                 if isinstance(cell[0], Instruction):
+#                     m0 = cell[0].to_mutable()
+#                     m1 = matrix[r + 1][c][0].to_mutable()
+#                 # Dummy test instruction
+#                 else:
+#                     m0 = copy.deepcopy(cell[0])
+#                     m1 = copy.deepcopy(matrix[r+1][c][0])
+#
+#                 # Set values
+#                 m0.name = f"cx{cx_counter}"
+#                 m1.name = f"cx{cx_counter}"
+#
+#                 # Update
+#                 matrix[r][c][0]   = m0
+#                 matrix[r+1][c][0] = m1
+#
+#                 cx_counter += 1
+#                 r += 2  # CX comes in pairs
+#                 continue
+#
+#             r += 1
+#
+#     return matrix
 
-    for c in range(num_cols):
-        cx_counter = 0
-        r = 0
-        while r < num_qubits - 1:
-            cell = matrix[r][c]
-            if cell and 'cx' in cell[0].name:
-                print(f"Cell name: {cell[0].name}")
+import logging
 
-                # Qiskit instruction
-                if isinstance(cell[0], Instruction):
-                    m0 = cell[0].to_mutable()
-                    m1 = matrix[r + 1][c][0].to_mutable()
-                # Dummy test instruction
-                else:
-                    m0 = copy.deepcopy(cell[0])
-                    m1 = copy.deepcopy(matrix[r+1][c][0])
+logger = logging.getLogger(__name__)
+import logging
 
-                # Set values
-                m0.name = f"cx{cx_counter}"
-                m1.name = f"cx{cx_counter}"
+logger = logging.getLogger(__name__)
 
-                # Update
-                matrix[r][c][0]   = m0
-                matrix[r+1][c][0] = m1
+def align_bricks(matrix):
+    """
+    Align CX and rotation operations into parity-based bricks.
 
-                cx_counter += 1
-                r += 2  # CX comes in pairs
-                continue
+    Args:
+        matrix (List[List[Instruction]]): A list of qubit rows, each containing
+            time-ordered columns of gate instructions. Instruction names include
+            'rz', 'rx', 'cx{n}c' (control), or 'cx{n}t' (target). Suffix and role
+            are parsed directly from instr.name.
 
-            r += 1
+    Returns:
+        List[List[List[Instruction]]]: Reorganized matrix with shape [n_qubits][n_bricks].
+    """
 
-    return matrix
+    print("Aligning bricks...", end=" ")
 
-
-def incorporate_bricks(matrix):
     n_q = len(matrix)
-    n_c = len(matrix[0])
-    new_cols = []
+    if not matrix:
+        return []
+
+    # Transpose to iterate columns
+    cols = list(zip(*matrix))
+    bricks = []
     brick_idx = 0
 
-    matrix = enumerate_cx_in_cols(matrix)
+    for col in cols:
+        # 1) collect single-qubit rotations
+        rotations = [[instr for instr in row if instr.name in ('rz', 'rx')]
+                     for row in col]
 
-    visualiser.print_matrix(matrix)
+        # 2) map CX suffix to top-qubit index regardless of control/target role
+        suffix_top = {}
+        for i, row in enumerate(col):
+            for instr in row:
+                if instr.name.startswith('cx'):
+                    suffix = instr.name[2:-1]
+                    suffix_top[suffix] = min(suffix_top.get(suffix, i), i)
 
-    for c in range(n_c):
-        # 1) collect rotations
-        rotations = [
-            [instr for instr in matrix[q][c] if instr.name in ('rz', 'rx')]
-            for q in range(n_q)
-        ]
-        # 2) map each numeric suffix to its starting qubit i
-        num_to_i = {}
-        for i in range(n_q - 1):
-            names_i   = {instr.name for instr in matrix[i][c]   if instr.name.startswith('cx')}
-            names_ip1 = {instr.name for instr in matrix[i+1][c] if instr.name.startswith('cx')}
-            for full in names_i & names_ip1:
-                num_to_i[full[2:]] = i
-
-        # 3) no CNOTs → pure‐rotation brick
-        if not num_to_i:
-            new_cols.append(rotations)
+        # 3) if no CX, schedule pure-rotation brick
+        if not suffix_top:
+            bricks.append(rotations)
             brick_idx += 1
             continue
 
-        # 4) schedule in as few bricks as possible, grouping same‐parity, non‐conflicting CNOTs
-        unscheduled = list(num_to_i.keys())
+        # 4) schedule CX bricks by parity of top-qubit row
+        unscheduled = set(suffix_top)
         while unscheduled:
-            parity   = brick_idx % 2
-            # pick all groups whose i has correct parity
-            to_place = [n for n in unscheduled if (num_to_i[n] % 2) == parity]
+            parity = brick_idx % 2
+            # select suffixes whose top row matches current parity
+            to_place = {s for s, top in suffix_top.items() if top % 2 == parity and s in unscheduled}
+
             if not to_place:
-                # nothing fits → blank brick
-                new_cols.append([[] for _ in range(n_q)])
+                # insert empty brick to flip parity
+                bricks.append([[] for _ in range(n_q)])
                 brick_idx += 1
                 continue
 
-            # build a brick with all rotations + all selected cx<n>
+            # build a brick: combine rotations + all cx instructions with these suffixes
             layer = []
-            for q in range(n_q):
-                ops = list(rotations[q])
-                for n in to_place:
-                    i = num_to_i[n]
-                    if q == i or q == i+1:
-                        # grab the cx<n> on this wire
-                        for instr in matrix[q][c]:
-                            if instr.name == f'cx{n}':
-                                ops.append(instr)
-                                break
+            for row in col:
+                ops = [instr for instr in row if instr.name in ('rz', 'rx')]
+                for suffix in to_place:
+                    ops.extend(instr for instr in row if instr.name.startswith(f'cx{suffix}'))
                 layer.append(ops)
 
-            new_cols.append(layer)
+            bricks.append(layer)
             brick_idx += 1
-            # mark them done
-            for n in to_place:
-                unscheduled.remove(n)
+            unscheduled -= to_place
 
+    print("Done")
     # transpose back to [qubit][brick]
-    return [
-        [new_cols[b][q] for b in range(len(new_cols))]
-        for q in range(n_q)
-    ]
+    return [[brick[i] for brick in bricks] for i in range(n_q)]
+
+
+
+# def align_bricks(matrix):
+#
+#     print("Aligning Bricks...", end=" ")
+#
+#     n_q = len(matrix)       # Number of qubits
+#     n_c = len(matrix[0])    # Number of columns
+#     new_cols = []
+#     brick_idx = 0
+#
+#     # matrix = enumerate_cx_in_cols(matrix)
+#
+#     visualiser.print_matrix(matrix)
+#
+#     for c in range(n_c):
+#         # 1) collect rotations
+#         rotations = [
+#             [instr for instr in matrix[q][c] if instr.name in ('rz', 'rx')]
+#             for q in range(n_q)
+#         ]
+#         # 2) map each numeric suffix to its starting qubit i
+#         num_to_i = {}
+#         for i in range(n_q - 1):
+#             names_i   = {instr.name for instr in matrix[i][c]   if instr.name.startswith('cx')}
+#             names_ip1 = {instr.name for instr in matrix[i+1][c] if instr.name.startswith('cx')}
+#             for full in names_i & names_ip1:
+#                 num_to_i[full[2:]] = i
+#
+#         # 3) no CNOTs → pure‐rotation brick
+#         if not num_to_i:
+#             new_cols.append(rotations)
+#             brick_idx += 1
+#             continue
+#
+#         # 4) schedule in as few bricks as possible, grouping same‐parity, non‐conflicting CNOTs
+#         unscheduled = list(num_to_i.keys())
+#         while unscheduled:
+#             parity   = brick_idx % 2
+#             # pick all groups whose i has correct parity
+#             to_place = [n for n in unscheduled if (num_to_i[n] % 2) == parity]
+#             if not to_place:
+#                 # nothing fits → blank brick
+#                 new_cols.append([[] for _ in range(n_q)])
+#                 brick_idx += 1
+#                 continue
+#
+#             # build a brick with all rotations + all selected cx<n>
+#             layer = []
+#             for q in range(n_q):
+#                 ops = list(rotations[q])
+#                 for n in to_place:
+#                     i = num_to_i[n]
+#                     if q == i or q == i+1:
+#                         # grab the cx<n> on this wire
+#                         for instr in matrix[q][c]:
+#                             if instr.name == f'cx{n}':
+#                                 ops.append(instr)
+#                                 break
+#                 layer.append(ops)
+#
+#             new_cols.append(layer)
+#             brick_idx += 1
+#             # mark them done
+#             for n in to_place:
+#                 unscheduled.remove(n)
+#
+#     print("Done")
+#
+#     # transpose back to [qubit][brick]
+#     return [
+#         [new_cols[b][q] for b in range(len(new_cols))]
+#         for q in range(n_q)
+#     ]
 
 
 
