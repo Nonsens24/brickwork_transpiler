@@ -23,6 +23,7 @@ import bricks
 import utils
 import visualiser
 from libs.gospel.gospel.brickwork_state_transpiler.brickwork_state_transpiler import generate_random_pauli_pattern
+from libs.gospel.gospel.brickwork_state_transpiler.brickwork_state_transpiler import transpile
 from src.brickwork_transpiler import decomposer, graph_builder, pattern_converter
 from src.brickwork_transpiler.noise import to_noisy_pattern
 from src.brickwork_transpiler.visualiser import plot_graph
@@ -34,15 +35,57 @@ from graphix.channels import depolarising_channel
 
 
 def main():
+    # small_graphix_example.py
+    # A minimal example using Graphix MBQC library
+
+    from graphix.transpiler import Circuit
+
+    # 1) Define a simple 1-qubit circuit: Hadamard followed by T gate
+    circuit = Circuit(2)
+    circuit.rz(0, np.pi/4)
+    circuit.rx(0, np.pi / 4)
+    circuit.rz(0, np.pi / 4)
+    circuit.cnot(0, 1)
+    # circuit.t(0)
+
+    # 2) Transpile the circuit to an MBQC measurement pattern (brickwork)
+    # pattern = circuit.transpile()
+
+    gospel_bw = transpile(circuit)
+
+    # gospel_bw.print_pattern()
+
+    visualiser.plot_graphix_noise_graph(gospel_bw)
+
+    # 4) Simulate the pattern to obtain the final statevector
+    gospel_result = gospel_bw.simulate_pattern(backend='statevector')
+    print("\nFinal statevector:", gospel_result)
+
 
     # 1) Create the |++> state directly
-    psi = Statevector.from_label('++')  # two-qubit plus state
+    psi = Statevector.from_label('+')  # two-qubit plus state
+
+
+    qc_init_H = QuantumCircuit(2)
+    qc_init_H.h(0)
+    qc_init_H.h(1)
+    qc_init_H.rz(np.pi/5, 0)
 
     # 2) Define your 2-qubit circuit (no H gates needed)
     qc = QuantumCircuit(2)
-    qc.h(0)
-    qc.rx(np.pi/3, 1)
+    # qc.h(0)
+    # qc.rz(np.pi/2, 0)
+    # qc.h(0)
+    # qc.t(0)
+    # qc.t(0)
+    # qc.t(1)
+    qc.rz(np.pi / 4, 0)
+    qc.rx(np.pi / 4, 0)
+    qc.rz(np.pi / 4, 0)
     qc.cx(0, 1)
+    # qc.cx(1, 0)
+    # qc.rx(np.pi/3, 1)
+    # qc.cx(0, 1)
     # qc.rz(np.pi/2, 2)
     # qc.rx(-np.pi/3, 2)
     # qc.rz(-np.pi/4, 2)
@@ -87,6 +130,8 @@ def main():
     plt.show()
 
 
+
+
     decomposed_qc = decomposer.decompose_qc_to_bricks_qiskit(qc, 3)
 
     qc_mat = decomposer.instructions_to_matrix_dag(decomposed_qc)
@@ -103,6 +148,12 @@ def main():
 
     bw_pattern, col_map = pattern_converter.to_pattern(qc_mat, bw_nx_graph)
     # bw_pattern.print_pattern(lim = 10000)
+
+    print("printing my bw")
+    bw_pattern.print_pattern(lim=1000)
+
+    print("pritnign gospel")
+    gospel_bw.print_pattern(lim=1000)
 
     # Noise
     # bw_noisy = to_noisy_pattern(bw_pattern, 0.01, 0.005)
@@ -184,14 +235,35 @@ def main():
     # outstate = bw_pattern.simulate_pattern(backend='statevector').flatten()
     # print("Graphix simulator output:", outstate)
 
+    bw_pattern.standardize()
+    bw_pattern.shift_signals()
+
+    visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+                                                 node_colours=col_map,
+                                                 use_node_colours=True,
+                                                 title="Brickwork Graph: main after signal shift and standardisation")
+
+    bw_pattern.print_pattern(lim=1000)
+
+    outstate = bw_pattern.simulate_pattern(backend='statevector')
+
     # Calculate reference statevector
-    psi_out = psi.evolve(qc)
-    print("Qiskit reference state vector: ", psi_out.data)
+    # psi_out = psi.evolve(qc)
+    # print("Qiskit reference state vector: ", psi_out.data)
 
     # sv2 = Statevector.from_instruction(qc).data
     # print("Qiskit reference output: ", sv2)
 
-    # utils.assert_equal_up_to_global_phase(outstate, psi_out.data)
+    ref_state = Statevector.from_instruction(qc_init_H).data
+    print(f"Qiskit ref_state: {ref_state}")
+    # if utils.assert_equal_up_to_global_phase(gospel_result.flatten(), ref_state.data):
+    #     print("GOSPEL QISKIT Equal up to global phase")
+
+    if utils.assert_equal_up_to_global_phase(gospel_result.flatten(), outstate.flatten()):
+        print("GOSPEL MYTP Equal up to global phase")
+
+    # if utils.assert_equal_up_to_global_phase(outstate, ref_state.data):
+    #     print("Equal up to global phase")
 
     # print("Laying a brick:")
     # pattern = bricks.arbitrary_brick(1/4, 1/4, 1/4)

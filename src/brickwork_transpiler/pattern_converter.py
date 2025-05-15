@@ -9,14 +9,16 @@ def parse_euler_angles(cell):
         if instr.name == 'rz':
             if index != 0 and index != 2:
                 raise AssertionError(f"Index wrong: {index}, instuction: {instr}")
-            rotations[index] = -float(instr.params[0]) / np.pi # - for convetion graphix -- add source
+            rotations[index] = -float(instr.params[0])/ np.pi # - for convetion graphix -- add source
+            # rotations[index] /= 2
         elif instr.name == 'rx':
             rotations[1] = -float(instr.params[0]) / np.pi #rx is always the second entry
+            # rotations[1] /= 2
         index = index + 1
 
     return rotations
 
-def lay_brick(angles, brick_type, r, c, cell, node_colours):
+def inject_angles(angles, brick_type, r, c, cell, node_colours):
 
     if brick_type == "id":
         angles.update({
@@ -70,18 +72,17 @@ def lay_brick(angles, brick_type, r, c, cell, node_colours):
             (r + 1, (c * 4) + 3): 'lightcoral',
         })
 
-    # TODO: Discern between target top and bottom - also add colours (different shade??)
     # CX target top
     elif brick_type == "CXtt":
         angles.update({
             (r, (c * 4) + 0): 0.0,
-            (r, (c * 4) + 1): -1/4,
+            (r, (c * 4) + 1): 1/2,
             (r, (c * 4) + 2): 0.0,
-            (r, (c * 4) + 3): 1/4,
+            (r, (c * 4) + 3): -1/2,
 
             (r+1, (c * 4) + 0): 0.0,
             (r+1, (c * 4) + 1): 0.0,
-            (r+1, (c * 4) + 2): -1/4,
+            (r+1, (c * 4) + 2): 1/2,
             (r+1, (c * 4) + 3): 0.0,
         })
         node_colours.update({
@@ -100,13 +101,13 @@ def lay_brick(angles, brick_type, r, c, cell, node_colours):
         angles.update({
             (r, (c * 4) + 0): 0.0,
             (r, (c * 4) + 1): 0.0,
-            (r, (c * 4) + 2): -1/4,
+            (r, (c * 4) + 2): 1/2,
             (r, (c * 4) + 3): 0.0,
 
             (r+1, (c * 4) + 0): 0.0,
-            (r+1, (c * 4) + 1): -1/4,
+            (r+1, (c * 4) + 1): 1/2,
             (r+1, (c * 4) + 2): 0.0,
-            (r+1, (c * 4) + 3): 1/4,
+            (r+1, (c * 4) + 3): -1/2,
         })
         node_colours.update({
             (r, (c * 4) + 0): 'lightcoral',
@@ -125,7 +126,7 @@ def lay_brick(angles, brick_type, r, c, cell, node_colours):
 
 def to_pattern(insturction_matrix, structure_graph):
 
-    print("Inserting angles...", end=" ")
+    print("Injecting angles...", end=" ")
 
     num_qubits = len(insturction_matrix)
     num_cols = len(insturction_matrix[0])
@@ -146,20 +147,20 @@ def to_pattern(insturction_matrix, structure_graph):
 
             if cell == []:
                 # print("lay identity brick")
-                lay_brick(angles=angles, brick_type="id", r=r, c=c, cell=None, node_colours=node_colours)
+                inject_angles(angles=angles, brick_type="id", r=r, c=c, cell=None, node_colours=node_colours)
             else:
                 for instr in cell:
                     # print("instr:", instr)
                     if instr.name.startswith('cx') and instr.name.endswith('t'):
                         # print("lay cx brick")
-                        lay_brick(angles=angles, brick_type="CXtt", r=r, c=c, cell=cell, node_colours=node_colours)
+                        inject_angles(angles=angles, brick_type="CXtt", r=r, c=c, cell=cell, node_colours=node_colours)
                         cx_placed = True
                     elif instr.name.startswith('cx') and instr.name.endswith('c'):
-                        lay_brick(angles=angles, brick_type="CXct", r=r, c=c, cell=cell, node_colours=node_colours)
+                        inject_angles(angles=angles, brick_type="CXct", r=r, c=c, cell=cell, node_colours=node_colours)
                         cx_placed = True
                     elif instr.name == 'rz' or instr.name == 'rx':
                         # print("lay euler rotation brick")
-                        lay_brick(angles=angles, brick_type="euler_rot", r=r, c=c, cell=cell, node_colours=node_colours)
+                        inject_angles(angles=angles, brick_type="euler_rot", r=r, c=c, cell=cell, node_colours=node_colours)
                     else:
                         raise AssertionError(f"Unrecognized instruction: {instr.name}")
 
