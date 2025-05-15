@@ -233,7 +233,7 @@ def plot_brickwork_graph_from_pattern(
 
 # plot_graphix_pattern_scalar_index.py
 
-def plot_graphix_pattern_scalar_index(
+def plot_graphix_noise_graph(
         pattern,
         show_angles: bool = True,
         node_size: float = 600,

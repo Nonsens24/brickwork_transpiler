@@ -8,8 +8,9 @@ from matplotlib import pyplot as plt
 from qiskit import QuantumCircuit
 from qiskit.quantum_info import Statevector
 from qiskit.visualization import circuit_drawer
-sys.path.append('/Users/rexfleur/Documents/TUDelft/Master_CESE/Thesis/Code/gospel')  # Full path to the cloned repo
-from gospel.brickwork_state_transpiler import generate_random_pauli_pattern
+# sys.path.append('/Users/rexfleur/Documents/TUDelft/Master_CESE/Thesis/Code/gospel')  # Full path to the cloned repo
+# from gospel.brickwork_state_transpiler import generate_random_pauli_pattern
+# from gospel.brick
 # from gospel.brickwork_state_transpiler import (
 #     generate_random_pauli_pattern,
 #     # generate_random_dephasing_pattern,
@@ -21,9 +22,15 @@ from gospel.brickwork_state_transpiler import generate_random_pauli_pattern
 import bricks
 import utils
 import visualiser
+from libs.gospel.gospel.brickwork_state_transpiler.brickwork_state_transpiler import generate_random_pauli_pattern
 from src.brickwork_transpiler import decomposer, graph_builder, pattern_converter
 from src.brickwork_transpiler.noise import to_noisy_pattern
 from src.brickwork_transpiler.visualiser import plot_graph
+
+from graphix.pattern import Pattern
+from graphix.channels import depolarising_channel
+
+
 
 
 def main():
@@ -151,7 +158,20 @@ def main():
                                                  title="Brickwork Graph: main")
 
     noise_graph = generate_random_pauli_pattern(n_qubits, n_layers)
-    visualiser.plot_graphix_pattern_scalar_index(noise_graph, save=True)
+    visualiser.plot_graphix_noise_graph(noise_graph, save=True)
+
+    # Assume 'pattern' is your existing measurement pattern
+    # Define a depolarizing channel with a probability of 0.05
+    depolarizing = depolarising_channel(prob=0.01)
+
+    # Apply the depolarizing channel to qubit 0
+    # bw_pattern.(depolarizing)
+
+    visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+                                                 node_colours=col_map,
+                                                 use_node_colours=True,
+                                                 title="Brickwork Graph: Noise Injected")
+
     # visualiser.visualize_brickwork_graph(bw_pattern)
 
     # visualiser.plot_brickwork_graph_from_pattern(bw_noisy,

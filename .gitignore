@@ -55,3 +55,6 @@ Desktop.ini
 .mypy_cache/
 .pytest_cache/
 .tox/
+
+#other code:
+libs/
