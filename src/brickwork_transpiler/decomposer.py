@@ -7,6 +7,7 @@ from qiskit.dagcircuit import DAGOpNode
 
 from qiskit.visualization import dag_drawer
 
+from src.brickwork_transpiler import visualiser
 
 
 def decompose_qc_to_bricks_qiskit(qc, opt=1, draw=False):
@@ -114,17 +115,49 @@ def instructions_to_matrix_dag(qc: QuantumCircuit):
     Builds the per-qubit × per-column instruction matrix
     from the atomic-rotation grouping above.
     """
+    print("Building dependency graph...")
     cols = group_with_dag_atomic_rotations(qc)
     n_q = qc.num_qubits
     n_c = len(cols)
     matrix = [[[] for _ in range(n_c)] for _ in range(n_q)]
 
-    for c_idx, col in enumerate(cols):
-        for instr, qargs, _ in col:
-            for q in qargs:
-                matrix[q._index][c_idx].append(instr)
+    print("Building instruction matrix")
 
+    for c_idx, col in enumerate(cols):  # c_idx is column index
+        cx_idx = 0
+        for instr, qargs, _ in col:     # qargs[0] is the control qubit
+            control_qubit = True
+            for q in qargs:
+                # print(f"ISNTR: {instr}")
+                # print(f"qargs: {qargs[0]}")
+                # Enhance Instruction data for CX
+                instr_mut = instr.to_mutable()
+                if instr_mut.name == 'cx' and control_qubit:
+                    print(f"{cx_idx}c -- CONTROL inserted into name -- {instr_mut.name}")
+                    instr_mut.name = f"cx{cx_idx}c"
+                    control_qubit = False
+                elif instr_mut.name == 'cx' and not control_qubit:
+                    instr_mut.name = f"cx{cx_idx}t"
+                    print(f"{cx_idx}t -- TARGET inserted into name -- {instr_mut.name}")
+
+                matrix[q._index][c_idx].append(instr_mut)
+            cx_idx += 1 # increment CX id after both parts of CX have been identified and logged
+
+    visualiser.print_matrix(matrix)
     return matrix
+
+# top control bot target
+# ISNTR: Instruction(name='cx', num_qubits=2, num_clbits=0, params=[])
+# qargs: (Qubit(QuantumRegister(2, 'q'), 0), Qubit(QuantumRegister(2, 'q'), 1))
+# ISNTR: Instruction(name='cx', num_qubits=2, num_clbits=0, params=[])
+# qargs: (Qubit(QuantumRegister(2, 'q'), 0), Qubit(QuantumRegister(2, 'q'), 1))
+
+# bot target
+# ISNTR: Instruction(name='cx', num_qubits=2, num_clbits=0, params=[])
+# qargs: (Qubit(QuantumRegister(2, 'q'), 1), Qubit(QuantumRegister(2, 'q'), 0))
+# ISNTR: Instruction(name='cx', num_qubits=2, num_clbits=0, params=[])
+# qargs: (Qubit(QuantumRegister(2, 'q'), 1), Qubit(QuantumRegister(2, 'q'), 0))
+
 
 def enumerate_cx_in_cols(matrix):
     num_qubits = len(matrix)
@@ -136,6 +169,7 @@ def enumerate_cx_in_cols(matrix):
         while r < num_qubits - 1:
             cell = matrix[r][c]
             if cell and 'cx' in cell[0].name:
+                print(f"Cell name: {cell[0].name}")
 
                 # Qiskit instruction
                 if isinstance(cell[0], Instruction):
@@ -170,6 +204,8 @@ def incorporate_bricks(matrix):
     brick_idx = 0
 
     matrix = enumerate_cx_in_cols(matrix)
+
+    visualiser.print_matrix(matrix)
 
     for c in range(n_c):
         # 1) collect rotations

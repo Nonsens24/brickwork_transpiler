@@ -137,21 +137,22 @@ def test_mixed_diff_parity_cx():
     assert 'cx1' in names(out)[4][1]
 
 
-# def test_rotations_with_cx():
-#     # Two columns: rotations only, then mixed CX and rotations
-#     cols = [
-#         [['rz'], ['rx'], ['rz'], []],
-#         [['cx'], ['cx'], [], ['rz']],
-#     ]
-#     mat = mk_matrix(4, cols)
-#     out = incorporate_bricks(mat)
-#     # There should be at least two bricks emitted
-#     assert len(out[0]) >= 2
-#     # Rotations should appear alongside CXs in each brick
-#     visualiser.print_matrix(out)
-#     for b in range(len(out[0])):
-#         # either a rotation or a CX must be present on qubit 0
-#         assert any(name in ('rz','cx0') for name in names(out)[0][b])
+def test_rotations_with_cx():
+    # Two columns: rotations only, then mixed CX and rotations
+    cols = [
+        [['rz'], ['rx'], ['rz'], []],
+        [['cx'], ['cx'], [], ['rz']],
+    ]
+    mat = mk_matrix(4, cols)
+    out = incorporate_bricks(mat)
+    # There should be at least two bricks emitted
+    assert len(out[0]) >= 2
+    # Rotations should appear alongside CXs in each brick
+    # visualiser.print_matrix(mat)
+    # visualiser.print_matrix(out)
+    # for b in range(len(out[0])):
+        # either a rotation or a CX must be present on qubit 0
+        # assert any(name in ('rz','cx0') for name in names(out)[0][b])
 
 
 if __name__ == '__main__':

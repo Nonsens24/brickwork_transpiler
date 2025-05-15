@@ -36,38 +36,38 @@ from graphix.channels import depolarising_channel
 def main():
 
     # 1) Create the |++> state directly
-    psi = Statevector.from_label('++++++++')  # two-qubit plus state
+    psi = Statevector.from_label('++')  # two-qubit plus state
 
     # 2) Define your 2-qubit circuit (no H gates needed)
-    qc = QuantumCircuit(8)
+    qc = QuantumCircuit(2)
     qc.h(0)
-    qc.rx(np.pi/3, 0)
+    qc.rx(np.pi/3, 1)
     qc.cx(0, 1)
-    qc.rz(np.pi/2, 1)
-    qc.rx(-np.pi/3, 1)
-    qc.rz(-np.pi/4, 1)
-    qc.cx(0, 1)
-    qc.rx(np.pi/3, 3)
-    qc.rz(np.pi/2, 2)
-    qc.rz(-np.pi/4, 4)
-    qc.cx(3, 4)
-    qc.rz(np.pi/2, 4)
-    qc.rz(np.pi / 2, 3)
-    qc.rz(np.pi / 2, 4)
-    qc.rx(np.pi / 2, 4)
-
-    qc.rz(np.pi / 2, 6)
-    qc.rz(np.pi / 2, 7)
-    qc.rx(np.pi / 2, 4)
-    qc.cx(5, 6)
-    qc.rz(np.pi / 2, 3)
-    qc.rz(np.pi / 2, 6)
-    qc.rx(np.pi / 2, 5)
-    qc.cx(6, 7)
-    qc.rz(np.pi / 2, 4)
-    qc.rx(np.pi / 2, 5)
-    qc.rz(np.pi / 2, 6)
-    qc.rz(np.pi / 2, 7)
+    # qc.rz(np.pi/2, 1)
+    # qc.rx(-np.pi/3, 1)
+    # qc.rz(-np.pi/4, 1)
+    # qc.cx(0, 1)
+    # qc.rx(np.pi/3, 3)
+    # qc.rz(np.pi/2, 2)
+    # qc.rz(-np.pi/4, 4)
+    # qc.cx(3, 4)
+    # qc.rz(np.pi/2, 4)
+    # qc.rz(np.pi / 2, 3)
+    # qc.rz(np.pi / 2, 4)
+    # qc.rx(np.pi / 2, 4)
+    #
+    # qc.rz(np.pi / 2, 6)
+    # qc.rz(np.pi / 2, 7)
+    # qc.rx(np.pi / 2, 4)
+    # qc.cx(5, 6)
+    # qc.rz(np.pi / 2, 3)
+    # qc.rz(np.pi / 2, 6)
+    # qc.rx(np.pi / 2, 5)
+    # qc.cx(6, 7)
+    # qc.rz(np.pi / 2, 4)
+    # qc.rx(np.pi / 2, 5)
+    # qc.rz(np.pi / 2, 6)
+    # qc.rz(np.pi / 2, 7)
 
     # 2) Draw as an mpl Figure
     #    output='mpl' returns a matplotlib.figure.Figure
@@ -157,20 +157,20 @@ def main():
                                                  use_node_colours=True,
                                                  title="Brickwork Graph: main")
 
-    noise_graph = generate_random_pauli_pattern(n_qubits, n_layers)
-    visualiser.plot_graphix_noise_graph(noise_graph, save=True)
+    # noise_graph = generate_random_pauli_pattern(n_qubits, n_layers)
+    # visualiser.plot_graphix_noise_graph(noise_graph, save=True)
 
     # Assume 'pattern' is your existing measurement pattern
     # Define a depolarizing channel with a probability of 0.05
-    depolarizing = depolarising_channel(prob=0.01)
+    # depolarizing = depolarising_channel(prob=0.01)
 
     # Apply the depolarizing channel to qubit 0
     # bw_pattern.(depolarizing)
 
-    visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
-                                                 node_colours=col_map,
-                                                 use_node_colours=True,
-                                                 title="Brickwork Graph: Noise Injected")
+    # visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+    #                                              node_colours=col_map,
+    #                                              use_node_colours=True,
+    #                                              title="Brickwork Graph: Noise Injected")
 
     # visualiser.visualize_brickwork_graph(bw_pattern)
 
