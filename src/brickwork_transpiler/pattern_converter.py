@@ -126,7 +126,7 @@ def inject_angles(angles, brick_type, r, c, cell, node_colours):
 
 def to_pattern(insturction_matrix, structure_graph):
 
-    print("Injecting angles...", end=" ")
+    # print("Injecting angles...", end=" ")
 
     num_qubits = len(insturction_matrix)
     num_cols = len(insturction_matrix[0])
@@ -171,5 +171,5 @@ def to_pattern(insturction_matrix, structure_graph):
 
     brickwork_pattern = generate_from_graph(structure_graph, angles, inputs, outputs)
 
-    print("Done")
+    # print("Done")
     return brickwork_pattern, node_colours

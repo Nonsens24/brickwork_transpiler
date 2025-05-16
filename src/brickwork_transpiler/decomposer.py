@@ -12,7 +12,7 @@ from src.brickwork_transpiler import visualiser
 
 def decompose_qc_to_bricks_qiskit(qc, opt=1, draw=False):
 
-    print("Decomposing Quantum circuit to generator set...", end=" ")
+    # print("Decomposing Quantum circuit to generator set...", end=" ")
 
     basis = ['rz', 'rx', 'cx', 'id']  # include 'id' for explicit barriers/timing
     qc_basis = transpile(qc, basis_gates=basis, optimization_level=opt)
@@ -20,7 +20,7 @@ def decompose_qc_to_bricks_qiskit(qc, opt=1, draw=False):
     if draw:
         print(qc_basis.draw())
 
-    print("Done")
+    # print("Done")
 
     return qc_basis
 
@@ -33,7 +33,7 @@ def group_with_dag_atomic_rotations(qc: QuantumCircuit):
         all go into the *same* rotation column.
       • In the CX phase we still pack non-overlapping CXs per column.
     """
-    print("Building dependency graph...", end=" ")
+    # print("Building dependency graph...", end=" ")
 
     dag = circuit_to_dag(qc)
     op_nodes = list(dag.topological_op_nodes())
@@ -113,7 +113,7 @@ def group_with_dag_atomic_rotations(qc: QuantumCircuit):
                 "circuit may have a cycle"
             )
 
-    print("Done")
+    # print("Done")
     return columns
 
 
@@ -129,7 +129,7 @@ def instructions_to_matrix_dag(qc: QuantumCircuit):
     n_c = len(cols)
     matrix = [[[] for _ in range(n_c)] for _ in range(n_q)]
 
-    print("Building instruction matrix...", end=" ")
+    # print("Building instruction matrix...", end=" ")
 
     for c_idx, col in enumerate(cols):  # c_idx is column index
         cx_idx = 0
@@ -147,7 +147,7 @@ def instructions_to_matrix_dag(qc: QuantumCircuit):
                 matrix[q._index][c_idx].append(instr_mut)
             cx_idx += 1 # increment CX id after both parts of CX have been identified and logged
 
-    print("Done")
+    # print("Done")
     return matrix
 
 # top control bot target
@@ -221,7 +221,7 @@ def align_bricks(matrix):
         List[List[List[Instruction]]]: Reorganized matrix with shape [n_qubits][n_bricks].
     """
 
-    print("Aligning bricks...", end=" ")
+    # print("Aligning bricks...", end=" ")
 
     n_q = len(matrix)
     if not matrix:
@@ -276,7 +276,7 @@ def align_bricks(matrix):
             brick_idx += 1
             unscheduled -= to_place
 
-    print("Done")
+    # print("Done")
     # transpose back to [qubit][brick]
     return [[brick[i] for brick in bricks] for i in range(n_q)]
 

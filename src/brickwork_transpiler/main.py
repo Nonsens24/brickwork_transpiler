@@ -41,11 +41,48 @@ def main():
     from graphix.transpiler import Circuit
 
     # 1) Define a simple 1-qubit circuit: Hadamard followed by T gate
-    circuit = Circuit(2)
+    circuit = Circuit(5)
     circuit.rz(0, np.pi/4)
     circuit.rx(0, np.pi / 4)
     circuit.rz(0, np.pi / 4)
+
+    circuit.rz(1, np.pi/4)
+    circuit.rx(1, np.pi / 4)
+    circuit.rz(1, np.pi / 4)
+
+    circuit.rz(2, np.pi/4)
+    circuit.rx(2, np.pi / 4)
+    circuit.rz(2, np.pi / 4)
+
+    circuit.rz(3, np.pi/4)
+    circuit.rx(3, np.pi / 4)
+    circuit.rz(3, np.pi / 4)
+
+    circuit.rz(4, np.pi/4)
+    circuit.rx(4, np.pi / 4)
+    circuit.rz(4, np.pi / 4)
     circuit.cnot(0, 1)
+
+    circuit.rz(1, np.pi/4)
+    circuit.rx(1, np.pi / 4)
+    circuit.rz(1, np.pi / 4)
+    circuit.cnot(1, 2)
+
+    circuit.rz(2, np.pi/4)
+    circuit.rx(2, np.pi / 4)
+    circuit.rz(2, np.pi / 4)
+    circuit.cnot(2, 3)
+
+    circuit.rz(3, np.pi/4)
+    circuit.rx(3, np.pi / 4)
+    circuit.rz(3, np.pi / 4)
+    circuit.cnot(3, 4)
+
+    circuit.rz(4, np.pi/4)
+    circuit.rx(4, np.pi / 4)
+    circuit.rz(4, np.pi / 4)
+
+
     # circuit.t(0)
 
     # 2) Transpile the circuit to an MBQC measurement pattern (brickwork)
@@ -72,7 +109,7 @@ def main():
     qc_init_H.rz(np.pi/5, 0)
 
     # 2) Define your 2-qubit circuit (no H gates needed)
-    qc = QuantumCircuit(2)
+    qc = QuantumCircuit(5)
     # qc.h(0)
     # qc.rz(np.pi/2, 0)
     # qc.h(0)
@@ -83,6 +120,26 @@ def main():
     qc.rx(np.pi / 4, 0)
     qc.rz(np.pi / 4, 0)
     qc.cx(0, 1)
+
+    qc.rz(np.pi / 4, 1)
+    qc.rx(np.pi / 4, 1)
+    qc.rz(np.pi / 4, 1)
+    qc.cx(0, 1)
+
+    qc.rz(np.pi / 4, 2)
+    qc.rx(np.pi / 4, 2)
+    qc.rz(np.pi / 4, 2)
+    qc.cx(1, 2)
+
+    qc.rz(np.pi / 4, 3)
+    qc.rx(np.pi / 4, 3)
+    qc.rz(np.pi / 4, 3)
+    qc.cx(2, 3)
+
+    qc.rz(np.pi / 4, 4)
+    qc.rx(np.pi / 4, 4)
+    qc.rz(np.pi / 4, 4)
+    qc.cx(3, 4)
     # qc.cx(1, 0)
     # qc.rx(np.pi/3, 1)
     # qc.cx(0, 1)

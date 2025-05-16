@@ -29,7 +29,7 @@ def generate_brickwork_graph_from_instruction_matrix(matrix):
       • 'height': n_rows
     """
 
-    print("Converting instruction matrix to graph...", end=" ")
+    # print("Converting instruction matrix to graph...", end=" ")
     n_rows = len(matrix)                          # number of rows
     n_cols = len(matrix[0]) if matrix else 0      # number of columns
     n_cols = (n_cols * 4) + 1                     # scale to bricks + output column (+correction) +1+1
@@ -62,7 +62,7 @@ def generate_brickwork_graph_from_instruction_matrix(matrix):
                 if col + 2 < n_cols:
                     edges.append(((row, col + 2), (row + 1, col + 2)))
 
-    print("Done")
+    # print("Done")
     return {
         'nodes':  nodes,
         'edges':  edges,

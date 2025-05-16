@@ -27,6 +27,30 @@ def test_cx_from_zero():
     # Compare output up to global phase
     assert utils.assert_equal_up_to_global_phase(outstate, output_ref.data)
 
+def test_cx_from_zero_upper():
+    # 1) Create the |++> state directly
+    input_vec = Statevector.from_label('++')  # two-qubit plus state
+
+    # 2) Define your 2-qubit circuit (no H gates needed)
+    qc = QuantumCircuit(2)
+    qc.h(0)
+    qc.cx(0, 1)
+
+    # Transpile!
+    bw_pattern, output_ref, col_map = brickwork_transpiler.transpile(qc, input_vec)
+    visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+                                                 node_colours=col_map,
+                                                 use_node_colours=True,
+                                                 title="Brickwork Graph: test_cx_from_zero")
+
+    # Simulate the generated pattern
+    outstate = bw_pattern.simulate_pattern(backend='statevector').flatten()
+
+    # Compare output up to global phase
+    assert utils.assert_equal_up_to_global_phase(outstate, output_ref.data)
+
+
+
 # 49qubits >12min
 def test_system_shift():
     # 1) Create the |++> state directly
