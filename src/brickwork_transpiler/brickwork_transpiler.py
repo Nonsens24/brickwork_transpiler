@@ -1,5 +1,5 @@
 from qiskit import QuantumCircuit
-from src.brickwork_transpiler import decomposer, graph_builder, pattern_converter
+from src.brickwork_transpiler import decomposer, graph_builder, pattern_converter, utils
 
 
 def transpile(qc: QuantumCircuit, input_vector):
@@ -23,6 +23,6 @@ def transpile(qc: QuantumCircuit, input_vector):
     bw_pattern, col_map = pattern_converter.to_pattern(qc_mat_formatted, bw_nx_graph)
 
     # Calculate reference statevector
-    reference_output = input_vector.evolve(qc)
+    reference_output = utils.calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vector)
 
     return bw_pattern, reference_output, col_map

@@ -66,6 +66,7 @@ def test_next_to_border_tolerance():
     with pytest.raises(AssertionError):
         utils.assert_equal_up_to_global_phase(a, b)
 
+
 def test_global_phase_4d():
     # a 4-dimensional state
     raw = np.array([1, 1j, -1, 0.5j], dtype=complex)

@@ -1,45 +1,4 @@
 import numpy as np
-
-import numpy as np
-
-import numpy as np
-
-# def reorder_via_transpose(psi: np.ndarray) -> np.ndarray:
-#     """
-#     Flip MSB ↔ LSB in an n-qubit statevector of length 2**n.
-#     Works for any n ≥ 1, and will error if psi.size is not a power of two.
-#
-#     Parameters
-#     ----------
-#     psi : np.ndarray
-#         Flat statevector of length 2**n (dtype=complex64 or complex128).
-#
-#     Returns
-#     -------
-#     np.ndarray
-#         Reordered flat statevector, same shape and dtype as input.
-#     """
-#     # 0) ensure C-contiguity so reshape/transpose behave predictably
-#     psi = np.ascontiguousarray(psi)
-#
-#     # 1) basic checks
-#     dim = psi.size
-#     n   = int(np.log2(dim))
-#     if 2**n != dim:
-#         raise ValueError(f"Length {dim} is not a power of 2 (cannot infer n)")
-#
-#     # 2) reshape into an n-way tensor, *not* (2)*n
-#     #    the comma is critical: (2,)*n → (2,2,…,2) of length n
-#     shape = (2,)*n
-#     psi_tensor = psi.reshape(shape)
-#
-#     # 3) reverse the qubit axes: [n-1, n-2, …, 0]
-#     psi_t = psi_tensor.transpose(list(range(n-1, -1, -1)))
-#
-#     # 4) flatten back to a vector
-#     return psi_t.reshape(dim)
-
-import numpy as np
 from qiskit import QuantumCircuit
 
 
@@ -72,48 +31,6 @@ def reorder_via_transpose(psi: np.ndarray) -> np.ndarray:
     # 5) apply the permutation
     return psi[rev]
 
-
-# def reorder_via_transpose(psi: np.ndarray) -> np.ndarray:
-#     """
-#     Flip MSB ↔ LSB in an n-qubit statevector of length 2**n.
-#     Works for any n ≥ 1.
-#     """
-#     psi = np.ascontiguousarray(psi)     # enforce C-contiguity
-#     dim = psi.size
-#     n   = int(np.log2(dim))
-#     if 2**n != dim:
-#         raise ValueError(f"Length {dim} is not a power of 2")
-#
-#     # 1) reshape into an n-way tensor with 2 entries per qubit
-#     shape = (2,)*n
-#     psi_tensor = psi.reshape(shape)
-#
-#     # 2) reverse the qubit axes
-#     psi_t = psi_tensor.transpose(list(range(n-1, -1, -1)))
-#
-#     # 3) flatten back to a vector
-#     return psi_t.reshape(dim)
-
-
-# def reorder_via_transpose(psi: np.ndarray) -> np.ndarray:
-#     """
-#     Given an (2**n,) statevector `psi` in Qiskit ordering (q0 is LSB),
-#     returns the same amplitudes in Graphix ordering (q0 is MSB), or vice versa.
-#     """
-#     dim = psi.size
-#     n = int(np.log2(dim))
-#     # 1) view as tensor of shape (2,2,...,2)
-#     psi_tensor = psi.reshape((2,)*n)
-#     # 2) reverse the axis order
-#     psi_t = psi_tensor.transpose(list(reversed(range(n))))
-#     # 3) flatten back out
-#     return psi_t.reshape(dim)
-
-
-import numpy as np
-
-
-import numpy as np
 
 def reorder_via_transpose_n(psi: np.ndarray) -> np.ndarray:
     """
@@ -193,44 +110,6 @@ def permute_qubits(circ: QuantumCircuit, perm: list[int]) -> QuantumCircuit:
     return new_circ
 
 
-
-# def permute_qubits(circ: QuantumCircuit, perm: list[int]) -> QuantumCircuit:
-#     """
-#     Returns a new QuantumCircuit equivalent to `circ` but with its qubits
-#     permuted according to `permutation`.
-#
-#     Args:
-#         circ:           The input QuantumCircuit.
-#         perm:           A list of length circ.num_qubits such that
-#                         new_position = permutation[old_position].
-#
-#     Returns:
-#         QuantumCircuit  A new circuit with the same operations routed through
-#                         the permuted qubit ordering.
-#     """
-#     # Sanity checks
-#     n = circ.num_qubits
-#     if sorted(perm) != list(range(n)):
-#         raise ValueError(f"permutation must be a rearrangement of 0..{n-1}")
-#
-#     # Create an empty circuit with the same regs
-#     new_circ = QuantumCircuit(n, circ.num_clbits)
-#
-#     # Build a map from old qubit objects to new ones
-#     old_to_new = { old: new_circ.qubits[perm[idx]]
-#                    for idx, old in enumerate(circ.qubits) }
-#
-#     # Similarly map classical bits 1:1
-#     clbit_map = { old: new for old, new in zip(circ.clbits, new_circ.clbits) }
-#
-#     # Replay each instruction with remapped qubits/clbits
-#     for instr, qargs, cargs in circ.data:
-#         new_qargs = [ old_to_new[q] for q in qargs ]
-#         new_cargs = [ clbit_map[c]  for c in cargs ]
-#         new_circ.append(instr, new_qargs, new_cargs)
-#
-#     return new_circ
-
 def index_to_coordinates(index: int, num_cols: int) -> tuple[int, int]:
     """
     Maps a linear node index to (row, column) assuming row-major layout.
@@ -246,6 +125,7 @@ def index_to_coordinates(index: int, num_cols: int) -> tuple[int, int]:
     column = index % num_cols
     return (row, column)
 
+
 def map_indices_to_coordinates(indices: list[int], num_cols: int) -> dict[int, tuple[int, int]]:
     """
     Maps list of node indices to (row, column) tuples.
@@ -259,6 +139,7 @@ def map_indices_to_coordinates(indices: list[int], num_cols: int) -> dict[int, t
     """
     return {i: index_to_coordinates(i, num_cols) for i in indices}
 
+
 # Returns a list with qubit entries to be permuted when compared with qiskit reference outputs
 def get_qubit_entries(bw_pattern):
     if bw_pattern is None:
@@ -266,6 +147,7 @@ def get_qubit_entries(bw_pattern):
 
     qubit_entries = [t[0] for t in bw_pattern.output_nodes]
     return qubit_entries
+
 
 def calculate_qiskit_permutation(list):
     # reverse the Graphix list to go from big-endian → little-endian
@@ -275,6 +157,7 @@ def calculate_qiskit_permutation(list):
     # invert it: for each Qiskit qubit j, find its position in list
     perm = [list.index(j) for j in range(len(list))]
     return perm
+
 
 def get_qiskit_permutation(bw_pattern):
     if bw_pattern is None:
@@ -289,6 +172,7 @@ def get_qiskit_permutation(bw_pattern):
     # invert it: for each Qiskit qubit j, find its position in list
     perm = [qubit_entries.index(j) for j in range(len(qubit_entries))]
     return perm
+
 
 def calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vector):    # TODO: One param when merged to computation_graph obj
     if bw_pattern is None:

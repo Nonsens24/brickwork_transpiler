@@ -47,31 +47,6 @@ def inject_angles(angles, brick_type, r, c, cell, node_colours):
             (r, (c * 4) + 2): 'lightgreen',
             (r, (c * 4) + 3): 'lightgreen',
         })
-    # target bottom only for now
-    elif brick_type == "CX":
-        angles.update({
-            (r, (c * 4) + 0): 0.0,
-            (r, (c * 4) + 1): 0.0,
-            (r, (c * 4) + 2): -1/4,
-            (r, (c * 4) + 3): 0.0,
-
-            (r+1, (c * 4) + 0): 0.0,
-            (r+1, (c * 4) + 1): -1/4,
-            (r+1, (c * 4) + 2): 0.0,
-            (r+1, (c * 4) + 3): 1/4,
-        })
-        node_colours.update({
-            (r, (c * 4) + 0): 'lightcoral',
-            (r, (c * 4) + 1): 'lightcoral',
-            (r, (c * 4) + 2): 'lightcoral',
-            (r, (c * 4) + 3): 'lightcoral',
-
-            (r + 1, (c * 4) + 0): 'lightcoral',
-            (r + 1, (c * 4) + 1): 'lightcoral',
-            (r + 1, (c * 4) + 2): 'lightcoral',
-            (r + 1, (c * 4) + 3): 'lightcoral',
-        })
-
     # CX target top
     elif brick_type == "CXtt":
         angles.update({

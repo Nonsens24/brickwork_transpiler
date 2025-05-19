@@ -1,6 +1,4 @@
 import networkx as nx
-from qiskit import QuantumCircuit
-
 
 # Generates a single brick row graph
 def create_tuple_node_graph(rows, cols):

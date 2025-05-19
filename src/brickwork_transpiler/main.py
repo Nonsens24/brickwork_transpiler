@@ -25,7 +25,7 @@ import utils
 import visualiser
 from libs.gospel.gospel.brickwork_state_transpiler.brickwork_state_transpiler import generate_random_pauli_pattern
 from libs.gospel.gospel.brickwork_state_transpiler.brickwork_state_transpiler import transpile
-from src.brickwork_transpiler import decomposer, graph_builder, pattern_converter
+from src.brickwork_transpiler import decomposer, graph_builder, pattern_converter, brickwork_transpiler
 from src.brickwork_transpiler.noise import to_noisy_pattern
 from src.brickwork_transpiler.visualiser import plot_graph
 
@@ -36,91 +36,13 @@ from graphix.channels import depolarising_channel
 
 
 def main():
-    # small_graphix_example.py
-    # A minimal example using Graphix MBQC library
 
 
-    from graphix.transpiler import Circuit
 
-    # 1) Define a simple 1-qubit circuit: Hadamard followed by T gate
-    circuit = Circuit(5)
-    circuit.rz(0, np.pi/4)
-    circuit.rx(0, np.pi / 4)
-    circuit.rz(0, np.pi / 4)
+    input_vector = Statevector.from_label('+++++')
 
-    circuit.rz(1, np.pi/4)
-    circuit.rx(1, np.pi / 4)
-    circuit.rz(1, np.pi / 4)
-
-    circuit.rz(2, np.pi/4)
-    circuit.rx(2, np.pi / 4)
-    circuit.rz(2, np.pi / 4)
-
-    circuit.rz(3, np.pi/4)
-    circuit.rx(3, np.pi / 4)
-    circuit.rz(3, np.pi / 4)
-
-    circuit.rz(4, np.pi/4)
-    circuit.rx(4, np.pi / 4)
-    circuit.rz(4, np.pi / 4)
-    circuit.cnot(0, 1)
-
-    circuit.rz(1, np.pi/4)
-    circuit.rx(1, np.pi / 4)
-    circuit.rz(1, np.pi / 4)
-    circuit.cnot(1, 2)
-
-    circuit.rz(2, np.pi/4)
-    circuit.rx(2, np.pi / 4)
-    circuit.rz(2, np.pi / 4)
-    circuit.cnot(2, 3)
-
-    circuit.rz(3, np.pi/4)
-    circuit.rx(3, np.pi / 4)
-    circuit.rz(3, np.pi / 4)
-    circuit.cnot(3, 4)
-
-    circuit.rz(4, np.pi/4)
-    circuit.rx(4, np.pi / 4)
-    circuit.rz(4, np.pi / 4)
-
-
-    # circuit.t(0)
-
-    # 2) Transpile the circuit to an MBQC measurement pattern (brickwork)
-    # pattern = circuit.transpile()
-
-    gospel_bw = transpile(circuit)
-
-    # gospel_bw.print_pattern()
-
-    visualiser.plot_graphix_noise_graph(gospel_bw)
-
-    # 4) Simulate the pattern to obtain the final statevector
-    gospel_result = gospel_bw.simulate_pattern(backend='statevector')
-    print("\nFinal statevector:", gospel_result)
-
-
-    # 1) Create the |++> state directly
-    psi = Statevector.from_label('+')  # two-qubit plus state
-
-
-    qc_init_H = QuantumCircuit(2)
-    qc_init_H.h(0)
-    qc_init_H.h(1)
-    qc_init_H.rz(np.pi/5, 0)
-
-    # 2) Define your 2-qubit circuit (no H gates needed)
     qc = QuantumCircuit(5)
-    # qc.h(0)
-    # qc.rz(np.pi/2, 0)
-    # qc.h(0)
-    # qc.t(0)
-    # qc.t(0)
-    # qc.t(1)
-    qc.rz(np.pi / 4, 0)
-    qc.rx(np.pi / 4, 0)
-    qc.rz(np.pi / 4, 0)
+
     qc.cx(0, 1)
 
     qc.rz(np.pi / 4, 1)
@@ -142,35 +64,6 @@ def main():
     qc.rx(np.pi / 4, 4)
     qc.rz(np.pi / 4, 4)
     qc.cx(3, 4)
-    # qc.cx(1, 0)
-    # qc.rx(np.pi/3, 1)
-    # qc.cx(0, 1)
-    # qc.rz(np.pi/2, 2)
-    # qc.rx(-np.pi/3, 2)
-    # qc.rz(-np.pi/4, 2)
-    # qc.cx(1, 2)
-    # qc.cx(3, 2)
-    # qc.rx(np.pi/3, 3)
-    # qc.rz(np.pi/2, 2)
-    # qc.rz(-np.pi/4, 4)
-    # qc.cx(3, 4)
-    # qc.rz(np.pi/2, 4)
-    # qc.rz(np.pi / 2, 3)
-    # qc.rz(np.pi / 2, 4)
-    # qc.rx(np.pi / 2, 4)
-    #
-    # qc.rz(np.pi / 2, 6)
-    # qc.rz(np.pi / 2, 7)
-    # qc.rx(np.pi / 2, 4)
-    # qc.cx(5, 6)
-    # qc.rz(np.pi / 2, 3)
-    # qc.rz(np.pi / 2, 6)
-    # qc.rx(np.pi / 2, 5)
-    # qc.cx(6, 7)
-    # qc.rz(np.pi / 2, 4)
-    # qc.rx(np.pi / 2, 5)
-    # qc.rz(np.pi / 2, 6)
-    # qc.rz(np.pi / 2, 7)
 
     # 2) Draw as an mpl Figure
     #    output='mpl' returns a matplotlib.figure.Figure
@@ -185,40 +78,17 @@ def main():
     # fig.savefig("qc_diagram.pdf", format="pdf", bbox_inches="tight")  # vector
     # fig.savefig("qc_diagram.png", format="png", dpi=300, bbox_inches="tight")  # raster
 
-    # 5) If you just want to display in a script or notebook:
-    plt.show()
 
 
 
 
-    decomposed_qc = decomposer.decompose_qc_to_bricks_qiskit(qc, 3)
 
-    qc_mat = decomposer.instructions_to_matrix_dag(decomposed_qc)
-    visualiser.print_matrix(qc_mat)
-
-    qc_mat = decomposer.align_bricks(qc_mat)
-    visualiser.print_matrix(qc_mat)
-
-    bw_graph_data = graph_builder.generate_brickwork_graph_from_instruction_matrix(qc_mat)
-
-    bw_nx_graph = graph_builder.to_networkx_graph(bw_graph_data)
-
-    visualiser.plot_graph(bw_nx_graph)
-
-    bw_pattern, col_map = pattern_converter.to_pattern(qc_mat, bw_nx_graph)
-    # bw_pattern.print_pattern(lim = 10000)
-
-    print("printing my bw")
-    bw_pattern.print_pattern(lim=1000)
-
-    print("pritnign gospel")
-    gospel_bw.print_pattern(lim=1000)
 
     # Noise
     # bw_noisy = to_noisy_pattern(bw_pattern, 0.01, 0.005)
 
-    n_qubits = 8  # your existing brickwork graph :contentReference[oaicite:3]{index=3}
-    n_layers = len(qc_mat[0]) + 2  # e.g. nx.diameter(bw_nx_graph)
+    # n_qubits = 8  # your existing brickwork graph :contentReference[oaicite:3]{index=3}
+    # n_layers = len(qc_mat[0]) + 2  # e.g. nx.diameter(bw_nx_graph)
     # print(f"mat len: {len(qc_mat[0]) * 4 + 1}")
 
     # Sample a random‐Pauli measurement pattern
@@ -254,8 +124,10 @@ def main():
     # print(f"NG_rev_map: {reverse_mapping}")
 
     # noise_graph.print_pattern(lim = 10000)
-    print(f"BW: {bw_pattern}")
     # bw_pattern.print_pattern(lim = 10000)
+
+
+    bw_pattern, ref_state, col_map= brickwork_transpiler.transpile(qc, input_vector)
 
 
     # visualiser.plot_brickwork_graph_from_pattern(noise_graph,
@@ -293,7 +165,6 @@ def main():
     print("Starting simulation of bw pattern. This might take a while...")
     # outstate = bw_pattern.simulate_pattern(backend='statevector').flatten()
     # print("Graphix simulator output:", outstate)
-
     bw_pattern.standardize()
     bw_pattern.shift_signals()
 
@@ -302,7 +173,7 @@ def main():
                                                  use_node_colours=True,
                                                  title="Brickwork Graph: main after signal shift and standardisation")
 
-    bw_pattern.print_pattern(lim=1000)
+    # bw_pattern.print_pattern(lim=1000)
 
     outstate = bw_pattern.simulate_pattern(backend='statevector')
 
@@ -313,13 +184,13 @@ def main():
     # sv2 = Statevector.from_instruction(qc).data
     # print("Qiskit reference output: ", sv2)
 
-    ref_state = Statevector.from_instruction(qc_init_H).data
-    print(f"Qiskit ref_state: {ref_state}")
-    # if utils.assert_equal_up_to_global_phase(gospel_result.flatten(), ref_state.data):
-    #     print("GOSPEL QISKIT Equal up to global phase")
-
-    if utils.assert_equal_up_to_global_phase(gospel_result.flatten(), outstate.flatten()):
-        print("GOSPEL MYTP Equal up to global phase")
+    # ref_state = Statevector.from_instruction(qc_init_H).data
+    # print(f"Qiskit ref_state: {ref_state}")
+    # # if utils.assert_equal_up_to_global_phase(gospel_result.flatten(), ref_state.data):
+    # #     print("GOSPEL QISKIT Equal up to global phase")
+    #
+    # if utils.assert_equal_up_to_global_phase(gospel_result.flatten(), outstate.flatten()):
+    #     print("GOSPEL MYTP Equal up to global phase")
 
     # if utils.assert_equal_up_to_global_phase(outstate, ref_state.data):
     #     print("Equal up to global phase")

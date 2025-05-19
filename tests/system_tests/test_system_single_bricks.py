@@ -21,9 +21,7 @@ class TestSingleGates(unittest.TestCase):
 
         # Transpile!
         bw_pattern, output_ref, col_map = brickwork_transpiler.transpile(qc, input_vec)
-
         ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-
         visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
                                                      node_colours=col_map,
                                                      use_node_colours=True,
@@ -47,9 +45,7 @@ class TestSingleGates(unittest.TestCase):
 
         # Transpile!
         bw_pattern, output_ref, col_map = brickwork_transpiler.transpile(qc, input_vec)
-
         ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-
         visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
                                                      node_colours=col_map,
                                                      use_node_colours=True,
@@ -71,9 +67,7 @@ class TestSingleGates(unittest.TestCase):
 
         # Transpile!
         bw_pattern, output_ref, col_map = brickwork_transpiler.transpile(qc, input_vec)
-
         ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-
         visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
                                                      node_colours=col_map,
                                                      use_node_colours=True,
@@ -96,9 +90,7 @@ class TestSingleGates(unittest.TestCase):
 
         # Transpile!
         bw_pattern, output_ref, col_map = brickwork_transpiler.transpile(qc, input_vec)
-
         ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-
         visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
                                                      node_colours=col_map,
                                                      use_node_colours=True,
@@ -119,9 +111,7 @@ class TestSingleGates(unittest.TestCase):
 
         # Transpile!
         bw_pattern, output_ref, col_map = brickwork_transpiler.transpile(qc, input_vec)
-
         ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-
         visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
                                                      node_colours=col_map,
                                                      use_node_colours=True,
@@ -142,9 +132,7 @@ class TestSingleGates(unittest.TestCase):
 
         # Transpile!
         bw_pattern, output_ref, col_map = brickwork_transpiler.transpile(qc, input_vec)
-
         ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-
         visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
                                                      node_colours=col_map,
                                                      use_node_colours=True,
@@ -169,9 +157,7 @@ class TestSingleGates(unittest.TestCase):
 
         # Transpile!
         bw_pattern, output_ref, col_map = brickwork_transpiler.transpile(qc, input_vec)
-
         ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-
         visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
                                                      node_colours=col_map,
                                                      use_node_colours=True,
@@ -192,9 +178,7 @@ class TestSingleGates(unittest.TestCase):
 
         # Transpile!
         bw_pattern, output_ref, col_map = brickwork_transpiler.transpile(qc, input_vec)
-
         ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-
         visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
                                                      node_colours=col_map,
                                                      use_node_colours=True,
@@ -219,9 +203,7 @@ class TestmultipleGates(unittest.TestCase):
 
         # Transpile!
         bw_pattern, output_ref, col_map = brickwork_transpiler.transpile(qc, input_vec)
-
         ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-
         visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
                                                      node_colours=col_map,
                                                      use_node_colours=True,
@@ -248,9 +230,7 @@ class TestmultipleGates(unittest.TestCase):
 
         # Transpile!
         bw_pattern, output_ref, col_map = brickwork_transpiler.transpile(qc, input_vec)
-
         ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-
         visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
                                                      node_colours=col_map,
                                                      use_node_colours=True,
@@ -281,9 +261,7 @@ class TestmultipleGates(unittest.TestCase):
 
         # Transpile!
         bw_pattern, output_ref, col_map = brickwork_transpiler.transpile(qc, input_vec)
-
         ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-
         visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
                                                      node_colours=col_map,
                                                      use_node_colours=True,
@@ -316,14 +294,7 @@ class TestmultipleGates(unittest.TestCase):
 
         # Transpile!
         bw_pattern, output_ref, col_map = brickwork_transpiler.transpile(qc, input_vec)
-
-        list = get_qubit_entries(bw_pattern)
-        list.reverse()
-        print(f"qb entries: {list}")
-        print(f"should be [1, 0, 2]")
-
         ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-
         visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
                                                      node_colours=col_map,
                                                      use_node_colours=True,
@@ -356,9 +327,7 @@ class TestmultipleGates(unittest.TestCase):
         qc.rz(np.pi / 4, 2)
 
         bw_pattern, output_ref, col_map = brickwork_transpiler.transpile(qc, input_vec)
-
         ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-
         visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
                                                      node_colours=col_map,
                                                      use_node_colours=True,
@@ -388,14 +357,13 @@ class TestmultipleGates(unittest.TestCase):
         qc.rz(np.pi / 2, 2)
 
         bw_pattern, output_ref, col_map = brickwork_transpiler.transpile(qc, input_vec)
-        outstate = bw_pattern.simulate_pattern(backend='statevector').flatten()
-
         ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-
         visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
                                                      node_colours=col_map,
                                                      use_node_colours=True,
                                                      title="Brickwork Graph: test_three_updif_arbitrary_rotations_full_brick")
+
+        outstate = bw_pattern.simulate_pattern(backend='statevector').flatten()
 
         assert utils.assert_equal_up_to_global_phase(outstate, ref_state.data)
 
@@ -422,14 +390,13 @@ class TestmultipleGates(unittest.TestCase):
 
 
         bw_pattern, output_refQQQQ, col_map = brickwork_transpiler.transpile(qc, input_vec)
-        my_outstate = bw_pattern.simulate_pattern(backend='statevector').flatten()
-
         ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-
         visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
                                                      node_colours=col_map,
                                                      use_node_colours=True,
                                                      title="Brickwork Graph: test_four_arbitrary_rotations_full_arb_bricks")
+
+        my_outstate = bw_pattern.simulate_pattern(backend='statevector').flatten()
 
         # Compare output up to global phase
         assert utils.assert_equal_up_to_global_phase(ref_state.data, my_outstate)
@@ -459,9 +426,7 @@ class TestmultipleGates(unittest.TestCase):
         qc.rz(np.pi / 7, 4)
 
         bw_pattern, output_refQQQQ, col_map = brickwork_transpiler.transpile(qc, input_vec)
-
         ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-
         visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
                                                      node_colours=col_map,
                                                      use_node_colours=True,
@@ -475,99 +440,43 @@ class TestmultipleGates(unittest.TestCase):
         # Compare output up to global phase
         assert utils.assert_equal_up_to_global_phase(ref_state.data, my_outstate)
 
-    # def test_six_arbitrary_rotations_full_arb_bricks(self):
-    #     input_vec = Statevector.from_label('++++++')  # two-qubit plus state
-    #
-    #     qc = QuantumCircuit(6)
-    #     qc.rz(np.pi / 4, 0)
-    #     qc.rx(np.pi / 4, 0)
-    #     qc.rz(np.pi / 5, 0)
-    #
-    #     qc.rz(np.pi / 3, 1)
-    #     qc.rx(np.pi / 4, 1)
-    #     qc.rz(np.pi / 4, 1)
-    #
-    #     qc.rz(np.pi / 4, 2)
-    #     qc.rx(np.pi / 4, 2)
-    #     qc.rz(np.pi / 2, 2)
-    #
-    #     qc.rz(np.pi / 4, 3)
-    #     qc.rx(np.pi / 4, 3)
-    #     qc.rz(np.pi / 4, 3)
-    #
-    #     qc.rz(np.pi / 7, 4)
-    #     qc.rx(np.pi / 7, 4)
-    #     qc.rz(np.pi / 7, 4)
-    #
-    #     qc.rz(np.pi / 3, 5)
-    #     qc.rx(np.pi / 4, 5)
-    #     qc.rz(np.pi / 5, 5)
-    #
-    #     bw_pattern, output_refQQQQ, col_map = brickwork_transpiler.transpile(qc, input_vec)
-    #     my_outstate = bw_pattern.simulate_pattern(backend='statevector').flatten()
-    #
-    #     # qc_perm = permute_qubits(qc, perm=[2, 0, 4, 3, 1])
-    #     ref_state = input_vec.evolve(qc)
-    #
-    #     visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
-    #                                                  node_colours=col_map,
-    #                                                  use_node_colours=True,
-    #                                                  title="Brickwork Graph: test_six_arbitrary_rotations_full_arb_bricks")
-    #
-    #     print(f"my_state: {my_outstate}")
-    #     print(f"ref_state: {ref_state}")
-    #
-    #     # Compare output up to global phase
-    #     assert utils.assert_equal_up_to_global_phase(ref_state.data, my_outstate)
-    #
-    # def test_seven_arbitrary_rotations_full_arb_bricks(self):
-    #     input_vec = Statevector.from_label('+++++++')  # two-qubit plus state
-    #
-    #     qc = QuantumCircuit(7)
-    #     qc.rz(np.pi / 4, 0)
-    #     qc.rx(np.pi / 4, 0)
-    #     qc.rz(np.pi / 5, 0)
-    #
-    #     qc.rz(np.pi / 3, 1)
-    #     qc.rx(np.pi / 4, 1)
-    #     qc.rz(np.pi / 4, 1)
-    #
-    #     qc.rz(np.pi / 4, 2)
-    #     qc.rx(np.pi / 4, 2)
-    #     qc.rz(np.pi / 2, 2)
-    #
-    #     qc.rz(np.pi / 4, 3)
-    #     qc.rx(np.pi / 4, 3)
-    #     qc.rz(np.pi / 4, 3)
-    #
-    #     qc.rz(np.pi / 7, 4)
-    #     qc.rx(np.pi / 7, 4)
-    #     qc.rz(np.pi / 7, 4)
-    #
-    #     qc.rz(np.pi / 7, 5)
-    #     qc.rx(np.pi / 7, 5)
-    #     qc.rz(np.pi / 4, 5)
-    #
-    #     qc.rz(np.pi / 7, 6)
-    #     qc.rx(np.pi / 3, 6)
-    #     qc.rz(np.pi / 7, 6)
-    #
-    #     bw_pattern, output_refQQQQ, col_map = brickwork_transpiler.transpile(qc, input_vec)
-    #     my_outstate = bw_pattern.simulate_pattern(backend='statevector').flatten()
-    #
-    #     # qc_perm = permute_qubits(qc, perm=[2, 0, 4, 3, 1])
-    #     ref_state = input_vec.evolve(qc)
-    #
-    #     visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
-    #                                                  node_colours=col_map,
-    #                                                  use_node_colours=True,
-    #                                                  title="Brickwork Graph: test_seven_arbitrary_rotations_full_arb_bricks")
-    #
-    #     print(f"my_state: {my_outstate}")
-    #     print(f"ref_state: {ref_state}")
-    #
-    #     # Compare output up to global phase
-    #     assert utils.assert_equal_up_to_global_phase(ref_state.data, my_outstate)
+    # Takes long to run
+    def test_six_arbitrary_rotations_full_arb_bricks(self):
+        input_vec = Statevector.from_label('++++++')  # two-qubit plus state
 
+        qc = QuantumCircuit(6)
+        qc.rz(np.pi / 4, 0)
+        qc.rx(np.pi / 4, 0)
+        qc.rz(np.pi / 5, 0)
 
+        qc.rz(np.pi / 3, 1)
+        qc.rx(np.pi / 4, 1)
+        qc.rz(np.pi / 4, 1)
 
+        qc.rz(np.pi / 4, 2)
+        qc.rx(np.pi / 4, 2)
+        qc.rz(np.pi / 2, 2)
+
+        qc.rz(np.pi / 4, 3)
+        qc.rx(np.pi / 4, 3)
+        qc.rz(np.pi / 4, 3)
+
+        qc.rz(np.pi / 7, 4)
+        qc.rx(np.pi / 7, 4)
+        qc.rz(np.pi / 7, 4)
+
+        qc.rz(np.pi / 3, 5)
+        qc.rx(np.pi / 4, 5)
+        qc.rz(np.pi / 5, 5)
+
+        bw_pattern, output_refQQQQ, col_map = brickwork_transpiler.transpile(qc, input_vec)
+        ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
+        visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+                                                     node_colours=col_map,
+                                                     use_node_colours=True,
+                                                     title="Brickwork Graph: test_six_arbitrary_rotations_full_arb_bricks")
+
+        my_outstate = bw_pattern.simulate_pattern(backend='statevector').flatten()
+
+        # Compare output up to global phase
+        assert utils.assert_equal_up_to_global_phase(ref_state.data, my_outstate)

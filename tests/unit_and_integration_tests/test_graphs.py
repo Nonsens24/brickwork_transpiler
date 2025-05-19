@@ -32,6 +32,7 @@ def test_bw_graph_size_group_size_two_even():
 
     assert bw_nx_graph.number_of_nodes() == (num_qubits * (2 * 4)) + num_qubits
 
+
 def test_bw_graph_size_group_size_two_odd():
 
     num_qubits = np.random.random_integers(3, 10)

@@ -1,9 +1,6 @@
 from graphix.channels import depolarising_channel, dephasing_channel, KrausChannel
-
 from src.brickwork_transpiler import pattern_converter
-import sys
-sys.path.append('/Users/rexfleur/Documents/TUDelft/Master_CESE/Thesis/Code/gospel')  # Full path to the cloned repo
-from gospel.brickwork_state_transpiler import generate_random_pauli_pattern
+from libs.gospel.gospel.brickwork_state_transpiler import generate_random_pauli_pattern
 
 
 def to_noisy_pattern(bw_pattern, p_depol, p_dephase, seed=None):

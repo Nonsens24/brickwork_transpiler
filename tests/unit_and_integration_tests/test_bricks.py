@@ -3,7 +3,6 @@ from qiskit import QuantumCircuit
 from qiskit.quantum_info import Statevector
 from src.brickwork_transpiler import bricks, utils
 
-#TODO: test CX, single qubit gates with arbitrary inputs, combining bricks
 
 def test_random_rotation_constant_angles():
     a = -1/4
@@ -140,6 +139,7 @@ def test_CX_bot_target_plus_input():
     ref_state = Statevector.from_instruction(qc).data
 
     assert utils.assert_equal_up_to_global_phase(test_result_state, ref_state)
+
 
 def test_CX_top_target_plus_input():
     test_pattern = bricks.CX_top_target_brick()

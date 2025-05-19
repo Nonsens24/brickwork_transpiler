@@ -78,22 +78,22 @@ class TestBrickAlignment(unittest.TestCase):
     def test_pure_even_cx_alignment2(self):
         # Single column with cx on qubits 0-1 (even parity)
         cols = [
-            [['cx'], ['cx'], []],  # q0->cx, q1->cx, q2->none
+            [['cx0t'], ['cx0c'], []],  # q0->cx, q1->cx, q2->none
         ]
         mat = mk_matrix(3, cols)
         out = align_bricks(mat)
         # brick_idx starts at 0 (even), so no padding needed
         assert len(out[0]) == 1
         # CX should appear on qubits 0 and 1 only
-        assert names(out)[0][0] == ['cx0']
-        assert names(out)[1][0] == ['cx0']
+        assert names(out)[0][0] == ['cx0t']
+        assert names(out)[1][0] == ['cx0c']
         assert names(out)[2][0] == []
 
 
     def test_pure_odd_cx_alignment(self):
         # Single column with cx on qubits 1-2 (odd parity)
         cols = [
-            [[], ['cx'], ['cx']],
+            [[], ['cx0t'], ['cx0c']],
         ]
         mat = mk_matrix(3, cols)
         out = align_bricks(mat)
@@ -102,13 +102,14 @@ class TestBrickAlignment(unittest.TestCase):
         # First brick should be identity
         assert all(cell == [] for cell in names(out)[0][0:1])
         # Second brick has CXs on qubits 1 and 2
-        assert names(out)[1][1] == ['cx0']
-        assert names(out)[2][1] == ['cx0']
+        assert names(out)[1][1] == ['cx0t']
+        assert names(out)[2][1] == ['cx0c']
+
 
     def test_mixed_same_parity_cx(self):
         # Two independent CNOTs on (0,1) and (2,3), both even parity and non-adjacent
         cols = [
-            [['cx'], ['cx'], ['cx'], ['cx']],
+            [['cx0t'], ['cx0c'], ['cx1c'], ['cx1t']],
         ]
         mat = mk_matrix(4, cols)
         out = align_bricks(mat)
@@ -118,9 +119,9 @@ class TestBrickAlignment(unittest.TestCase):
         assert len(out[0]) == 1
         names_out = names(out)
         # Check cx(0,1)
-        assert 'cx0' in names_out[0][0] and 'cx0' in names_out[1][0]
+        assert 'cx0t' in names_out[0][0] and 'cx0c' in names_out[1][0]
         # Check cx(3,4)
-        assert 'cx1' in names_out[2][0] and 'cx1' in names_out[3][0]
+        assert 'cx1c' in names_out[2][0] and 'cx1t' in names_out[3][0]
 
 
 
@@ -135,12 +136,12 @@ class TestBrickAlignment(unittest.TestCase):
         # Should split into two bricks
         assert len(out[0]) == 2
         # First brick handles cx(0,1)
-        assert 'cx0' in names(out)[0][0]
-        assert 'cx0' in names(out)[1][0]
+        assert 'cx0t' in names(out)[0][0]
+        assert 'cx0c' in names(out)[1][0]
         assert names(out)[3][0] == []
         # Second brick handles cx(3,4)
-        assert 'cx1' in names(out)[3][1]
-        assert 'cx1' in names(out)[4][1]
+        assert 'cx1c' in names(out)[3][1]
+        assert 'cx1t' in names(out)[4][1]
 
 
     def test_rotations_with_cx(self):
@@ -161,14 +162,7 @@ class TestBrickAlignment(unittest.TestCase):
             # assert any(name in ('rz','cx0') for name in names(out)[0][b])
 
 
-
 class TestInstructionsToMatrixDAG(unittest.TestCase):
-
-    # def test_empty_circuit(self):
-    #     qc = QuantumCircuit(2)
-    #     matrix = instructions_to_matrix_dag(qc)
-    #     self.assertEqual(len(matrix), 2)
-    #     self.assertTrue(all(len(row) == 0 for row in matrix))
 
     def test_single_qubit_rotations(self):
         qc = QuantumCircuit(2)
@@ -186,6 +180,7 @@ class TestInstructionsToMatrixDAG(unittest.TestCase):
         self.assertIn(instr0.name, ['rz', 'rx'])
         self.assertIn(instr1.name, ['rz', 'rx'])
 
+
     def test_single_cx_gate(self):
         qc = QuantumCircuit(2)
         qc.cx(0, 1)
@@ -198,6 +193,7 @@ class TestInstructionsToMatrixDAG(unittest.TestCase):
         names = {instr.name for instr in matrix[0][0]} | {instr.name for instr in matrix[1][0]}
         self.assertIn('cx0c', names)
         self.assertIn('cx0t', names)
+
 
     def test_multiple_cx_gates(self):
         qc = QuantumCircuit(3)
