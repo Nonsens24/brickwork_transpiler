@@ -212,7 +212,7 @@ def plot_brickwork_graph_from_pattern(
     if use_node_colours:
         handles = [
             mpatches.Patch(color='lightcoral',  label='CX gate - ⊕ top'),
-            mpatches.Patch(color='lightsalmon', label='CX gate - ● top'),
+            mpatches.Patch(color='lightsalmon', label='CX gate - ⊕ bot'),   # ● ctrl / ⊕ targ
             mpatches.Patch(color='lightblue',   label='Identity'),
             mpatches.Patch(color='lightgreen',  label='Euler rotation'),
             mpatches.Patch(color='skyblue',     label='Output qubits'),

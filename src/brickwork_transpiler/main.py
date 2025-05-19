@@ -20,6 +20,7 @@ from qiskit.visualization import circuit_drawer
 #     generate_random_kraus_pattern,
 # )
 import bricks
+import tests.system_tests.test_system_single_bricks
 import utils
 import visualiser
 from libs.gospel.gospel.brickwork_state_transpiler.brickwork_state_transpiler import generate_random_pauli_pattern
@@ -37,6 +38,7 @@ from graphix.channels import depolarising_channel
 def main():
     # small_graphix_example.py
     # A minimal example using Graphix MBQC library
+
 
     from graphix.transpiler import Circuit
 

@@ -1,30 +1,29 @@
 import itertools
 import unittest
-
 import numpy as np
-from graphix import Circuit
 from qiskit import QuantumCircuit
 from qiskit.quantum_info import Statevector
 
-from libs.gospel.gospel.brickwork_state_transpiler.brickwork_state_transpiler import transpile
-from src.brickwork_transpiler import decomposer, visualiser, graph_builder, pattern_converter, utils, \
-    brickwork_transpiler
-from src.brickwork_transpiler.utils import reorder_via_transpose, reorder_via_transpose_n, permute_qubits
+from src.brickwork_transpiler import visualiser, utils, brickwork_transpiler
+from src.brickwork_transpiler.utils import get_qubit_entries, calculate_ref_state_from_qiskit_circuit
 
 
 class TestSingleGates(unittest.TestCase):
 
     def test_single_CX_top_bottom(self):
 
-        # 1) Create the |++> state directly
+        # Initialise to |++>
         input_vec = Statevector.from_label('++')  # two-qubit plus state
 
-        # 2) Define your 2-qubit circuit (no H gates needed)
+        # Define quantum circuit
         qc = QuantumCircuit(2)
         qc.cx(0, 1)
 
         # Transpile!
         bw_pattern, output_ref, col_map = brickwork_transpiler.transpile(qc, input_vec)
+
+        ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
+
         visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
                                                      node_colours=col_map,
                                                      use_node_colours=True,
@@ -34,20 +33,23 @@ class TestSingleGates(unittest.TestCase):
         outstate = bw_pattern.simulate_pattern(backend='statevector').flatten()
 
         # Compare output up to global phase
-        assert utils.assert_equal_up_to_global_phase(outstate, output_ref.data)
+        assert utils.assert_equal_up_to_global_phase(outstate, ref_state.data)
 
 
     def test_single_CX_bottom_top(self):
 
-        # 1) Create the |++> state directly
+        # Initialise to |++>
         input_vec = Statevector.from_label('++')  # two-qubit plus state
 
-        # 2) Define your 2-qubit circuit (no H gates needed)
+        # Define quantum circuit
         qc = QuantumCircuit(2)
         qc.cx(1, 0)
 
         # Transpile!
         bw_pattern, output_ref, col_map = brickwork_transpiler.transpile(qc, input_vec)
+
+        ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
+
         visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
                                                      node_colours=col_map,
                                                      use_node_colours=True,
@@ -56,19 +58,70 @@ class TestSingleGates(unittest.TestCase):
         outstate = bw_pattern.simulate_pattern(backend='statevector').flatten()
 
         # Compare output up to global phase
-        assert utils.assert_equal_up_to_global_phase(outstate, output_ref.data)
+        assert utils.assert_equal_up_to_global_phase(outstate, ref_state.data)
 
-    def test_hadamard_half_brick(self):
-        # 1) Create the |++> state directly
-        input_vec = Statevector.from_label('+')  # two-qubit plus state
+    def test_single_CX_target_bot_input_diff(self):
+        # Initialise to |++>
+        input_vec = Statevector.from_label('++')  # two-qubit plus state
 
-        # 2) Define your 2-qubit circuit (no H gates needed)
-        qc = QuantumCircuit(1)
-        qc.h(0)
-        # qc.x(0)
+        # Define quantum circuit
+        qc = QuantumCircuit(2)
+        qc.rz(np.pi, 0)     # |-+>
+        qc.cx(0, 1)
 
         # Transpile!
         bw_pattern, output_ref, col_map = brickwork_transpiler.transpile(qc, input_vec)
+
+        ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
+
+        visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+                                                     node_colours=col_map,
+                                                     use_node_colours=True,
+                                                     title="Brickwork Graph: test_single_CX_target_bot_input_diff")
+
+        # Simulate the generated pattern
+        outstate = bw_pattern.simulate_pattern(backend='statevector').flatten()
+
+        # Compare output up to global phase
+        assert utils.assert_equal_up_to_global_phase(outstate, ref_state.data)
+
+    def test_single_CX_target_top_input_diff(self):
+        # Initialise to |++>
+        input_vec = Statevector.from_label('++')  # two-qubit plus state
+
+        # Define quantum circuit
+        qc = QuantumCircuit(2)
+        qc.rz(np.pi, 0)     # |-+>
+        qc.cx(1, 0)
+
+        # Transpile!
+        bw_pattern, output_ref, col_map = brickwork_transpiler.transpile(qc, input_vec)
+
+        ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
+
+        visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+                                                     node_colours=col_map,
+                                                     use_node_colours=True,
+                                                     title="Brickwork Graph: test_single_CX_target_top_input_diff")
+        # Simulate the generated pattern
+        outstate = bw_pattern.simulate_pattern(backend='statevector').flatten()
+
+        # Compare output up to global phase
+        assert utils.assert_equal_up_to_global_phase(outstate, ref_state.data)
+
+    def test_hadamard_half_brick(self):
+        # Initialise to |++>
+        input_vec = Statevector.from_label('+')  # one-qubit plus state
+
+        # Define quantum circuit
+        qc = QuantumCircuit(1)
+        qc.h(0)
+
+        # Transpile!
+        bw_pattern, output_ref, col_map = brickwork_transpiler.transpile(qc, input_vec)
+
+        ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
+
         visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
                                                      node_colours=col_map,
                                                      use_node_colours=True,
@@ -77,18 +130,21 @@ class TestSingleGates(unittest.TestCase):
         outstate = bw_pattern.simulate_pattern(backend='statevector').flatten()
 
         # Compare output up to global phase
-        assert utils.assert_equal_up_to_global_phase(outstate, output_ref.data)
+        assert utils.assert_equal_up_to_global_phase(outstate, ref_state.data)
 
     def test_pauli_x_half_brick(self):
-        # 1) Create the |++> state directly
-        input_vec = Statevector.from_label('+')  # two-qubit plus state
+        # Initialise to |++>
+        input_vec = Statevector.from_label('+')  # one-qubit plus state
 
-        # 2) Define your 2-qubit circuit (no H gates needed)
+        # Define quantum circuit
         qc = QuantumCircuit(1)
         qc.x(0)
 
         # Transpile!
         bw_pattern, output_ref, col_map = brickwork_transpiler.transpile(qc, input_vec)
+
+        ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
+
         visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
                                                      node_colours=col_map,
                                                      use_node_colours=True,
@@ -97,13 +153,13 @@ class TestSingleGates(unittest.TestCase):
         outstate = bw_pattern.simulate_pattern(backend='statevector').flatten()
 
         # Compare output up to global phase
-        assert utils.assert_equal_up_to_global_phase(outstate, output_ref.data)
+        assert utils.assert_equal_up_to_global_phase(outstate, ref_state.data)
 
     def test_euler_rotation_half_brick(self):
-        # 1) Create the |++> state directly
-        input_vec = Statevector.from_label('+')  # two-qubit plus state
+        # Initialise to |++>
+        input_vec = Statevector.from_label('+')  # one-qubit plus state
 
-        # 2) Define your 2-qubit circuit (no H gates needed)
+        # Define quantum circuit
         qc = QuantumCircuit(1)
         qc.rx(np.pi/3, 0)
         qc.rx(np.pi / 4, 0)
@@ -113,6 +169,9 @@ class TestSingleGates(unittest.TestCase):
 
         # Transpile!
         bw_pattern, output_ref, col_map = brickwork_transpiler.transpile(qc, input_vec)
+
+        ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
+
         visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
                                                      node_colours=col_map,
                                                      use_node_colours=True,
@@ -121,19 +180,21 @@ class TestSingleGates(unittest.TestCase):
         outstate = bw_pattern.simulate_pattern(backend='statevector').flatten()
 
         # Compare output up to global phase
-        assert utils.assert_equal_up_to_global_phase(outstate, output_ref.data)
+        assert utils.assert_equal_up_to_global_phase(outstate, ref_state.data)
 
     def test_euler_rotation_id_full_brick(self):
-        # 1) Create the |++> state directly
+        # Initialise to |++>
         input_vec = Statevector.from_label('++')  # two-qubit plus state
 
-        # 2) Define your 2-qubit circuit (no H gates needed)
+        # Define quantum circuit
         qc = QuantumCircuit(2)
         qc.h(0)
 
-
         # Transpile!
         bw_pattern, output_ref, col_map = brickwork_transpiler.transpile(qc, input_vec)
+
+        ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
+
         visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
                                                      node_colours=col_map,
                                                      use_node_colours=True,
@@ -141,25 +202,26 @@ class TestSingleGates(unittest.TestCase):
         # Simulate the generated pattern
         outstate = bw_pattern.simulate_pattern(backend='statevector').flatten()
 
-        # change order qiskit ref state to match Graphix'
-        output_ref_graphix_order = reorder_via_transpose(output_ref.data)
 
         # Compare output up to global phase
-        assert utils.assert_equal_up_to_global_phase(outstate, output_ref_graphix_order)
+        assert utils.assert_equal_up_to_global_phase(outstate, ref_state.data)
 
 class TestmultipleGates(unittest.TestCase):
 
     def test_both_H_full_brick(self):
-        # 1) Create the |++> state directly
+        # Initialise to |++>
         input_vec = Statevector.from_label('++')  # two-qubit plus state
 
-        # 2) Define your 2-qubit circuit (no H gates needed)
+        # Define quantum circuit
         qc = QuantumCircuit(2)
         qc.h(0)
         qc.h(1)
 
         # Transpile!
         bw_pattern, output_ref, col_map = brickwork_transpiler.transpile(qc, input_vec)
+
+        ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
+
         visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
                                                      node_colours=col_map,
                                                      use_node_colours=True,
@@ -168,13 +230,13 @@ class TestmultipleGates(unittest.TestCase):
         outstate = bw_pattern.simulate_pattern(backend='statevector').flatten()
 
         # Compare output up to global phase
-        assert utils.assert_equal_up_to_global_phase(outstate, output_ref.data)
+        assert utils.assert_equal_up_to_global_phase(outstate, ref_state.data)
 
     def test_different_arbitrary_rotations_full_brick(self):
-        # 1) Create the |++> state directly
+        # Initialise to |++>
         input_vec = Statevector.from_label('++')  # two-qubit plus state
 
-        # 2) Define your 2-qubit circuit (no H gates needed)
+        # Define quantum circuit
         qc = QuantumCircuit(2)
         qc.rz(np.pi / 2, 0)
         qc.rx(np.pi / 4, 0)
@@ -187,6 +249,8 @@ class TestmultipleGates(unittest.TestCase):
         # Transpile!
         bw_pattern, output_ref, col_map = brickwork_transpiler.transpile(qc, input_vec)
 
+        ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
+
         visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
                                                      node_colours=col_map,
                                                      use_node_colours=True,
@@ -194,17 +258,14 @@ class TestmultipleGates(unittest.TestCase):
         # Simulate the generated pattern
         outstate = bw_pattern.simulate_pattern(backend='statevector').flatten()
 
-        # change order qiskit ref state to match Graphix'
-        output_ref_graphix_order = reorder_via_transpose(output_ref.data)
-
         # Compare output up to global phase
-        assert utils.assert_equal_up_to_global_phase(outstate, output_ref_graphix_order)
+        assert utils.assert_equal_up_to_global_phase(outstate, ref_state.data)
 
     def test_three_same_arbitrary_rotations_full_brick(self):
-        # 1) Create the |++> state directly
+        # Initialise to |+++>
         input_vec = Statevector.from_label('+++')  # two-qubit plus state
 
-        # 2) Define your 2-qubit circuit (no H gates needed)
+        # Define Quantum circuit
         qc = QuantumCircuit(3)
         qc.rz(np.pi / 2, 0)
         qc.rx(np.pi / 4, 0)
@@ -220,6 +281,9 @@ class TestmultipleGates(unittest.TestCase):
 
         # Transpile!
         bw_pattern, output_ref, col_map = brickwork_transpiler.transpile(qc, input_vec)
+
+        ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
+
         visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
                                                      node_colours=col_map,
                                                      use_node_colours=True,
@@ -227,18 +291,16 @@ class TestmultipleGates(unittest.TestCase):
         # Simulate the generated pattern
         outstate = bw_pattern.simulate_pattern(backend='statevector').flatten()
 
-        # change order qiskit ref state to match Graphix'
-        output_ref_graphix_order = reorder_via_transpose(output_ref.data)
 
         # Compare output up to global phase
-        assert utils.assert_equal_up_to_global_phase(outstate, output_ref_graphix_order)
+        assert utils.assert_equal_up_to_global_phase(outstate, ref_state.data)
 
 
     def test_three_different_arbitrary_rotations_full_brick(self):
-        # 1) Create the |++> state directly
+        # Initialise to |+++>
         input_vec = Statevector.from_label('+++')  # two-qubit plus state
 
-        # 2) Define your 2-qubit circuit (no H gates needed)
+        # Define quantum circuit
         qc = QuantumCircuit(3)
         qc.rz(np.pi / 2, 0)
         qc.rx(np.pi / 4, 0)
@@ -252,40 +314,34 @@ class TestmultipleGates(unittest.TestCase):
         qc.rx(np.pi / 4, 2)
         qc.rz(np.pi / 8, 2)
 
-        qc_ref = QuantumCircuit(3)
-
-        qc_ref.rz(np.pi / 3, 0)
-        qc_ref.rx(np.pi / 4, 0)
-        qc_ref.rz(np.pi / 2, 0)
-
-        qc_ref.rz(np.pi / 2, 1)
-        qc_ref.rx(np.pi / 4, 1)
-        qc_ref.rz(np.pi / 3, 1)
-
-        qc_ref.rz(np.pi / 2, 2)
-        qc_ref.rx(np.pi / 4, 2)
-        qc_ref.rz(np.pi / 8, 2)
-
         # Transpile!
         bw_pattern, output_ref, col_map = brickwork_transpiler.transpile(qc, input_vec)
+
+        list = get_qubit_entries(bw_pattern)
+        list.reverse()
+        print(f"qb entries: {list}")
+        print(f"should be [1, 0, 2]")
+
+        ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
+
         visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
                                                      node_colours=col_map,
                                                      use_node_colours=True,
                                                      title="Brickwork Graph: test_three_different_arbitrary_rotations_full_brick")
-        # Simulate the generated pattern
+
         outstate = bw_pattern.simulate_pattern(backend='statevector').flatten()
 
-        reference_output = input_vec.evolve(qc_ref)
-        # output_ref_graphix_order = reorder_via_transpose(output_ref.data)
+        print(f"outstate: {outstate}")
+        print(f"ref state: {ref_state.data}")
 
         # Compare output up to global phase
-        assert utils.assert_equal_up_to_global_phase(outstate, reference_output.data)
+        assert utils.assert_equal_up_to_global_phase(outstate, ref_state.data)
 
     def test_three_symmetric_rows_arbitrary_rotations(self):
-        # 1) Create the |++> state directly
+        # Initialise to |+++>
         input_vec = Statevector.from_label('+++')  # two-qubit plus state
 
-        # 2) Define your 2-qubit circuit (no H gates needed)
+        # Define circuit
         qc = QuantumCircuit(3)
         qc.rz(np.pi / 2, 0)
         qc.rx(np.pi / 4, 0)
@@ -299,23 +355,10 @@ class TestmultipleGates(unittest.TestCase):
         qc.rx(np.pi / 4, 2)
         qc.rz(np.pi / 4, 2)
 
-        qc_ref = QuantumCircuit(3)
-        qc_ref.rz(np.pi / 2, 1)
-        qc_ref.rx(np.pi / 4, 1)
-        qc_ref.rz(np.pi / 4, 1)
-
-        qc_ref.rz(np.pi / 2, 0)
-        qc_ref.rx(np.pi / 4, 0)
-        qc_ref.rz(np.pi / 2, 0)
-
-        qc_ref.rz(np.pi / 2, 2)
-        qc_ref.rx(np.pi / 4, 2)
-        qc_ref.rz(np.pi / 4, 2)
-
-        reference_output = input_vec.evolve(qc_ref)
-
-        # Transpile!
         bw_pattern, output_ref, col_map = brickwork_transpiler.transpile(qc, input_vec)
+
+        ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
+
         visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
                                                      node_colours=col_map,
                                                      use_node_colours=True,
@@ -323,11 +366,8 @@ class TestmultipleGates(unittest.TestCase):
         # Simulate the generated pattern
         outstate = bw_pattern.simulate_pattern(backend='statevector').flatten()
 
-        # change order qiskit ref state to match Graphix'
-        # output_ref_graphix_order = reorder_via_transpose_n(output_ref.data)
-
         # Compare output up to global phase
-        assert utils.assert_equal_up_to_global_phase(outstate, reference_output.data)
+        assert utils.assert_equal_up_to_global_phase(outstate, ref_state.data)
 
     def test_three_updif_arbitrary_rotations_full_brick(self):
         # 1) Create the |++> state directly
@@ -347,60 +387,22 @@ class TestmultipleGates(unittest.TestCase):
         qc.rx(np.pi / 4, 2)
         qc.rz(np.pi / 2, 2)
 
-        qc_ref = QuantumCircuit(3)
-
-        qc_ref.rz(np.pi / 2, 1)
-        qc_ref.rx(np.pi / 4, 1)
-        qc_ref.rz(np.pi / 4, 1)
-
-        qc_ref.rz(np.pi / 2, 0)
-        qc_ref.rx(np.pi / 4, 0)
-        qc_ref.rz(np.pi / 2, 0)
-
-        qc_ref.rz(np.pi / 2, 2)
-        qc_ref.rx(np.pi / 4, 2)
-        qc_ref.rz(np.pi / 2, 2)
-
-        reference_output = input_vec.evolve(qc_ref)
-
-        # Transpile!
         bw_pattern, output_ref, col_map = brickwork_transpiler.transpile(qc, input_vec)
+        outstate = bw_pattern.simulate_pattern(backend='statevector').flatten()
+
+        ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
+
         visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
                                                      node_colours=col_map,
                                                      use_node_colours=True,
                                                      title="Brickwork Graph: test_three_updif_arbitrary_rotations_full_brick")
-        # Simulate the generated pattern
-        outstate = bw_pattern.simulate_pattern(backend='statevector').flatten()
 
-        # change order qiskit ref state to match Graphix'
-        # output_ref_graphix_order = reorder_via_transpose(output_ref.data)
+        assert utils.assert_equal_up_to_global_phase(outstate, ref_state.data)
 
-        # Compare output up to global phase
-        assert utils.assert_equal_up_to_global_phase(outstate, reference_output.data)
+    def test_four_arbitrary_rotations_full_arb_bricks(self):
 
-    def test_four_arbitrary_rotations_full_same_bricks(self):
-
-        circuit = Circuit(4)
-        circuit.rz(0, np.pi / 4)
-        circuit.rx(0, np.pi / 4)
-        circuit.rz(0, np.pi / 5)
-
-        circuit.rz(1, np.pi / 3)
-        circuit.rx(1, np.pi / 4)
-        circuit.rz(1, np.pi / 4)
-
-        circuit.rz(2, np.pi / 4)
-        circuit.rx(2, np.pi / 4)
-        circuit.rz(2, np.pi / 2)
-
-        circuit.rz(3, np.pi / 4)
-        circuit.rx(3, np.pi / 4)
-        circuit.rz(3, np.pi / 4)
-
-        # Ref circ
         input_vec = Statevector.from_label('++++')  # two-qubit plus state
 
-        # 2) Define your 2-qubit circuit (no H gates needed)
         qc = QuantumCircuit(4)
         qc.rz(np.pi / 4, 0)
         qc.rx(np.pi / 4, 0)
@@ -419,31 +421,153 @@ class TestmultipleGates(unittest.TestCase):
         qc.rz(np.pi / 4, 3)
 
 
-        my_bw_pattern, output_refQQQQ, col_map = brickwork_transpiler.transpile(qc, input_vec)
-        my_outstate = my_bw_pattern.simulate_pattern(backend='statevector').flatten()
+        bw_pattern, output_refQQQQ, col_map = brickwork_transpiler.transpile(qc, input_vec)
+        my_outstate = bw_pattern.simulate_pattern(backend='statevector').flatten()
 
-        qc_perm = permute_qubits(qc, permutation=[2, 0, 3, 1])
-        ref_state = input_vec.evolve(qc_perm)
-        visualiser.plot_brickwork_graph_from_pattern(my_bw_pattern,
+        ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
+
+        visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
                                                      node_colours=col_map,
                                                      use_node_colours=True,
-                                                     title="Brickwork Graph: The Big Test")
-
-        # Transpile!
-        gospel_bw_pattern = transpile(circuit)
-
-        visualiser.plot_graphix_noise_graph(gospel_bw_pattern)
-
-        # Simulate the generated pattern
-        gospel_outstate = gospel_bw_pattern.simulate_pattern(backend='statevector').flatten()
-
-        # GEt ref state
-        # print(f"My outstate {my_outstate}")
-        # print(f"Gospel outstate {gospel_outstate}")
-        # print(f"ref_state {ref_state.data}")
+                                                     title="Brickwork Graph: test_four_arbitrary_rotations_full_arb_bricks")
 
         # Compare output up to global phase
         assert utils.assert_equal_up_to_global_phase(ref_state.data, my_outstate)
+
+    def test_five_arbitrary_rotations_full_arb_bricks(self):
+        input_vec = Statevector.from_label('+++++')  # two-qubit plus state
+
+        qc = QuantumCircuit(5)
+        qc.rz(np.pi / 4, 0)
+        qc.rx(np.pi / 4, 0)
+        qc.rz(np.pi / 5, 0)
+
+        qc.rz(np.pi / 3, 1)
+        qc.rx(np.pi / 4, 1)
+        qc.rz(np.pi / 4, 1)
+
+        qc.rz(np.pi / 4, 2)
+        qc.rx(np.pi / 4, 2)
+        qc.rz(np.pi / 2, 2)
+
+        qc.rz(np.pi / 4, 3)
+        qc.rx(np.pi / 4, 3)
+        qc.rz(np.pi / 4, 3)
+
+        qc.rz(np.pi / 7, 4)
+        qc.rx(np.pi / 7, 4)
+        qc.rz(np.pi / 7, 4)
+
+        bw_pattern, output_refQQQQ, col_map = brickwork_transpiler.transpile(qc, input_vec)
+
+        ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
+
+        visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+                                                     node_colours=col_map,
+                                                     use_node_colours=True,
+                                                     title="Brickwork Graph: test_five_arbitrary_rotations_full_arb_bricks")
+
+        my_outstate = bw_pattern.simulate_pattern(backend='statevector').flatten()
+
+        # print(f"my_state: {my_outstate}")
+        # print(f"ref_state: {ref_state.data}")
+
+        # Compare output up to global phase
+        assert utils.assert_equal_up_to_global_phase(ref_state.data, my_outstate)
+
+    # def test_six_arbitrary_rotations_full_arb_bricks(self):
+    #     input_vec = Statevector.from_label('++++++')  # two-qubit plus state
+    #
+    #     qc = QuantumCircuit(6)
+    #     qc.rz(np.pi / 4, 0)
+    #     qc.rx(np.pi / 4, 0)
+    #     qc.rz(np.pi / 5, 0)
+    #
+    #     qc.rz(np.pi / 3, 1)
+    #     qc.rx(np.pi / 4, 1)
+    #     qc.rz(np.pi / 4, 1)
+    #
+    #     qc.rz(np.pi / 4, 2)
+    #     qc.rx(np.pi / 4, 2)
+    #     qc.rz(np.pi / 2, 2)
+    #
+    #     qc.rz(np.pi / 4, 3)
+    #     qc.rx(np.pi / 4, 3)
+    #     qc.rz(np.pi / 4, 3)
+    #
+    #     qc.rz(np.pi / 7, 4)
+    #     qc.rx(np.pi / 7, 4)
+    #     qc.rz(np.pi / 7, 4)
+    #
+    #     qc.rz(np.pi / 3, 5)
+    #     qc.rx(np.pi / 4, 5)
+    #     qc.rz(np.pi / 5, 5)
+    #
+    #     bw_pattern, output_refQQQQ, col_map = brickwork_transpiler.transpile(qc, input_vec)
+    #     my_outstate = bw_pattern.simulate_pattern(backend='statevector').flatten()
+    #
+    #     # qc_perm = permute_qubits(qc, perm=[2, 0, 4, 3, 1])
+    #     ref_state = input_vec.evolve(qc)
+    #
+    #     visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+    #                                                  node_colours=col_map,
+    #                                                  use_node_colours=True,
+    #                                                  title="Brickwork Graph: test_six_arbitrary_rotations_full_arb_bricks")
+    #
+    #     print(f"my_state: {my_outstate}")
+    #     print(f"ref_state: {ref_state}")
+    #
+    #     # Compare output up to global phase
+    #     assert utils.assert_equal_up_to_global_phase(ref_state.data, my_outstate)
+    #
+    # def test_seven_arbitrary_rotations_full_arb_bricks(self):
+    #     input_vec = Statevector.from_label('+++++++')  # two-qubit plus state
+    #
+    #     qc = QuantumCircuit(7)
+    #     qc.rz(np.pi / 4, 0)
+    #     qc.rx(np.pi / 4, 0)
+    #     qc.rz(np.pi / 5, 0)
+    #
+    #     qc.rz(np.pi / 3, 1)
+    #     qc.rx(np.pi / 4, 1)
+    #     qc.rz(np.pi / 4, 1)
+    #
+    #     qc.rz(np.pi / 4, 2)
+    #     qc.rx(np.pi / 4, 2)
+    #     qc.rz(np.pi / 2, 2)
+    #
+    #     qc.rz(np.pi / 4, 3)
+    #     qc.rx(np.pi / 4, 3)
+    #     qc.rz(np.pi / 4, 3)
+    #
+    #     qc.rz(np.pi / 7, 4)
+    #     qc.rx(np.pi / 7, 4)
+    #     qc.rz(np.pi / 7, 4)
+    #
+    #     qc.rz(np.pi / 7, 5)
+    #     qc.rx(np.pi / 7, 5)
+    #     qc.rz(np.pi / 4, 5)
+    #
+    #     qc.rz(np.pi / 7, 6)
+    #     qc.rx(np.pi / 3, 6)
+    #     qc.rz(np.pi / 7, 6)
+    #
+    #     bw_pattern, output_refQQQQ, col_map = brickwork_transpiler.transpile(qc, input_vec)
+    #     my_outstate = bw_pattern.simulate_pattern(backend='statevector').flatten()
+    #
+    #     # qc_perm = permute_qubits(qc, perm=[2, 0, 4, 3, 1])
+    #     ref_state = input_vec.evolve(qc)
+    #
+    #     visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+    #                                                  node_colours=col_map,
+    #                                                  use_node_colours=True,
+    #                                                  title="Brickwork Graph: test_seven_arbitrary_rotations_full_arb_bricks")
+    #
+    #     print(f"my_state: {my_outstate}")
+    #     print(f"ref_state: {ref_state}")
+    #
+    #     # Compare output up to global phase
+    #     assert utils.assert_equal_up_to_global_phase(ref_state.data, my_outstate)
 
 
 
