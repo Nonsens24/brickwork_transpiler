@@ -1,7 +1,11 @@
 from qiskit import QuantumCircuit, transpile
+from qiskit.circuit import Instruction
 from qiskit.converters import circuit_to_dag
 from qiskit.dagcircuit import DAGOpNode
 from qiskit.visualization import dag_drawer
+
+from src.brickwork_transpiler import visualiser
+
 
 def decompose_qc_to_bricks_qiskit(qc, opt=1, draw=False):
 
@@ -18,13 +22,13 @@ def decompose_qc_to_bricks_qiskit(qc, opt=1, draw=False):
     return qc_basis
 
 
-def group_with_dag_atomic_rotations(qc: QuantumCircuit):
+def group_with_dag_atomic_rotations_layers(qc: QuantumCircuit):
     """
-    DAG + saturated two-phase scheduling, but:
+    DAG + saturated two-phase scheduling:
       • In the rotation phase we IGNORE qubit conflicts,
         so that rz–rx–rz (or any chain) on the *same* qubit
         all go into the *same* rotation column.
-      • In the CX phase we still pack non-overlapping CXs per column.
+      • In the CX phase does pack non-overlapping CXs per column.
     """
     # print("Building dependency graph...", end=" ")
 
@@ -36,7 +40,7 @@ def group_with_dag_atomic_rotations(qc: QuantumCircuit):
 
     dag_drawer(dag) #Vis
     # Save the DAGDependency graph to a file
-    if False:   # add save option
+    if True:   # add save option
         dag_drawer(dag,  filename='dag_dependency.png')
 
     while len(scheduled) < total:
@@ -56,7 +60,7 @@ def group_with_dag_atomic_rotations(qc: QuantumCircuit):
                 if any((p not in scheduled and p not in rot_layer) for p in preds):
                     continue
 
-                # *no* busy/conflict check here — we allow multiple on same qubit
+                # *no* busy/conflict check here — allow multiple on same qubit
                 rot_layer.append(node)
                 added = True
 
@@ -111,6 +115,94 @@ def group_with_dag_atomic_rotations(qc: QuantumCircuit):
     return columns
 
 
+from qiskit.converters import circuit_to_dag
+from qiskit import QuantumCircuit
+from qiskit.dagcircuit import DAGOpNode
+
+def group_with_dag_atomic_mixed(qc: QuantumCircuit):
+    """
+    DAG + saturated single‐phase scheduling:
+      1) In each column, drain *all* ready rotations (rz, rx)—
+         merging entire chains of them (e.g. rz→rx→rz) into one layer,
+         with no busy‐qubit checks among these rotations.
+      2) Then greedily pack ready CXs that don’t touch any qubit
+         already used by those rotations or by each other.
+      Repeat until every operation is scheduled.
+    """
+    dag = circuit_to_dag(qc)
+    op_nodes = list(dag.topological_op_nodes())
+    total = len(op_nodes)
+    scheduled = set()
+    columns = []
+
+    while len(scheduled) < total:
+        col_nodes = []
+        busy_qubits = set()
+
+        # --- 1) Drain *all* ready rotations into rot_layer ---
+        rot_layer = []
+        while True:
+            added = False
+            for node in op_nodes:
+                if node in scheduled or node in rot_layer:
+                    continue
+                if node.op.name not in ('rz', 'rx'):
+                    continue
+                # only consider op‐node predecessors
+                preds = [p for p in dag.predecessors(node)
+                         if isinstance(p, DAGOpNode)]
+                # allow preds to be either already scheduled or in rot_layer
+                if any((p not in scheduled and p not in rot_layer) for p in preds):
+                    continue
+                # this rotation is ready — absorb into this rotation‐chain
+                rot_layer.append(node)
+                added = True
+            if not added: # All nodes were added
+                break
+
+        # add all those rotations at once (no busy_qubits update here)
+        if rot_layer:
+            col_nodes.extend(rot_layer)
+
+        # --- 2) Greedily pack CXs respecting busy_qubits ---
+        # mark any qubits used by these rotations as busy for CXs
+        busy_qubits.update(q._index for node in rot_layer for q in node.qargs)
+
+        added = True
+        while added:
+            added = False
+            for node in op_nodes:
+                if node in scheduled or node in col_nodes:
+                    continue
+                if node.op.name != 'cx':
+                    continue
+                # dep check
+                preds = [p for p in dag.predecessors(node)
+                         if isinstance(p, DAGOpNode)]
+                if any(p not in scheduled for p in preds):
+                    continue
+                # conflict check
+                qs = [q._index for q in node.qargs]
+                if any(q in busy_qubits for q in qs):
+                    continue
+                # can schedule this CX
+                col_nodes.append(node)
+                busy_qubits.update(qs)
+                added = True
+
+        if not col_nodes:
+            raise RuntimeError("Stalled scheduling: circular dependency detected.")
+
+        # record this mixed column
+        columns.append([
+            (node.op, node.qargs, node.cargs)
+            for node in col_nodes
+        ])
+        scheduled.update(col_nodes)
+
+    return columns
+
+
 def instructions_to_matrix_dag(qc: QuantumCircuit):
     """
     Builds the per-qubit × per-column instruction matrix
@@ -118,15 +210,18 @@ def instructions_to_matrix_dag(qc: QuantumCircuit):
     Also encodes all necessary gate info into the matrix
     """
 
-    cols = group_with_dag_atomic_rotations(qc)
+    cols = group_with_dag_atomic_mixed(qc)
+
     n_q = qc.num_qubits
     n_c = len(cols)
     matrix = [[[] for _ in range(n_c)] for _ in range(n_q)]
+    cx_matrix = [[[] for _ in range(n_c)] for _ in range(n_q)]
+    # rx_matrix = [[[] for _ in range(n_c)] for _ in range(n_q)]
 
     # print("Building instruction matrix...", end=" ")
+    cx_idx = 0  #Unique cx identifier
+    for c_idx, col in enumerate(cols):  # c_idx is the column index
 
-    for c_idx, col in enumerate(cols):  # c_idx is column index
-        cx_idx = 0
         for instr, qargs, _ in col:     # qargs[0] is the control qubit
             control_qubit = True        # Hence the first iteration is always control
             for q in qargs:
@@ -134,15 +229,17 @@ def instructions_to_matrix_dag(qc: QuantumCircuit):
                 instr_mut = instr.to_mutable()
                 if instr_mut.name == 'cx' and control_qubit:
                     instr_mut.name = f"cx{cx_idx}c"
+                    cx_matrix[q._index][c_idx].append(instr_mut)  # Create cx matrix for alignment
                     control_qubit = False
                 elif instr_mut.name == 'cx' and not control_qubit:
                     instr_mut.name = f"cx{cx_idx}t"
+                    cx_matrix[q._index][c_idx].append(instr_mut)
 
                 matrix[q._index][c_idx].append(instr_mut)
             cx_idx += 1 # increment CX id after both parts of CX have been identified and logged
 
     # print("Done")
-    return matrix
+    return matrix, cx_matrix
 
 # top control bot target
 # ISNTR: Instruction(name='cx', num_qubits=2, num_clbits=0, params=[])
@@ -156,52 +253,269 @@ def instructions_to_matrix_dag(qc: QuantumCircuit):
 # ISNTR: Instruction(name='cx', num_qubits=2, num_clbits=0, params=[])
 # qargs: (Qubit(QuantumRegister(2, 'q'), 1), Qubit(QuantumRegister(2, 'q'), 0))
 
+# def align_cx_matrix(cx_matrix):
+#
+#     for col_id, col in enumerate(cx_matrix):
+#         for row_id, row in enumerate(col):
+#             for instr in row:
+#                 if instr.name.startswith('cx'):
 
-# def enumerate_cx_in_cols(matrix):
-#     num_qubits = len(matrix)
-#     num_cols   = len(matrix[0])
-#
-#     for c in range(num_cols):
-#         cx_counter = 0
-#         r = 0
-#         while r < num_qubits - 1:
-#             cell = matrix[r][c]
-#             if cell and 'cx' in cell[0].name:
-#                 print(f"Cell name: {cell[0].name}")
-#
-#                 # Qiskit instruction
-#                 if isinstance(cell[0], Instruction):
-#                     m0 = cell[0].to_mutable()
-#                     m1 = matrix[r + 1][c][0].to_mutable()
-#                 # Dummy test instruction
-#                 else:
-#                     m0 = copy.deepcopy(cell[0])
-#                     m1 = copy.deepcopy(matrix[r+1][c][0])
-#
-#                 # Set values
-#                 m0.name = f"cx{cx_counter}"
-#                 m1.name = f"cx{cx_counter}"
-#
-#                 # Update
-#                 matrix[r][c][0]   = m0
-#                 matrix[r+1][c][0] = m1
-#
-#                 cx_counter += 1
-#                 r += 2  # CX comes in pairs
-#                 continue
-#
-#             r += 1
-#
-#     return matrix
+def align_cx_matrix(cx_matrix):
+    """
+    Shift each CX‐brick (two rows with same cx#) rightwards
+    so that top_row_index %2 == column_index %2.
+    Modifies cx_matrix in place and returns it.
+    """
+    n_rows = len(cx_matrix)
+    if n_rows == 0:
+        return cx_matrix
+
+    # make sure every row has the same number of columns
+    n_cols = max(len(r) for r in cx_matrix)
+    for row in cx_matrix:
+        if len(row) < n_cols:
+            row.extend([[]] * (n_cols - len(row)))
+
+    # scan columns from rightmost to leftmost
+    for col_id in range(n_cols - 1, -1, -1):
+        # group → list of row‐indices in this column
+        group_rows: dict[str, List[int]] = {}
+        for row_id in range(n_rows):
+            for instr in cx_matrix[row_id][col_id]:
+                if instr.name.startswith('cx'):
+                    # extract the numeric group ID between "cx" and final suffix
+                    gid = instr.name[2:-1]
+                    group_rows.setdefault(gid, []).append(row_id)
+
+        # now for each 2-row brick in this column...
+        for gid, rows in group_rows.items():
+            top = min(rows)
+            # if parity mismatches, shift both rows into col_id+1
+            if top % 2 != col_id % 2:
+                target = col_id + 1
+                # if we run off the right edge, extend all rows by one empty column
+                if target >= n_cols:
+                    for r in cx_matrix:
+                        r.append([])
+                    n_cols += 1
+
+                for r in rows:
+                    # pull out just the cx# instructions for this gid
+                    moving = [
+                        ins for ins in cx_matrix[r][col_id]
+                        if ins.name.startswith('cx') and ins.name[2:-1] == gid
+                    ]
+                    # remove them from the old spot
+                    cx_matrix[r][col_id] = [
+                        ins for ins in cx_matrix[r][col_id]
+                        if not(ins in moving)
+                    ]
+                    # place them (as a list) into the new column
+                    cx_matrix[r][target] = moving
+
+    visualiser.print_matrix(cx_matrix)
+
+    return cx_matrix
+
+
+from typing import List, Optional
+
+from typing import List
+import copy
+
+from typing import List
+import copy
+
+
+from typing import List
+
+from typing import List
+
+def insert_rotations_after_or_before_cx(
+    aligned_cx: List[List[List[Instruction]]],
+    original:   List[List[List[Instruction]]]
+) -> List[List[List[Instruction]]]:
+    """
+    aligned_cx: CX-only matrix after align_cx_matrix
+    original:   full matrix (CX + rotations)
+    Returns new matrix where each rotation-list from original[i][j]:
+      - if original[i][j-1] has a CX → insert after that CX
+      - elif original[i][j+1] has a CX → insert in the group *before* that CX
+      - else → insert into column 0
+    """
+    # deep-copy so we can append
+    new_mat = [
+        [list(cell) for cell in row]
+        for row in aligned_cx
+    ]
+    n_rows = len(new_mat)
+    if n_rows == 0:
+        return new_mat
+
+    # normalize width
+    width = max(len(r) for r in new_mat)
+    for r in new_mat:
+        if len(r) < width:
+            r.extend([[]] * (width - len(r)))
+
+    for i in range(n_rows):
+        row_orig = original[i]
+        for j, cell in enumerate(row_orig):
+            rots = [ins for ins in cell if not ins.name.startswith('cx')]
+            if not rots:
+                continue
+
+            dest = 0
+            group_instr = None
+
+            # 1) LEFT neighbor → after-CX
+            if j > 0:
+                left_cx = [ins for ins in row_orig[j-1] if ins.name.startswith('cx')]
+                if left_cx:
+                    group_instr = left_cx[0]
+                    # find its column in aligned_cx
+                    for c, aligned_cell in enumerate(new_mat[i]):
+                        if any(ins.name == group_instr.name for ins in aligned_cell):
+                            dest = c + 1
+                            break
+
+            # 2) RIGHT neighbor → before-CX (now one left of CX)
+            if group_instr is None and j+1 < len(row_orig):
+                right_cx = [ins for ins in row_orig[j+1] if ins.name.startswith('cx')]
+                if right_cx:
+                    group_instr = right_cx[0]
+                    for c, aligned_cell in enumerate(new_mat[i]):
+                        if any(ins.name == group_instr.name for ins in aligned_cell):
+                            dest = max(c - 1, 0)
+                            break
+
+            # 3) ensure room
+            if dest >= len(new_mat[i]):
+                extra = dest - len(new_mat[i]) + 1
+                for r in new_mat:
+                    r.extend([[]] * extra)
+
+            # append in order
+            new_mat[i][dest].extend(rots)
+
+    return new_mat
+
+
+
+from typing import List, Optional
+
+def insert_rotations(
+    cx_matrix: List[List[List[Instruction]]],
+    orig_matrix: List[List[List[Instruction]]]
+) -> List[List[List[Instruction]]]:
+    """
+    Given:
+      - cx_matrix   : the output of align_cx_matrix (only cx* in each cell)
+      - orig_matrix : the original grid (cx* + rotations in each cell)
+    Returns a new grid where every rotation list from orig_matrix[i][j]
+    has been re-inserted into row i either just after its “prev” CX or
+    just before its “next” CX, in the aligned cx_matrix.
+    """
+    n_rows = len(cx_matrix)
+    if n_rows == 0:
+        return []
+
+    # ensure all rows of cx_matrix are the same width
+    aligned_ncols = max(len(r) for r in cx_matrix)
+    for row in cx_matrix:
+        row.extend([[]] * (aligned_ncols - len(row)))
+
+    # deep-copy the cx_matrix so we can append rotations
+    new_mat: List[List[List[Instruction]]] = [
+        [list(cell) for cell in row]
+        for row in cx_matrix
+    ]
+
+    for i in range(n_rows):
+        # collect the original CX positions & names in this row
+        orig_row = orig_matrix[i]
+        cx_positions: List[tuple[int,str]] = []
+        for j, cell in enumerate(orig_row):
+            for instr in cell:
+                if instr.name.startswith('cx'):
+                    cx_positions.append((j, instr.name))
+
+        # for each rotation-only cell in the original:
+        for j, cell in enumerate(orig_row):
+            rots = [ins for ins in cell if not ins.name.startswith('cx')]
+            if not rots:
+                continue
+
+            # find prev CX (max pos < j) and next CX (min pos > j)
+            prev: Optional[tuple[int,str]] = None
+            next_: Optional[tuple[int,str]] = None
+            for pos, name in cx_positions:
+                if pos < j and (prev is None or pos > prev[0]):
+                    prev = (pos, name)
+                if pos > j and (next_ is None or pos < next_[0]):
+                    next_ = (pos, name)
+
+            # decide insertion column in the aligned matrix
+            if prev:
+                # insert just after the aligned prev CX
+                _, prev_name = prev
+                dest = next(
+                    idx for idx, c in enumerate(new_mat[i])
+                    if any(ins.name == prev_name for ins in c)
+                ) + 1
+            elif next_:
+                # no prev, but there's a next → insert just before it
+                _, next_name = next_
+                dest = next(
+                    idx for idx, c in enumerate(new_mat[i])
+                    if any(ins.name == next_name for ins in c)
+                )
+            else:
+                # no CX in this row at all → stick at column 0
+                dest = 0
+
+            # grow matrix if we fell off the right edge
+            if dest >= len(new_mat[i]):
+                extra = dest - len(new_mat[i]) + 1
+                for row in new_mat:
+                    row.extend([[]] * extra)
+
+            # if that slot is already a CX (collision), try the other side
+            cell_at_dest = new_mat[i][dest]
+            if any(ins.name.startswith('cx') for ins in cell_at_dest):
+                if prev and next_:
+                    # try before the next CX
+                    _, next_name = next_
+                    dest = next(
+                        idx for idx, c in enumerate(new_mat[i])
+                        if any(ins.name == next_name for ins in c)
+                    )
+                else:
+                    # lone prev or lone next: flip direction
+                    if prev:
+                        dest -= 1
+                    else:
+                        dest += 1
+                if dest < 0:
+                    dest = 0
+                if dest >= len(new_mat[i]):
+                    extra = dest - len(new_mat[i]) + 1
+                    for row in new_mat:
+                        row.extend([[]] * extra)
+
+            # finally, append the rotations in order
+            new_mat[i][dest].extend(rots)
+
+    return new_mat
+
+
+
+from typing import List
 
 import logging
-
-logger = logging.getLogger(__name__)
-import logging
-
 logger = logging.getLogger(__name__)
 
-def align_bricks(matrix):
+def align_bricks_insert_blank(matrix):
     """
     Align CX and rotation operations into parity-based bricks.
 
@@ -227,11 +541,11 @@ def align_bricks(matrix):
     brick_idx = 0
 
     for col in cols:
-        # 1) collect single-qubit rotations
+        # Collect single-qubit rotations
         rotations = [[instr for instr in row if instr.name in ('rz', 'rx')]
                      for row in col]
 
-        # 2) map CX suffix to top-qubit index regardless of control/target role
+        # Map CX suffix to top-qubit index regardless of control/target role
         suffix_top = {}
         for i, row in enumerate(col):
             for instr in row:
@@ -239,13 +553,13 @@ def align_bricks(matrix):
                     suffix = instr.name[2:-1]
                     suffix_top[suffix] = min(suffix_top.get(suffix, i), i)
 
-        # 3) if no CX, schedule pure-rotation brick
+        # If no CX, schedule pure-rotation brick
         if not suffix_top:
             bricks.append(rotations)
             brick_idx += 1
             continue
 
-        # 4) schedule CX bricks by parity of top-qubit row
+        # Schedule CX bricks by parity of top-qubit row
         unscheduled = set(suffix_top)
         while unscheduled:
             parity = brick_idx % 2
@@ -275,164 +589,178 @@ def align_bricks(matrix):
     return [[brick[i] for brick in bricks] for i in range(n_q)]
 
 
+def align_bricks_two_phase(matrix):
+    n_q = len(matrix)
+    if n_q == 0:
+        return []
 
-# def align_bricks(matrix):
-#
-#     print("Aligning Bricks...", end=" ")
-#
-#     n_q = len(matrix)       # Number of qubits
-#     n_c = len(matrix[0])    # Number of columns
-#     new_cols = []
-#     brick_idx = 0
-#
-#     # matrix = enumerate_cx_in_cols(matrix)
-#
-#     visualiser.print_matrix(matrix)
-#
-#     for c in range(n_c):
-#         # 1) collect rotations
-#         rotations = [
-#             [instr for instr in matrix[q][c] if instr.name in ('rz', 'rx')]
-#             for q in range(n_q)
-#         ]
-#         # 2) map each numeric suffix to its starting qubit i
-#         num_to_i = {}
-#         for i in range(n_q - 1):
-#             names_i   = {instr.name for instr in matrix[i][c]   if instr.name.startswith('cx')}
-#             names_ip1 = {instr.name for instr in matrix[i+1][c] if instr.name.startswith('cx')}
-#             for full in names_i & names_ip1:
-#                 num_to_i[full[2:]] = i
-#
-#         # 3) no CNOTs → pure‐rotation brick
-#         if not num_to_i:
-#             new_cols.append(rotations)
-#             brick_idx += 1
-#             continue
-#
-#         # 4) schedule in as few bricks as possible, grouping same‐parity, non‐conflicting CNOTs
-#         unscheduled = list(num_to_i.keys())
-#         while unscheduled:
-#             parity   = brick_idx % 2
-#             # pick all groups whose i has correct parity
-#             to_place = [n for n in unscheduled if (num_to_i[n] % 2) == parity]
-#             if not to_place:
-#                 # nothing fits → blank brick
-#                 new_cols.append([[] for _ in range(n_q)])
-#                 brick_idx += 1
-#                 continue
-#
-#             # build a brick with all rotations + all selected cx<n>
-#             layer = []
-#             for q in range(n_q):
-#                 ops = list(rotations[q])
-#                 for n in to_place:
-#                     i = num_to_i[n]
-#                     if q == i or q == i+1:
-#                         # grab the cx<n> on this wire
-#                         for instr in matrix[q][c]:
-#                             if instr.name == f'cx{n}':
-#                                 ops.append(instr)
-#                                 break
-#                 layer.append(ops)
-#
-#             new_cols.append(layer)
-#             brick_idx += 1
-#             # mark them done
-#             for n in to_place:
-#                 unscheduled.remove(n)
-#
-#     print("Done")
-#
-#     # transpose back to [qubit][brick]
-#     return [
-#         [new_cols[b][q] for b in range(len(new_cols))]
-#         for q in range(n_q)
-#     ]
+    # Transpose to get columns
+    cols = list(zip(*matrix))
+
+    # Phase 1: schedule CX bricks
+    # --------------------------------
+    # bricks_cx: list of layers; each layer is a list-of-lists for each qubit
+    bricks_cx = []
+    # for each suffix, remember its top-qubit index
+    for col in cols:
+        # collect all CX suffixes in this column
+        suffix_top = {}
+        for i, row in enumerate(col):
+            for instr in row:
+                if instr.name.startswith('cx'):
+                    s = instr.name[2:-1]
+                    suffix_top[s] = min(suffix_top.get(s, i), i)
+
+        # assign each suffix to a brick of matching parity
+        # we track: next brick index for parity 0 and parity 1
+        next_brick = {0: 0, 1: 0}
+        for suffix, top in sorted(suffix_top.items(), key=lambda x: x[1]):
+            p = top % 2
+            bidx = next_brick[p]
+            # if we need a new brick, append an empty layer
+            while bidx >= len(bricks_cx):
+                bricks_cx.append([[] for _ in range(n_q)])
+            # place BOTH control and target into that layer
+            for i, row in enumerate(col):
+                for instr in row:
+                    if instr.name.startswith(f'cx{suffix}'):
+                        bricks_cx[bidx][i].append(instr)
+            # increment for next same‐parity suffix
+            next_brick[p] += 1
+
+    # Phase 2: pack rotations
+    # --------------------------------
+    # we'll build bricks_full starting from a deep copy of bricks_cx
+    from copy import deepcopy
+    bricks_full = deepcopy(bricks_cx)
+
+    for col in cols:
+        # extract single‐qubit rotations in this column
+        rotations = [(i, instr)
+                     for i, row in enumerate(col)
+                     for instr in row
+                     if instr.name in ('rz', 'rx')]
+        for q_idx, rot in rotations:
+            # try to insert into earliest brick with no CX at q_idx
+            placed = False
+            for layer in bricks_full:
+                # check if this qubit is free of CX here
+                if not any(op.name.startswith('cx') for op in layer[q_idx]):
+                    layer[q_idx].append(rot)
+                    placed = True
+                    break
+            if not placed:
+                # need a brand‐new brick
+                new_layer = [[] for _ in range(n_q)]
+                new_layer[q_idx].append(rot)
+                bricks_full.append(new_layer)
+
+    # transpose back to [qubit][brick]
+    return [[layer[q] for layer in bricks_full] for q in range(n_q)]
 
 
 
-# def incorporate_bricks(matrix):
-#     """
-#     Inserts the minimal number of identity‐only bricks so that, for each original column c:
-#       • Each CNOT(i,i+1) goes into a brick whose index % 2 == i % 2.
-#       • If multiple CNOTs in c have mixed parity, they’re split into separate bricks.
-#       • All rotations (rz/rx) appear in every emitted brick.
-#
-#     Args:
-#       matrix: List[List[List[Instruction]]], shape (n_qubits, n_cols),
-#               where matrix[q][c] is the list of Instruction objects
-#               (rz, rx, cx) acting on qubit q in original column c.
-#
-#     Returns:
-#       new_matrix: same format, with identity‐only columns inserted
-#                   to enforce the even/odd‐brick requirement.
-#     """
-#     n_q = len(matrix)
-#     n_c = len(matrix[0])
-#     new_cols = []
-#     brick_idx = 0  # counts output bricks (0-based)
-#
-#     for c in range(n_c):
-#         # 1) Extract all rz/rx rotations from this column
-#         rotations = [
-#             [instr for instr in matrix[q][c] if instr.name in ('rz', 'rx')]
-#             for q in range(n_q)
-#         ]
-#
-#         # 2) Reconstruct the list of adjacent‐qubit CNOTs in this column
-#         #    by looking for pairs (i, i+1) both carrying a cx.
-#         cx_pairs = []
-#         for i in range(n_q - 1):
-#             has_i = any(instr.name == 'cx' for instr in matrix[i][c])
-#             has_ip1 = any(instr.name == 'cx' for instr in matrix[i + 1][c])
-#             if has_i and has_ip1:
-#                 cx_pairs.append(i)  # store the “i” of (i, i+1)
-#
-#         if not cx_pairs:
-#             # --- No CNOTs: one brick carrying just the rotations ---
-#             new_cols.append(rotations)
-#             brick_idx += 1
-#             continue
-#
-#         # 3) Schedule each CNOT(i,i+1) in its own or shared brick, in pass order:
-#         unscheduled = list(cx_pairs)
-#         while unscheduled:
-#             curr_parity = brick_idx % 2
-#             # find all pairs that can go here
-#             to_place = [i for i in unscheduled if (i % 2) == curr_parity]
-#
-#             if not to_place:
-#                 # no matching CNOTs ⇒ pad an identity brick
-#                 new_cols.append([[] for _ in range(n_q)])
-#                 brick_idx += 1
-#                 continue
-#
-#             # build a brick: add all rotations + only the cx for these pairs
-#             layer = []
-#             for q in range(n_q):
-#                 ops = list(rotations[q])
-#                 for i in to_place:
-#                     if q == i or q == i + 1:
-#                         # grab exactly one of the original cx instrs for this wire
-#                         for instr in matrix[q][c]:
-#                             if instr.name == 'cx':
-#                                 ops.append(instr)
-#                                 break
-#                 layer.append(ops)
-#
-#             new_cols.append(layer)
-#             brick_idx += 1
-#
-#             # mark those CNOTs done
-#             for i in to_place:
-#                 unscheduled.remove(i)
-#
-#     # transpose back into [qubit][brick] format
-#     n_new = len(new_cols)
-#     return [
-#         [new_cols[b][q] for b in range(n_new)]
-#         for q in range(n_q)
-#     ]
+
+from typing import List, Set, Dict, Optional
+
+
+def align_bricks(cx_mat, orig):
+    cx_mat_aligned = align_cx_matrix(cx_mat)
+    qc_mat_aligned = insert_rotations_after_or_before_cx(cx_mat_aligned, orig)
+
+    return qc_mat_aligned
+
+
+
+
+
+
+
+
+def align_bricks_with_insertion(matrix):
+    """
+    Align CX and rotation operations into parity-based bricks,
+    pushing CX operations forward rather than inserting empty bricks.
+
+    If parity doesn't match at a given column, remaining CXs are moved to the next
+    column; they overwrite identity slots or push further if conflicts occur.
+
+    Args:
+        matrix (List[List[Instruction]]): Each sublist is a qubit's time-ordered
+            list of gate instructions per column; Instruction.name in
+            {'rz', 'rx', 'cx{n}c', 'cx{n}t'}.
+
+    Returns:
+        List[List[List[Instruction]]]: Scheduled bricks [n_qubits][n_bricks].
+    """
+    n_q = len(matrix)
+    if n_q == 0:
+        return []
+
+    # Transpose and copy matrix into mutable column structure
+    cols = [[list(instrs) for instrs in col] for col in zip(*matrix)]
+    bricks = []
+    brick_idx = 0
+    col_idx = 0
+
+    while col_idx < len(cols):
+        col = cols[col_idx]
+        # Extract single-qubit rotations for this column
+        rotations = [[instr for instr in row if instr.name in ('rz', 'rx')] for row in col]
+
+        # Map CX suffix to its top-qubit index
+        suffix_top = {}
+        for i, row in enumerate(col):
+            for instr in row:
+                if instr.name.startswith('cx'):
+                    suffix = instr.name[2:-1]
+                    suffix_top[suffix] = min(suffix_top.get(suffix, i), i)
+
+        # If no CX in this column, schedule pure-rotation brick
+        if not suffix_top:
+            bricks.append(rotations)
+            brick_idx += 1
+            col_idx += 1
+            continue
+
+        # Try to schedule all CX suffix-groups
+        unscheduled = set(suffix_top)
+        while unscheduled:
+            parity = brick_idx % 2
+            # Find suffixes matching current parity
+            to_place = {s for s, top in suffix_top.items() if (top % 2) == parity and s in unscheduled}
+
+            if not to_place:
+                # Push remaining CXs to next column instead of empty brick
+                next_idx = col_idx + 1
+                # Extend columns if needed
+                if next_idx >= len(cols):
+                    cols.append([[] for _ in range(n_q)])
+                # Move unscheduled CX instructions
+                for suffix in unscheduled:
+                    for qi, row in enumerate(col):
+                        for instr in row:
+                            if instr.name.startswith(f'cx{suffix}'):
+                                cols[next_idx][qi].append(instr)
+                # Stop scheduling this column
+                break
+
+            # Build and append this brick
+            layer = []
+            for row in col:
+                ops = [instr for instr in row if instr.name in ('rz', 'rx')]
+                for suffix in to_place:
+                    ops.extend(instr for instr in row if instr.name.startswith(f'cx{suffix}'))
+                layer.append(ops)
+            bricks.append(layer)
+            brick_idx += 1
+            unscheduled -= to_place
+
+        # Move to next column
+        col_idx += 1
+
+    # Transpose back to [qubit][brick]
+    return [[brick[i] for brick in bricks] for i in range(n_q)]
 
 
 ##### Iterative method below -- not used #####

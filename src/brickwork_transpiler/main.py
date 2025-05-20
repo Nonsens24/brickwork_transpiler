@@ -28,6 +28,7 @@ from libs.gospel.gospel.brickwork_state_transpiler.brickwork_state_transpiler im
 from src.brickwork_transpiler import decomposer, graph_builder, pattern_converter, brickwork_transpiler
 from src.brickwork_transpiler.noise import to_noisy_pattern
 from src.brickwork_transpiler.visualiser import plot_graph
+import src.brickwork_transpiler.circuits as circuits
 
 from graphix.pattern import Pattern
 from graphix.channels import depolarising_channel
@@ -37,33 +38,17 @@ from graphix.channels import depolarising_channel
 
 def main():
 
+    qc, input_vector = circuits.cnot_alignment_bug_double_trouble()
+
+    bw_pattern_bugged, ref_state, col_map= brickwork_transpiler.transpile(qc, input_vector)
 
 
-    input_vector = Statevector.from_label('+++++')
+    visualiser.plot_brickwork_graph_from_pattern(bw_pattern_bugged,
+                                                 node_colours=col_map,
+                                                 use_node_colours=True,
+                                                 title="Brickwork Graph: MAIN Alignment test 42")
 
-    qc = QuantumCircuit(5)
-
-    qc.cx(0, 1)
-
-    qc.rz(np.pi / 4, 1)
-    qc.rx(np.pi / 4, 1)
-    qc.rz(np.pi / 4, 1)
-    qc.cx(0, 1)
-
-    qc.rz(np.pi / 4, 2)
-    qc.rx(np.pi / 4, 2)
-    qc.rz(np.pi / 4, 2)
-    qc.cx(1, 2)
-
-    qc.rz(np.pi / 4, 3)
-    qc.rx(np.pi / 4, 3)
-    qc.rz(np.pi / 4, 3)
-    qc.cx(2, 3)
-
-    qc.rz(np.pi / 4, 4)
-    qc.rx(np.pi / 4, 4)
-    qc.rz(np.pi / 4, 4)
-    qc.cx(3, 4)
+    return 0
 
     # 2) Draw as an mpl Figure
     #    output='mpl' returns a matplotlib.figure.Figure
@@ -77,11 +62,6 @@ def main():
     # fig.savefig("qc_diagram.svg", format="svg", bbox_inches="tight")  # vector
     # fig.savefig("qc_diagram.pdf", format="pdf", bbox_inches="tight")  # vector
     # fig.savefig("qc_diagram.png", format="png", dpi=300, bbox_inches="tight")  # raster
-
-
-
-
-
 
 
     # Noise
