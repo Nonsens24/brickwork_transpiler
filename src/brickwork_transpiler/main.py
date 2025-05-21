@@ -38,15 +38,15 @@ from graphix.channels import depolarising_channel
 
 def main():
 
-    qc, input_vector = circuits.big_shifter()
+    qc, input_vector = circuits.test_large_cx_multiple()
 
-    bw_pattern_bugged, ref_state, col_map= brickwork_transpiler.transpile(qc, input_vector)
+    bw_pattern_bugged, col_map= brickwork_transpiler.transpile(qc, input_vector)
 
 
     visualiser.plot_brickwork_graph_from_pattern(bw_pattern_bugged,
                                                  node_colours=col_map,
                                                  use_node_colours=True,
-                                                 title="Brickwork Graph: MAIN Alignment test 42")
+                                                 title="Brickwork Graph: MAIN Alignment cx swap test - test_large_cx_multiple")
 
     return 0
 

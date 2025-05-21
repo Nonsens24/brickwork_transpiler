@@ -5,7 +5,9 @@ from src.brickwork_transpiler import decomposer, graph_builder, pattern_converte
 def transpile(qc: QuantumCircuit, input_vector):
 
     # Decompose to CX, rzrxrz, id
-    decomposed_qc = decomposer.decompose_qc_to_bricks_qiskit(qc, opt=3)
+    decomposed_qc = decomposer.decompose_qc_to_bricks_qiskit(qc, opt=0)
+
+    print(decomposed_qc.draw())
 
     # Optiise instruction matrix with dependency graph
     qc_mat, cx_mat = decomposer.instructions_to_matrix_dag(decomposed_qc)
@@ -25,6 +27,6 @@ def transpile(qc: QuantumCircuit, input_vector):
     bw_pattern, col_map = pattern_converter.to_pattern(qc_mat_aligned, bw_nx_graph)
 
     # Calculate reference statevector
-    reference_output = utils.calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vector)
+    # reference_output = utils.calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vector)
 
-    return bw_pattern, reference_output, col_map
+    return bw_pattern, col_map #reference_output, col_map

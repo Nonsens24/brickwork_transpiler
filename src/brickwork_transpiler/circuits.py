@@ -229,3 +229,56 @@ def test_circ():
     qc.cx(2, 3)
 
     return qc, input_vector
+
+def test_large_cx():
+    input_vector = Statevector.from_label('++++++')
+
+    qc= QuantumCircuit(6)
+    qc.cx(0, 5)
+
+    return qc, input_vector
+
+def test_large_cx_8():
+    input_vector = Statevector.from_label('++++++++')
+
+    qc= QuantumCircuit(8)
+    qc.cx(7, 0)
+
+    return qc, input_vector
+
+def test_large_cx_uneven():
+    input_vector = Statevector.from_label('+++++++')
+
+    qc= QuantumCircuit(7)
+    qc.cx(6, 0)
+
+    return qc, input_vector
+
+def test_large_cx_two():
+    input_vector = Statevector.from_label('+++++++++++')
+
+    qc= QuantumCircuit(10)
+    qc.cx(9, 0)
+    qc.cx(6, 3)
+
+    return qc, input_vector
+
+def test_large_cx_two_rev():
+    input_vector = Statevector.from_label('+++++++++++')
+
+    qc= QuantumCircuit(10)
+    qc.cx(6, 3)
+    qc.cx(9, 0)
+
+
+    return qc, input_vector
+
+def test_large_cx_multiple():
+    input_vector = Statevector.from_label('+++++++++++++')
+
+    qc= QuantumCircuit(12)
+    qc.cx(11, 0)
+    qc.cx(9, 2)
+    qc.cx(4, 7)
+
+    return qc, input_vector

@@ -2,24 +2,47 @@ from qiskit import QuantumCircuit, transpile
 from qiskit.circuit import Instruction
 from qiskit.converters import circuit_to_dag
 from qiskit.dagcircuit import DAGOpNode
+from qiskit.transpiler import CouplingMap
 from qiskit.visualization import dag_drawer
 
 from src.brickwork_transpiler import visualiser
 
 
-def decompose_qc_to_bricks_qiskit(qc, opt=1, draw=False):
+def decompose_qc_to_bricks_qiskit(qc: QuantumCircuit, opt=3, draw=False):
+    #
+    # # print("Decomposing Quantum circuit to generator set...", end=" ")
+    #
+    # basis = ['rz', 'rx', 'cx', 'id']  # include 'id' for explicit barriers/timing
+    # qc_basis = transpile(qc, basis_gates=basis, optimization_level=opt)
+    #
+    # if draw:
+    #     print(qc_basis.draw())
+    #
+    # # print("Done")
 
-    # print("Decomposing Quantum circuit to generator set...", end=" ")
+    # 1. Define your basis
+    basis = ['rz', 'rx', 'cx', 'id']
 
-    basis = ['rz', 'rx', 'cx', 'id']  # include 'id' for explicit barriers/timing
-    qc_basis = transpile(qc, basis_gates=basis, optimization_level=opt)
+    # 2. Define the coupling map for your device/simulator:
+    coupling = CouplingMap([[i, i+1] for i in range(qc.num_qubits -1)]) # -1 so the amount of qubits remains right
+
+    # 3. Transpile with routing
+    # Lookahead routing: evaluates cost-to-go windows to insert SWAPs globally
+    # Sabre: runs routing forward and backward to refine qubit movements in both directions -- BUG IN GRAPH TEST (pb backward routing)
+    # Stochastic routing: randomizes swap choices to explore bidirectional traffic patterns
+    qc_mapped = transpile(
+        qc,
+        basis_gates=basis,
+        coupling_map=coupling,
+        layout_method='trivial',  # keep initial virtual→physical mapping
+        routing_method='stochastic', #'sabre', #'lookahead', #'basic',  # use the simple SWAP-insertion pass
+        optimization_level=opt
+    )
 
     if draw:
-        print(qc_basis.draw())
+        print(qc_mapped.draw())
 
-    # print("Done")
-
-    return qc_basis
+    return qc_mapped
 
 
 def group_with_dag_atomic_rotations_layers(qc: QuantumCircuit):
