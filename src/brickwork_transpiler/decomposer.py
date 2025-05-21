@@ -236,7 +236,8 @@ def instructions_to_matrix_dag(qc: QuantumCircuit):
                     cx_matrix[q._index][c_idx].append(instr_mut)
 
                 matrix[q._index][c_idx].append(instr_mut)
-            cx_idx += 1 # increment CX id after both parts of CX have been identified and logged
+            if instr.name.startswith('cx'):
+                cx_idx += 1 # increment CX id after both parts of CX have been identified and logged
 
     # print("Done")
     return matrix, cx_matrix
@@ -313,7 +314,7 @@ def align_cx_matrix(cx_matrix):
                     # place them (as a list) into the new column
                     cx_matrix[r][target] = moving
 
-    visualiser.print_matrix(cx_matrix)
+    # visualiser.print_matrix(cx_matrix)
 
     return cx_matrix
 
