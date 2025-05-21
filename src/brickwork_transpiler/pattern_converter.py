@@ -5,10 +5,13 @@ def parse_euler_angles(cell):
 
     rotations = [0.0, 0.0, 0.0, 0.0]
     index = 0
+    if cell[0].name == 'rx': # case of rxrz
+        index += 1
     for instr in cell:
         if instr.name == 'rz':
             if index != 0 and index != 2:
-                raise AssertionError(f"Index wrong: {index}, instuction: {instr}")
+                raise AssertionError(f"Index wrong: {index}, instuction: {instr}\n "
+                                     f"Probably shifted cx into a rotation brick")
             rotations[index] = -float(instr.params[0])/ np.pi # - for convetion graphix -- add source
             # rotations[index] /= 2
         elif instr.name == 'rx':

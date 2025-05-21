@@ -38,7 +38,7 @@ from graphix.channels import depolarising_channel
 
 def main():
 
-    qc, input_vector = circuits.cnot_alignment_bug_double_trouble()
+    qc, input_vector = circuits.big_shifter()
 
     bw_pattern_bugged, ref_state, col_map= brickwork_transpiler.transpile(qc, input_vector)
 

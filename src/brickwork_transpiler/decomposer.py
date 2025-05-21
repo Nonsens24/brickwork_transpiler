@@ -261,62 +261,260 @@ def instructions_to_matrix_dag(qc: QuantumCircuit):
 #             for instr in row:
 #                 if instr.name.startswith('cx'):
 
-def align_cx_matrix(cx_matrix):
-    """
-    Shift each CX‐brick (two rows with same cx#) rightwards
-    so that top_row_index %2 == column_index %2.
-    Modifies cx_matrix in place and returns it.
-    """
-    n_rows = len(cx_matrix)
-    if n_rows == 0:
-        return cx_matrix
+# def align_cx_matrix(cx_matrix):
+#     """
+#     Shift each CX‐brick (two rows with same cx#) rightwards
+#     so that top_row_index %2 == column_index %2.
+#     Modifies cx_matrix in place and returns it.
+#     """
+#     n_rows = len(cx_matrix)
+#     if n_rows == 0:
+#         return cx_matrix
+#
+#     cx_matrix_no_shift = cx_matrix  # Safe this for alignment
+#
+#     print("cx_matrix unaligned:")
+#     visualiser.print_matrix(cx_matrix)
+#
+#     # make sure every row has the same number of columns
+#     n_cols = max(len(r) for r in cx_matrix)
+#     for row in cx_matrix:
+#         if len(row) < n_cols:
+#             row.extend([[]] * (n_cols - len(row)))
+#
+#     # scan columns from rightmost to leftmost
+#     for col_id in range(n_cols - 1, -1, -1):
+#         # group → list of row‐indices in this column
+#         group_rows: dict[str, List[int]] = {}
+#         for row_id in range(n_rows):
+#             for instr in cx_matrix[row_id][col_id]:
+#                 if instr.name.startswith('cx'):
+#                     # extract the numeric group ID between "cx" and final suffix
+#                     gid = instr.name[2:-1]
+#                     group_rows.setdefault(gid, []).append(row_id)
+#
+#         # now for each 2-row brick in this column...
+#         for gid, rows in group_rows.items():
+#             top = min(rows)
+#             # if parity mismatches, shift both rows into col_id+1
+#             if top % 2 != col_id % 2:
+#                 target = col_id + 1
+#
+#                 # If current instruction to be shifted + 2 = the same as non shifted matrix + 2 it means that the next
+#                 # cx is not shifted but this one is, shifting the rotation into the next cx
+#                 if cx_matrix[gid][target + 2] == cx_matrix_no_shift[gid][col_id+2]:
+#                     # TODO: shift the gate by two and make the whole matrix work again...
+#                 # if we run off the right edge, extend all rows by one empty column
+#                 if target >= n_cols:
+#                     for r in cx_matrix:
+#                         r.append([])
+#                     n_cols += 1
+#
+#                 for r in rows:
+#                     # pull out just the cx# instructions for this gid
+#                     moving = [
+#                         ins for ins in cx_matrix[r][col_id]
+#                         if ins.name.startswith('cx') and ins.name[2:-1] == gid
+#                     ]
+#                     # remove them from the old spot
+#                     cx_matrix[r][col_id] = [
+#                         ins for ins in cx_matrix[r][col_id]
+#                         if not(ins in moving)
+#                     ]
+#                     # place them (as a list) into the new column
+#                     cx_matrix[r][target] = moving
+#
+#     print("cx_matrix aligned:")
+#     visualiser.print_matrix(cx_matrix)
+#
+#     return cx_matrix
 
-    # make sure every row has the same number of columns
-    n_cols = max(len(r) for r in cx_matrix)
-    for row in cx_matrix:
-        if len(row) < n_cols:
-            row.extend([[]] * (n_cols - len(row)))
 
-    # scan columns from rightmost to leftmost
-    for col_id in range(n_cols - 1, -1, -1):
-        # group → list of row‐indices in this column
-        group_rows: dict[str, List[int]] = {}
-        for row_id in range(n_rows):
-            for instr in cx_matrix[row_id][col_id]:
-                if instr.name.startswith('cx'):
-                    # extract the numeric group ID between "cx" and final suffix
+import copy
+from typing import List, Dict
+
+import copy
+from typing import List, Dict
+
+
+import copy
+from typing import List, Dict
+
+
+# def align_cx_matrix(cx_matrix: List[List[List[Instruction]]]) -> List[List[List[Instruction]]]:
+#     """
+#     Shift each CX‐brick (two rows with same cx#) rightwards so that:
+#       1. top_row_index % 2 == column_index % 2 (parity alignment)
+#       2. if originally separated by at least one empty column, preserve that spacing
+#
+#     Returns a new aligned cx_matrix without modifying the original.
+#     """
+#     # Deep copy to preserve original
+#     original = copy.deepcopy(cx_matrix)
+#     n_rows = len(original)
+#     if n_rows == 0:
+#         return original
+#
+#     # Determine maximum columns in the original matrix
+#     n_cols = max(len(row) for row in original)
+#
+#     # Collect information about each CX‐brick (group)
+#     group_info: Dict[str, Dict] = {}
+#     for r in range(n_rows):
+#         for c in range(n_cols):
+#             cell = original[r][c] if c < len(original[r]) else []
+#             for instr in cell:
+#                 if instr.name.startswith("cx"):
+#                     gid = instr.name[2:-1]
+#                     info = group_info.setdefault(gid, {"rows": set(), "orig_col": c})
+#                     info["rows"].add(r)
+#                     info["orig_col"] = min(info["orig_col"], c)
+#
+#     # Build a list of bricks sorted by their original column
+#     bricks = []
+#     for gid, info in group_info.items():
+#         top_row = min(info["rows"])
+#         bricks.append({
+#             "gid": gid,
+#             "rows": sorted(info["rows"]),
+#             "orig_col": info["orig_col"],
+#             "top": top_row
+#         })
+#     bricks.sort(key=lambda b: b["orig_col"])
+#
+#     # Compute original spacings between consecutive bricks
+#     for i in range(len(bricks)):
+#         if i == 0:
+#             bricks[i]["orig_spacing"] = 0
+#         else:
+#             prev_col = bricks[i-1]["orig_col"]
+#             curr_col = bricks[i]["orig_col"]
+#             bricks[i]["orig_spacing"] = curr_col - prev_col
+#
+#     # Prepare an empty aligned matrix
+#     aligned: List[List[List[Instruction]]] = [[] for _ in range(n_rows)]
+#
+#     last_placed_col = -999
+#     for i, brick in enumerate(bricks):
+#         desired_col = brick["orig_col"]
+#         # Parity constraint
+#         if brick["top"] % 2 != desired_col % 2:
+#             desired_col += 1
+#         # Spacing constraint
+#         spacing = brick.get("orig_spacing", 0)
+#         if spacing > 1 and last_placed_col >= 0:
+#             spacing_req = spacing
+#         else:
+#             spacing_req = 0
+#         if spacing_req > 0:
+#             place_col = max(desired_col, last_placed_col + spacing_req)
+#         else:
+#             place_col = desired_col
+#
+#         # Extend rows
+#         for row in aligned:
+#             while len(row) <= place_col:
+#                 row.append([])
+#
+#         # Move CX instructions
+#         for r in brick["rows"]:
+#             instrs = [instr for instr in original[r][brick["orig_col"]]
+#                       if instr.name.startswith(f"cx{brick['gid']}")]
+#             aligned[r][place_col] = instrs
+#
+#         last_placed_col = place_col
+#
+#     return aligned
+
+from typing import List, Dict
+import copy
+
+def align_cx_matrix(cx_matrix: List[List[List[Instruction]]]) -> List[List[List[Instruction]]]:
+    """
+    Shift each CX “brick” so that
+      1. top_row % 2 == column % 2  (parity)
+      2. for any prior brick sharing a qubit row, there's at least one empty column
+         (or preserve original gap, if it was larger).
+
+    Returns a new matrix; does not mutate the input.
+    """
+    original = copy.deepcopy(cx_matrix)
+    n_rows = len(original)
+    n_cols = max((len(r) for r in original), default=0)
+
+    # Gather each brick’s rows and original column
+    group_info: Dict[str, Dict] = {}
+    for r in range(n_rows):
+        for c in range(n_cols):
+            cell = original[r][c] if c < len(original[r]) else []
+            for instr in cell:
+                if instr.name.startswith("cx"):
                     gid = instr.name[2:-1]
-                    group_rows.setdefault(gid, []).append(row_id)
+                    info = group_info.setdefault(gid, {"rows": set(), "orig_col": c})
+                    info["rows"].add(r)
+                    info["orig_col"] = min(info["orig_col"], c)
 
-        # now for each 2-row brick in this column...
-        for gid, rows in group_rows.items():
-            top = min(rows)
-            # if parity mismatches, shift both rows into col_id+1
-            if top % 2 != col_id % 2:
-                target = col_id + 1
-                # if we run off the right edge, extend all rows by one empty column
-                if target >= n_cols:
-                    for r in cx_matrix:
-                        r.append([])
-                    n_cols += 1
+    # Build and sort bricks by orig_col
+    bricks = []
+    for gid, info in group_info.items():
+        bricks.append({
+            "gid": gid,
+            "rows": sorted(info["rows"]),
+            "orig_col": info["orig_col"],
+            "top": min(info["rows"])
+        })
+    bricks.sort(key=lambda b: b["orig_col"])
 
-                for r in rows:
-                    # pull out just the cx# instructions for this gid
-                    moving = [
-                        ins for ins in cx_matrix[r][col_id]
-                        if ins.name.startswith('cx') and ins.name[2:-1] == gid
-                    ]
-                    # remove them from the old spot
-                    cx_matrix[r][col_id] = [
-                        ins for ins in cx_matrix[r][col_id]
-                        if not(ins in moving)
-                    ]
-                    # place them (as a list) into the new column
-                    cx_matrix[r][target] = moving
+    # Prepare the output grid
+    aligned: List[List[List[Instruction]]] = [[] for _ in range(n_rows)]
+    placed_cols: Dict[str, int] = {}
 
-    # visualiser.print_matrix(cx_matrix)
+    for brick in bricks:
+        gid      = brick["gid"]
+        rows     = brick["rows"]
+        ocol     = brick["orig_col"]
+        top_row  = brick["top"]
 
-    return cx_matrix
+        # 1) Parity‐aligned base column
+        if (ocol % 2) == (top_row % 2):
+            base_col = ocol
+        else:
+            base_col = ocol + 1
+
+        # 2) Compute the floor from spacing constraints against every overlapping brick
+        floor = 0
+        for prev in bricks:
+            pg = prev["gid"]
+            if pg not in placed_cols:
+                continue
+            # only consider if they share at least one qubit
+            if set(prev["rows"]) & set(rows):
+                orig_gap = ocol - prev["orig_col"]
+                # at least one empty column, or preserve if originally larger
+                needed = placed_cols[pg] + max(1, orig_gap)
+                floor = max(floor, needed)
+
+        # 3) Final placement is the minimal ≥ both base_col and floor that satisfies parity
+        place = max(base_col, floor)
+        if place % 2 != top_row % 2:
+            place += 1
+
+        # grow output rows as needed
+        for r in aligned:
+            while len(r) <= place:
+                r.append([])
+
+        # copy exactly those CX‐instructions from the original column
+        for r in rows:
+            instrs = [
+                instr for instr in original[r][ocol]
+                if instr.name.startswith(f"cx{gid}")
+            ]
+            aligned[r][place] = instrs
+
+        placed_cols[gid] = place
+
+    return aligned
 
 
 from typing import List, Optional
@@ -332,7 +530,7 @@ from typing import List
 
 from typing import List
 
-def insert_rotations_after_or_before_cx(
+def insert_rotations_adjecant_to_cx(
     aligned_cx: List[List[List[Instruction]]],
     original:   List[List[List[Instruction]]]
 ) -> List[List[List[Instruction]]]:
@@ -667,7 +865,7 @@ from typing import List, Set, Dict, Optional
 
 def align_bricks(cx_mat, orig):
     cx_mat_aligned = align_cx_matrix(cx_mat)
-    qc_mat_aligned = insert_rotations_after_or_before_cx(cx_mat_aligned, orig)
+    qc_mat_aligned = insert_rotations_adjecant_to_cx(cx_mat_aligned, orig)
 
     return qc_mat_aligned
 

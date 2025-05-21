@@ -4,7 +4,8 @@ import unittest
 from qiskit import QuantumCircuit
 
 from src.brickwork_transpiler import visualiser, decomposer
-from src.brickwork_transpiler.decomposer import align_bricks, instructions_to_matrix_dag
+from src.brickwork_transpiler.decomposer import align_bricks, instructions_to_matrix_dag, align_cx_matrix, \
+    insert_rotations_adjecant_to_cx
 
 
 # Dummy instruction class for testing
@@ -149,6 +150,7 @@ class TestBrickAlignment(unittest.TestCase):
         qc.cx(2, 1)
 
         qc_mat, cx_mat, qc_mat_aligned = get_matrices(qc)
+        # visualiser.print_matrix(qc_mat)
 
         assert len(qc_mat[0]) == 1
         # First brick should be identity
@@ -156,12 +158,12 @@ class TestBrickAlignment(unittest.TestCase):
         assert names(qc_mat)[1][0] == ['cx0t']
         assert names(qc_mat)[2][0] == ['cx0c']
 
-        assert len(cx_mat[0]) == 2
+        assert len(cx_mat[0]) == 1
         # First brick should be identity
         assert all(cell == [] for cell in cx_mat[0][0:1])
         # Second brick has CXs on qubits 1 and 2
-        assert names(cx_mat)[1][1] == ['cx0t']
-        assert names(cx_mat)[2][1] == ['cx0c']
+        assert names(cx_mat)[1][0] == ['cx0t']
+        assert names(cx_mat)[2][0] == ['cx0c']
 
         # initial brick_idx=0 (even), needs odd -> one pad, then CX brick
         assert len(qc_mat_aligned[0]) == 2
@@ -254,10 +256,6 @@ class TestBrickAlignment(unittest.TestCase):
         qc.rz(np.pi / 3, 3)
 
         qc_mat, cx_mat, qc_mat_aligned = get_matrices(qc)
-
-        visualiser.print_matrix(qc_mat)
-        visualiser.print_matrix(cx_mat)
-        visualiser.print_matrix(qc_mat_aligned)
 
         #Before shift
         cols_qc = list(zip(*qc_mat))
@@ -369,6 +367,508 @@ class TestInstructionsToMatrixDAG(unittest.TestCase):
         self.assertIn('cx0t', names)
         self.assertIn('cx0c', names)
 
+
+class TestAlignCXMatrix(unittest.TestCase):
+
+    from src.brickwork_transpiler.decomposer import align_cx_matrix
+
+    class DummyInstr:
+        def __init__(self, name):
+            self.name = name
+
+        def __repr__(self):
+            return f"<Instr {self.name}>"
+
+    @pytest.fixture
+    def instr_factory(self):
+        def make(name):
+            return DummyInstr(name)
+
+        return make
+
+    def get_cx_mat(self, qc):
+        # Decompose to CX, rzrxrz, id
+        decomposed_qc = decomposer.decompose_qc_to_bricks_qiskit(qc, opt=3)
+
+        # Optiise instruction matrix with dependency graph
+        qc_mat, cx_mat = decomposer.instructions_to_matrix_dag(decomposed_qc)
+
+        return cx_mat
+
+    def test_empty_matrix(self):
+        mat = []
+        out = align_cx_matrix(mat)
+        assert out == [], "Empty matrix should just return itself"
+
+    def test_no_cx_bricks(self):
+        # a matrix with only non-cx instructions should be unchanged
+
+        qc = QuantumCircuit(2)
+        qc.h(0)
+        qc.t(1)
+
+        cx_mat = self.get_cx_mat(qc)
+        aligned_cx_mat = align_cx_matrix(cx_mat)
+        assert aligned_cx_mat == [[], []]
+
+    def test_already_aligned_cx(self):
+        # two rows, one cx0 brick already at col 1 (parity matches)
+        cx0 = DummyInstr("cx0_")
+        mat = [
+            [[], [cx0]],  # row 0, col 1: top=0, col=1, 0%2==1%2? False → would shift
+            [[], [cx0]],  # row 1
+        ]
+        # Actually since 0%2 != 1%2, it *should* shift right to col 2
+        out = align_cx_matrix(mat)
+
+        # visualiser.print_matrix(out)
+        # expect a new column appended and both bricks moved
+        assert len(out[0]) == 3
+        assert out[0][1] == []
+        self.assertEqual(out[0][2][0].name, cx0.name)
+        self.assertEqual(out[1][2][0].name, cx0.name)
+
+    def test_shift_cx_into_next_column(self):
+        # top row index=1, col=0 → shift
+        cx1 = DummyInstr("cx1_")
+        mat = [
+            [[]],
+            [[cx1]],
+            [[cx1]],
+        ]
+        result = align_cx_matrix(mat)
+        # new width is 2
+        self.assertEqual(len(result[0]), 2)
+        # row 0 unchanged
+        self.assertEqual(result[0], [[], []], "Row 0 should be untouched")
+        # rows 1&2 moved to col 1
+        self.assertEqual(result[1][0], [])
+        self.assertEqual(result[1][1][0].name, cx1.name)
+        self.assertEqual(result[2][1][0].name, cx1.name)
+
+    def test_aligned_and_unaligned_bricks(self):
+        # cx2 on rows 0&1 at col 0 (aligned), cx3 on rows 1&2 at col 0 (unaligned)
+        cx2 = DummyInstr("cx2_")
+        cx3 = DummyInstr("cx3_")
+        mat = [
+            [[cx2]],
+            [[cx2, cx3]],
+            [[cx3]],
+        ]
+        result = align_cx_matrix(mat)
+
+        # visualiser.print_matrix(result)
+        # cx2 remains at col 0
+        self.assertEqual(cx2.name, result[0][0][0].name)
+        self.assertIn(cx2.name, result[1][0][0].name)
+        # cx3 moves to col 1
+        self.assertNotIn(cx3.name, result[1][0][0].name)
+        self.assertIn(cx3.name, result[1][1][0].name)
+        self.assertIn(cx3.name, result[2][1][0].name)
+
+
+from qiskit.circuit import Instruction
+
+
+def names(matrix):
+    """Helper to extract .name from Instruction matrix."""
+    return [[ [instr.name for instr in cell] for cell in row] for row in matrix]
+
+def get_aligned_and_original_from_circ(qc):
+    # Decompose to CX, rzrxrz, id
+    decomposed_qc = decomposer.decompose_qc_to_bricks_qiskit(qc, opt=3)
+
+    # Optiise instruction matrix with dependency graph
+    qc_mat, cx_mat = decomposer.instructions_to_matrix_dag(decomposed_qc)
+    cx_mat_aligned = align_cx_matrix(cx_mat)
+
+    return cx_mat_aligned, qc_mat
+
+
+class TestInsertRotations(unittest.TestCase):
+
+    def test_empty_matrices(self):
+        aligned = []
+        original = []
+        result = insert_rotations_adjecant_to_cx(aligned, original)
+        self.assertEqual(result, [])
+
+    def test_no_rotations(self):
+        qc = QuantumCircuit(4)
+        qc.cx(1, 0)
+        qc.cx(2, 3)
+
+        aligned, original = get_aligned_and_original_from_circ(qc)
+        result = insert_rotations_adjecant_to_cx(aligned, original)
+
+        self.assertEqual(names(result), names(aligned))
+
+    def test_default_insert_to_column_zero(self):
+        aligned = [[ [Instruction('cx1', 0, 0, [])] ]]
+        original = [[ [Instruction('rz', 0, 0, [])] ]]
+        result = insert_rotations_adjecant_to_cx(aligned, original)
+        expected = [[ ['cx1', 'rz'] ]]
+        self.assertEqual(names(result), expected)
+
+    def test_left_neighbor_insertion(self):
+        qc = QuantumCircuit(2)
+        qc.rz(np.pi / 3, 0)
+        qc.cx(0, 1)
+
+        aligned, original = get_aligned_and_original_from_circ(qc)
+        result = insert_rotations_adjecant_to_cx(aligned, original)
+
+        expected = [[[], ['rz'], ['cx0c']], [[], [], ['cx0t']]]
+        self.assertEqual(names(result), expected)
+
+    def test_right_neighbor_insertion(self):
+
+        qc = QuantumCircuit(2)
+        qc.cx(0, 1)
+        qc.rz(np.pi/3, 0)
+
+        aligned, original = get_aligned_and_original_from_circ(qc)
+        result = insert_rotations_adjecant_to_cx(aligned, original)
+        # visualiser.print_matrix(result)
+
+        expected = [[['cx0c'], ['rz']], [['cx0t'], []]]
+        self.assertEqual(names(result), expected)
+
+    def test_multiple_mixed_rotations_preserve_order(self):
+        qc = QuantumCircuit(2)
+        qc.rz(np.pi/3, 1)
+        qc.rx(np.pi/4, 1)
+        qc.rz(np.pi/5, 1)
+
+        qc.cx(0, 1)
+        qc.rz(np.pi/3, 0)
+        qc.rx(np.pi/4, 0)
+        qc.rz(np.pi/5, 0)
+
+        aligned, original = get_aligned_and_original_from_circ(qc)
+        result = insert_rotations_adjecant_to_cx(aligned, original)
+        # visualiser.print_matrix(result)
+
+        expected = [[[], [], ['cx0c'], ['rz', 'rx', 'rz']], [[], ['rz', 'rx', 'rz'], ['cx0t'], []]]
+        self.assertEqual(names(result), expected)
+
+    def test_duplication_bug(self):
+        qc = QuantumCircuit(5)
+        qc.cx(0, 1)
+        qc.h(2)
+        # qc.cx(1, 2)
+        qc.cx(4, 3)
+
+        aligned, original = get_aligned_and_original_from_circ(qc)
+        result = insert_rotations_adjecant_to_cx(aligned, original)
+
+        expected = [[['cx0c'], []],
+                    [['cx0t'], []],
+                    [['rz', 'rx', 'rz'], []],
+                    [[], ['cx1t']],
+                    [[], ['cx1c']]]
+        self.assertEqual(names(result), expected)
+
+
+    def test_duplication_bug_reversed(self):
+        qc = QuantumCircuit(6)
+        qc.cx(1, 2)
+        qc.h(3)
+        # qc.cx(1, 2)
+        qc.cx(5, 4)
+
+        aligned, original = get_aligned_and_original_from_circ(qc)
+        result = insert_rotations_adjecant_to_cx(aligned, original)
+        # visualiser.print_matrix(result)
+
+        expected = [[[], []],
+                     [[], ['cx0c']],
+                     [[], ['cx0t']],
+                     [['rz', 'rx', 'rz'], []],
+                     [['cx1t'], []],
+                     [['cx1c'], []]]
+        self.assertEqual(names(result), expected)
+
+    def test_shift_chain_upper(self):
+        qc_bugged = QuantumCircuit(3)
+
+        qc_bugged.cx(1, 2)
+        qc_bugged.h(1)
+        qc_bugged.cx(0, 1)
+
+        aligned, original = get_aligned_and_original_from_circ(qc_bugged)
+        result = insert_rotations_adjecant_to_cx(aligned, original)
+        # visualiser.print_matrix(original)
+        # visualiser.print_matrix(result)
+
+        expected = [[[], [], [], [], ['cx1c']],
+                     [[], ['cx0c'], ['rz', 'rx', 'rz'], [], ['cx1t']],
+                     [[], ['cx0t'], [], [], []]]
+        self.assertEqual(names(result), expected)
+
+    def test_double_shift_chain_upper(self):
+        qc_bugged = QuantumCircuit(3)
+
+        qc_bugged.cx(1, 2)
+        qc_bugged.h(1)
+        qc_bugged.cx(0, 1)
+
+        qc_bugged.cx(1, 2)
+        qc_bugged.h(1)
+        qc_bugged.cx(0, 1)
+
+        aligned, original = get_aligned_and_original_from_circ(qc_bugged)
+        result = insert_rotations_adjecant_to_cx(aligned, original)
+
+        expected = [[[], [], [], [], ['cx1c'], [], [], [], ['cx3c']],
+                     [[],
+                      ['cx0c'],
+                      ['rz', 'rx', 'rz'],
+                      [],
+                      ['cx1t'],
+                      ['cx2c'],
+                      ['rz', 'rx', 'rz'],
+                      [],
+                      ['cx3t']],
+                     [[], ['cx0t'], [], [], [], ['cx2t'], [], [], []]]
+        self.assertEqual(names(result), expected)
+
+    def test_triple_shift_chain_upper(self):
+        qc_bugged = QuantumCircuit(3)
+
+        qc_bugged.cx(1, 2)
+        qc_bugged.h(1)
+        qc_bugged.cx(0, 1)
+
+        qc_bugged.cx(1, 2)
+        qc_bugged.h(1)
+        qc_bugged.cx(0, 1)
+
+        qc_bugged.cx(1, 2)
+        qc_bugged.h(1)
+        qc_bugged.cx(0, 1)
+
+        aligned, original = get_aligned_and_original_from_circ(qc_bugged)
+        result = insert_rotations_adjecant_to_cx(aligned, original)
+
+        expected = [[[], [], [], [], ['cx1c'], [], [], [], ['cx3c'], [], [], [], ['cx5c']],
+                     [[],
+                      ['cx0c'],
+                      ['rz', 'rx', 'rz'],
+                      [],
+                      ['cx1t'],
+                      ['cx2c'],
+                      ['rz', 'rx', 'rz'],
+                      [],
+                      ['cx3t'],
+                      ['cx4c'],
+                      ['rz', 'rx', 'rz'],
+                      [],
+                      ['cx5t']],
+                     [[], ['cx0t'], [], [], [], ['cx2t'], [], [], [], ['cx4t'], [], [], []]]
+        self.assertEqual(names(result), expected)
+
+    def test_mixed_double_shift_chain_upper(self):
+        qc_bugged = QuantumCircuit(3)
+
+        qc_bugged.cx(1, 2)
+        qc_bugged.h(1)
+        qc_bugged.cx(0, 1)
+
+        qc_bugged.cx(1, 2)
+        qc_bugged.h(1)
+        qc_bugged.cx(0, 1)
+
+        qc_bugged.h(0)
+        qc_bugged.cx(1, 0)
+        qc_bugged.h(1)
+        qc_bugged.cx(2, 1)
+
+        qc_bugged.h(0)
+        qc_bugged.cx(1, 0)
+        qc_bugged.h(1)
+        qc_bugged.cx(2, 1)
+
+        aligned, original = get_aligned_and_original_from_circ(qc_bugged)
+        result = insert_rotations_adjecant_to_cx(aligned, original)
+
+        expected = [[[],    # row 0
+                      [],
+                      [],
+                      [],
+                      ['cx1c'],
+                      ['rx'],
+                      [],
+                      [],
+                      ['cx3c'],
+                      ['rz', 'rx'],
+                      [],
+                      [],
+                      ['cx5t'],
+                      [],
+                      [],
+                      []],
+
+                     [[],   # row 1
+                      ['cx0c'],
+                      ['rz', 'rx', 'rz'],
+                      [],
+                      ['cx1t'],
+                      ['cx2c'],
+                      ['rz', 'rx'],
+                      [],
+                      ['cx3t'],
+                      ['rz'],
+                      [],
+                      ['cx4t'],
+                      ['cx5c'],
+                      ['rz', 'rx', 'rz'],
+                      [],
+                      ['cx6t']],
+
+                     [[],   # row 2
+                      ['cx0t'],
+                      [],
+                      [],
+                      [],
+                      ['cx2t'],
+                      [],
+                      [],
+                      [],
+                      [],
+                      [],
+                      ['cx4c'],
+                      [],
+                      [],
+                      [],
+                      ['cx6c']]]
+
+        self.assertEqual(names(result), expected)
+
+
+    def test_many_shifts(self):
+        qc_bugged = QuantumCircuit(5)
+
+        qc_bugged.h(0)
+        qc_bugged.cx(1, 0)
+
+        qc_bugged.h(1)
+        qc_bugged.cx(2, 1)
+        qc_bugged.rz(np.pi / 2, 2)
+
+        qc_bugged.rx(np.pi / 3, 2)
+        qc_bugged.rz(np.pi / 4, 3)
+
+        qc_bugged.cx(3, 4)
+        qc_bugged.rz(np.pi / 4, 3)
+        qc_bugged.h(4)
+
+        qc_bugged.cx(1, 0)
+
+        qc_bugged.h(1)
+        qc_bugged.cx(1, 2)
+        qc_bugged.rz(np.pi / 2, 2)
+
+        qc_bugged.rx(np.pi / 3, 2)
+        qc_bugged.rz(np.pi / 4, 3)
+
+        qc_bugged.cx(3, 4)
+        qc_bugged.rz(np.pi / 4, 3)
+        qc_bugged.h(4)
+
+        qc_bugged.cx(1, 0)
+
+        qc_bugged.h(1)
+        qc_bugged.cx(1, 2)
+        qc_bugged.rz(np.pi / 2, 2)
+
+        qc_bugged.rx(np.pi / 3, 2)
+        qc_bugged.rz(np.pi / 4, 3)
+
+        qc_bugged.cx(3, 4)
+        qc_bugged.rz(np.pi / 4, 3)
+        qc_bugged.h(4)
+
+        aligned, original = get_aligned_and_original_from_circ(qc_bugged)
+        result = insert_rotations_adjecant_to_cx(aligned, original)
+
+        expected = [[[],
+                  ['rz', 'rx', 'rz'],
+                  ['cx0t'],
+                  [],
+                  [],
+                  [],
+                  ['cx3t'],
+                  [],
+                  [],
+                  [],
+                  ['cx5t'],
+                  [],
+                  [],
+                  [],
+                  []],
+                 [[],
+                  [],
+                  ['cx0c'],
+                  ['rz', 'rx', 'rz'],
+                  [],
+                  ['cx2t'],
+                  ['cx3c'],
+                  ['rz', 'rx'],
+                  [],
+                  ['cx4c'],
+                  ['cx5c'],
+                  ['rx', 'rz'],
+                  [],
+                  ['cx6c'],
+                  []],
+                 [[],
+                  [],
+                  [],
+                  [],
+                  [],
+                  ['cx2c'],
+                  ['rz', 'rx'],
+                  [],
+                  [],
+                  ['cx4t'],
+                  ['rz', 'rx'],
+                  [],
+                  [],
+                  ['cx6t'],
+                  ['rz', 'rx']],
+                 [['rx'],
+                  ['cx1c'],
+                  ['rz', 'rx'],
+                  [],
+                  [],
+                  [],
+                  [],
+                  [],
+                  [],
+                  [],
+                  [],
+                  [],
+                  [],
+                  [],
+                  []],
+                 [['rz', 'rx', 'rz'],
+                  ['cx1t'],
+                  ['rx'],
+                  [],
+                  [],
+                  [],
+                  [],
+                  [],
+                  [],
+                  [],
+                  [],
+                  [],
+                  [],
+                  [],
+                  []]]
+
+        self.assertEqual(names(result), expected)
 
 if __name__ == '__main__':
     pytest.main()

@@ -79,6 +79,124 @@ class TestSingleGates(unittest.TestCase):
         # Compare output up to global phase
         assert utils.assert_equal_up_to_global_phase(outstate, ref_state.data)
 
+    def test_merge_rotations(self):
+        # Initialise to |++>
+        input_vec = Statevector.from_label('++')  # two-qubit plus state
+
+        # Define quantum circuit
+        qc = QuantumCircuit(2)
+        qc.rz(np.pi/2, 0)
+        qc.rx(np.pi/3, 0)
+        qc.rz(np.pi/3, 0)
+
+        qc.rz(np.pi/6, 1)
+        qc.rx(np.pi/7, 1)
+        qc.rz(np.pi/3, 1)
+
+        qc.rz(np.pi/9, 0)
+        qc.rx(np.pi/2, 0)
+        qc.rz(np.pi, 0)
+
+        qc.rz(np.pi/4, 1)
+        qc.rx(np.pi/2, 1)
+        qc.rz(np.pi/4, 1)
+
+        qc.h(0)
+        qc.h(1)
+
+        # Transpile!
+        bw_pattern, output_ref, col_map = brickwork_transpiler.transpile(qc, input_vec)
+        ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
+        visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+                                                     node_colours=col_map,
+                                                     use_node_colours=True,
+                                                     title="Brickwork Graph: test_merge_rotations")
+        # Simulate the generated pattern
+        outstate = bw_pattern.simulate_pattern(backend='statevector').flatten()
+
+        # Compare output up to global phase
+        assert utils.assert_equal_up_to_global_phase(outstate, ref_state.data)
+
+    def test_merge_rotations_before_cx(self):
+        # Initialise to |++>
+        input_vec = Statevector.from_label('++')  # two-qubit plus state
+
+        # Define quantum circuit
+        qc = QuantumCircuit(2)
+        qc.rz(np.pi / 2, 0)
+        qc.rx(np.pi / 3, 0)
+        qc.rz(np.pi / 3, 0)
+
+        qc.rz(np.pi / 6, 1)
+        qc.rx(np.pi / 7, 1)
+        qc.rz(np.pi / 3, 1)
+
+        qc.rz(np.pi / 9, 0)
+        qc.rx(np.pi / 2, 0)
+        qc.rz(np.pi, 0)
+
+        qc.rz(np.pi / 4, 1)
+        qc.rx(np.pi / 2, 1)
+        qc.rz(np.pi / 4, 1)
+
+        qc.h(0)
+        qc.h(1)
+
+        qc.cx(1, 0)
+
+        # Transpile!
+        bw_pattern, output_ref, col_map = brickwork_transpiler.transpile(qc, input_vec)
+        ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
+        visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+                                                     node_colours=col_map,
+                                                     use_node_colours=True,
+                                                     title="Brickwork Graph: test_merge_rotations_before_cx")
+        # Simulate the generated pattern
+        outstate = bw_pattern.simulate_pattern(backend='statevector').flatten()
+
+        # Compare output up to global phase
+        assert utils.assert_equal_up_to_global_phase(outstate, ref_state.data)
+
+    def test_merge_rotations_after_cx(self):
+        # Initialise to |++>
+        input_vec = Statevector.from_label('++')  # two-qubit plus state
+
+        # Define quantum circuit
+        qc = QuantumCircuit(2)
+        qc.cx(1, 0)
+
+        qc.rz(np.pi / 2, 0)
+        qc.rx(np.pi / 3, 0)
+        qc.rz(np.pi / 3, 0)
+
+        qc.rz(np.pi / 6, 1)
+        qc.rx(np.pi / 7, 1)
+        qc.rz(np.pi / 3, 1)
+
+        qc.rz(np.pi / 9, 0)
+        qc.rx(np.pi / 2, 0)
+        qc.rz(np.pi, 0)
+
+        qc.rz(np.pi / 4, 1)
+        qc.rx(np.pi / 2, 1)
+        qc.rz(np.pi / 4, 1)
+
+        qc.h(0)
+        qc.h(1)
+
+        # Transpile!
+        bw_pattern, output_ref, col_map = brickwork_transpiler.transpile(qc, input_vec)
+        ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
+        visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+                                                     node_colours=col_map,
+                                                     use_node_colours=True,
+                                                     title="Brickwork Graph: test_merge_rotations_after_cx")
+        # Simulate the generated pattern
+        outstate = bw_pattern.simulate_pattern(backend='statevector').flatten()
+
+        # Compare output up to global phase
+        assert utils.assert_equal_up_to_global_phase(outstate, ref_state.data)
+
     def test_single_CX_target_top_input_diff(self):
         # Initialise to |++>
         input_vec = Statevector.from_label('++')  # two-qubit plus state

@@ -11,6 +11,10 @@ def transpile(qc: QuantumCircuit, input_vector):
     qc_mat, cx_mat = decomposer.instructions_to_matrix_dag(decomposed_qc)
     qc_mat_aligned = decomposer.align_bricks(cx_mat, qc_mat)
 
+    # visualiser.print_matrix(qc_mat)
+    # visualiser.print_matrix(cx_mat)
+    # visualiser.print_matrix(qc_mat_aligned)
+
     # Build the graph from the optimised and formatted instruction matrix
     bw_graph_data = graph_builder.generate_brickwork_graph_from_instruction_matrix(qc_mat_aligned)
 

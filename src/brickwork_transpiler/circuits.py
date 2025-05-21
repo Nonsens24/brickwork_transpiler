@@ -48,6 +48,154 @@ def shift_bug2():
     qc_bugged.rz(np.pi / 4, 3)
     qc_bugged.h(4)
 
+
+
+    return qc_bugged, input_vector
+
+def rz_index_bug():
+    input_vector = Statevector.from_label('+++++')
+
+    qc_bugged = QuantumCircuit(5)
+
+    qc_bugged.h(0)
+    qc_bugged.cx(1, 0)
+
+    qc_bugged.h(1)
+    qc_bugged.cx(2, 1)
+
+    return qc_bugged, input_vector
+
+def big_shifter():
+    input_vector = Statevector.from_label('+++++')
+
+    qc_bugged = QuantumCircuit(5)
+
+    qc_bugged.h(0)
+    qc_bugged.cx(1, 0)
+
+    qc_bugged.h(1)
+    qc_bugged.cx(2, 1)
+    qc_bugged.rz(np.pi / 2, 2)
+
+    qc_bugged.rx(np.pi / 3, 2)
+    qc_bugged.rz(np.pi / 4, 3)
+
+    qc_bugged.cx(3, 4)
+    qc_bugged.rz(np.pi / 4, 3)
+    qc_bugged.h(4)
+
+    qc_bugged.cx(1, 0)
+
+    qc_bugged.h(1)
+    qc_bugged.cx(1, 2)
+    qc_bugged.rz(np.pi / 2, 2)
+
+    qc_bugged.rx(np.pi / 3, 2)
+    qc_bugged.rz(np.pi / 4, 3)
+
+    qc_bugged.cx(3, 4)
+    qc_bugged.rz(np.pi / 4, 3)
+    qc_bugged.h(4)
+
+    qc_bugged.cx(1, 0)
+
+    qc_bugged.h(1)
+    qc_bugged.cx(1, 2)
+    qc_bugged.rz(np.pi / 2, 2)
+
+    qc_bugged.rx(np.pi / 3, 2)
+    qc_bugged.rz(np.pi / 4, 3)
+
+    qc_bugged.cx(3, 4)
+    qc_bugged.rz(np.pi / 4, 3)
+    qc_bugged.h(4)
+
+def big_shifter_upper_rotation_brick_shifted():
+    input_vector = Statevector.from_label('+++++')
+
+    qc_bugged = QuantumCircuit(3)
+
+    qc_bugged.cx(1, 2)
+
+    qc_bugged.h(1)
+    qc_bugged.cx(0, 1)
+
+
+
+    return qc_bugged, input_vector
+
+def shift_mixer():
+    input_vector = Statevector.from_label('+++')
+
+    qc_bugged = QuantumCircuit(3)
+
+    qc_bugged.cx(1, 2)
+    qc_bugged.h(1)
+    qc_bugged.cx(0, 1)
+
+    qc_bugged.cx(1, 2)
+    qc_bugged.h(1)
+    qc_bugged.cx(0, 1)
+
+    qc_bugged.h(0)
+    qc_bugged.cx(1, 0)
+    qc_bugged.h(1)
+    qc_bugged.cx(2, 1)
+
+    qc_bugged.h(0)
+    qc_bugged.cx(1, 0)
+    qc_bugged.h(1)
+    qc_bugged.cx(2, 1)
+
+    return qc_bugged, input_vector
+
+
+def big_shifter_both_up_low_rotation_brick_shifted():
+    input_vector = Statevector.from_label('+++++')
+
+    qc_bugged = QuantumCircuit(5)
+
+    qc_bugged.h(0)
+    qc_bugged.cx(1, 0)
+
+    qc_bugged.h(1)
+    qc_bugged.cx(2, 1)
+    qc_bugged.rz(np.pi / 2, 2)
+
+    qc_bugged.rx(np.pi / 3, 2)
+    qc_bugged.rz(np.pi / 4, 3)
+
+    qc_bugged.cx(3, 4)
+    qc_bugged.rz(np.pi / 4, 3)
+    qc_bugged.h(4)
+
+    qc_bugged.cx(1, 0)
+
+    qc_bugged.h(1)
+    qc_bugged.cx(1, 2)
+    qc_bugged.rz(np.pi / 2, 2)
+
+    qc_bugged.rx(np.pi / 3, 2)
+    qc_bugged.rz(np.pi / 4, 3)
+
+    qc_bugged.cx(3, 4)
+    qc_bugged.rz(np.pi / 4, 3)
+    qc_bugged.h(4)
+
+    qc_bugged.cx(1, 0)
+
+    qc_bugged.h(1)
+    qc_bugged.cx(1, 2)
+    qc_bugged.rz(np.pi / 2, 2)
+
+    qc_bugged.rx(np.pi / 3, 2)
+    qc_bugged.rz(np.pi / 4, 3)
+
+    qc_bugged.cx(3, 4)
+    qc_bugged.rz(np.pi / 4, 3)
+    qc_bugged.h(4)
+
+
     return qc_bugged, input_vector
 
 def cnot_alignment_bug():
