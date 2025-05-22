@@ -38,15 +38,55 @@ from graphix.channels import depolarising_channel
 
 def main():
 
-    qc, input_vector = circuits.test_large_cx_multiple()
+    circuit_depths = []
+    circuit_sizes = []
 
-    bw_pattern_bugged, col_map= brickwork_transpiler.transpile(qc, input_vector)
+    # qc, input_vector = circuits.qft(3)
+    #
+    # bw_pattern, col_map = brickwork_transpiler.transpile(qc, input_vector)
+    #
+    # circuit_depths.append(bw_pattern.get_graph().__sizeof__())
+    # print("sizeof: ", len(bw_pattern.get_angles()))
 
 
-    visualiser.plot_brickwork_graph_from_pattern(bw_pattern_bugged,
-                                                 node_colours=col_map,
-                                                 use_node_colours=True,
-                                                 title="Brickwork Graph: MAIN Alignment cx swap test - test_large_cx_multiple")
+
+
+    n = 8
+    layout_method = "trivial"
+    routing_method = "sabre"
+
+    for i in range(1, 8):
+        qc, input_vector = circuits.qft(i)
+
+        bw_pattern, col_map= brickwork_transpiler.transpile(qc, input_vector)
+
+        if i < 1:
+            visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+                                                         node_colours=col_map,
+                                                         use_node_colours=True,
+                                                         title=f"Brickwork Graph: QFT({i}) - "
+                                                               f"routing method: Sabre - "
+                                                               f"layout method: trivial")
+
+        # Always is an integer because the graph is divisable by the amount of nodes -- rectangle
+        circuit_depth = int(len(bw_pattern.get_angles()) + len(bw_pattern.output_nodes) / len(bw_pattern.output_nodes))
+        circuit_depths.append(circuit_depth)
+        circuit_sizes.append(len(bw_pattern) + len(bw_pattern.output_nodes))
+
+    visualiser.plot_depths(circuit_depths,
+                           subtitle=f"QFT 1 to {n} qubits",
+                           routing_method=routing_method,
+                           layout_method=layout_method)
+
+    visualiser.plot_depths(circuit_sizes,
+                           title="Circuit Size vs. Input Size",
+                           subtitle=f"QFT 1 to {n} qubits",
+                           routing_method=routing_method,
+                           layout_method=layout_method)
+
+
+    visualiser.plot_qft_complexity(n-1, circuit_depths)
+
 
     return 0
 

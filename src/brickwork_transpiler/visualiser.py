@@ -227,8 +227,8 @@ def plot_brickwork_graph_from_pattern(
 
     plt.show()
     #Save vector graphics img
-    fig.savefig("brickwork_graph.pdf", format="pdf", bbox_inches="tight")
-    fig.savefig("brickwork_graph.png", format="png", dpi=300, bbox_inches="tight")
+    fig.savefig(f"images/graphs/{title}.pdf", format="pdf", bbox_inches="tight")
+    fig.savefig(f"images/graphs/{title}.png", format="png", dpi=300, bbox_inches="tight")
 
 # plot_graphix_pattern_scalar_index.py
 
@@ -382,3 +382,143 @@ def format_angle(angle, denom=4):
         return f"π/{d}" if n > 0 else f"-π/{d}"
     else:
         return f"{n}π/{d}"
+
+
+
+import os
+
+def plot_depths(
+    depths: list[int],
+    title: str = "Circuit Depth vs. Input Size",
+    subtitle: str = "",
+    layout_method: str = "trivial",
+    routing_method: str = "Sabre"
+) -> None:
+    """
+    Plots a list of circuit depths and saves the figure as PDF and PNG.
+
+    Args:
+        depths:         List of depth values. The x-axis will be 0..len(depths)-1.
+        title:          Plot title (also used in filenames—avoid slashes!).
+        layout_method:  Name of the layout method (for filename).
+        routing_method: Name of the routing method (for filename).
+    """
+    # Prepare data
+    x = list(range(len(depths)))
+    y = depths
+
+    # Create the plot
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.plot(x, y, marker='o', linestyle='-')
+    ax.set_xlabel("Number of Qubits")
+    ax.set_ylabel("Circuit Depth")
+    ax.set_title(f"{title}: {subtitle}")
+    ax.grid(True)
+    plt.tight_layout()
+
+    # Ensure output directory exists
+    out_dir = "images/plots"
+    os.makedirs(out_dir, exist_ok=True)
+
+    # Build a safe base filepath (no double dots)
+    safe_title = title.replace(" ", "_")
+    base = f"{out_dir}/{safe_title}_layout_{layout_method}_routing_{routing_method}"
+
+    # Save to PDF and PNG
+    fig.savefig(f"{base}.pdf", format="pdf", bbox_inches="tight")
+    fig.savefig(f"{base}.png", format="png", dpi=300, bbox_inches="tight")
+
+    # Finally show on screen
+    plt.show()
+
+#
+# def plot_qft_complexity(n_max=8):
+#     """
+#     Plots the space and time complexity of an n-qubit QFT circuit
+#     from n = 1 up to n = n_max.
+#     """
+#     n = np.arange(1, n_max + 1)
+#     space = n
+#     time = n + (n * (n - 1)) // 2 + (n // 2)  # H gates + controlled-phase + swaps
+#
+#     # Create the plot
+#     fig, ax = plt.subplots(figsize=(8, 5))
+#
+#     plt.figure()
+#     plt.plot(n, time, marker='o', label='Time Complexity (Gate Count)')
+#     plt.plot(n, space, marker='s', label='Space Complexity (Qubit Count)')
+#     plt.xlabel('Number of Qubits (n)')
+#     plt.ylabel('Count')
+#     plt.title('QFT Circuit Complexity vs Number of Qubits')
+#     plt.xticks(n)
+#     plt.grid(True)
+#     plt.legend()
+#
+#     # Save to PDF and PNG
+#     fig.savefig("images/plots/QFT_space_time_complexity.pdf", format="pdf", bbox_inches="tight")
+#     fig.savefig("images/plots/QFT_space_time_complexity.png", format="png", dpi=300, bbox_inches="tight")
+#
+#     plt.show()
+
+
+
+def plot_qft_complexity(n_max=8, brickwork_points=None):
+    """
+    Plots the space and time complexity of an n-qubit QFT circuit
+    from n = 1 up to n = n_max.
+
+    Parameters:
+    - n_max (int): Maximum number of qubits to plot.
+    - brickwork_points (list or array of length n_max, optional):
+        If provided, will be plotted as "Brickwork Scaling".
+    """
+    # x-axis: qubit counts
+    n = np.arange(1, n_max + 1)
+    # space = n qubits
+    space = n
+    # time = n H-gates + n(n−1)/2 CP-gates + floor(n/2) swaps
+    time = n + (n * (n - 1)) // 2 + (n // 2)
+
+    # Create the plot
+    fig, ax = plt.subplots(figsize=(8, 5))
+
+    plt.figure()
+    plt.plot(n, time, marker='o', label='Time Complexity (Gate Count)')
+    plt.plot(n, space, marker='s', label='Space Complexity (Qubit Count)')
+
+    if brickwork_points is not None:
+        for point in brickwork_points:
+
+            print("point", point)
+            point = int(point / 1000)
+            print("point", point)
+        if len(brickwork_points) != len(n):
+            raise ValueError(
+                f"brickwork_points length ({len(brickwork_points)}) "
+                f"must equal n_max ({n_max})"
+            )
+        plt.plot(
+            n,
+            brickwork_points,
+            marker='^',
+            linestyle='--',
+            label='Brickwork Scaling'
+        )
+
+    plt.xlabel('Number of Qubits (n)')
+    plt.ylabel('Count')
+    plt.title('QFT Circuit Complexity vs Number of Qubits')
+    plt.xticks(n)
+    plt.grid(True)
+    plt.legend()
+
+    # Save to PDF and PNG
+    fig.savefig("images/plots/QFT_space_time_complexity.pdf", format="pdf", bbox_inches="tight")
+    fig.savefig("images/plots/QFT_space_time_complexity.png", format="png", dpi=300, bbox_inches="tight")
+
+    plt.show()
+
+
+if __name__ == "__main__":
+    plot_qft_complexity()
+

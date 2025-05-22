@@ -282,3 +282,22 @@ def test_large_cx_multiple():
     qc.cx(4, 7)
 
     return qc, input_vector
+
+def qft(n):
+    """
+    Returns a QuantumCircuit implementing the n-qubit Quantum Fourier Transform.
+    """
+    input_vector = Statevector.from_label('+' * n)
+
+    qc = QuantumCircuit(n, name='QFT')
+    # Apply QFT
+    for j in range(n):
+        qc.h(j)
+        for k in range(j+1, n):
+            lam = np.pi / float(2 ** (k - j))
+            qc.cp(lam, k, j)
+    # Swap qubits to reverse order
+    for i in range(n // 2):
+        qc.swap(i, n - i - 1)
+
+    return qc, input_vector

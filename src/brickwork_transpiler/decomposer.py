@@ -8,7 +8,9 @@ from qiskit.visualization import dag_drawer
 from src.brickwork_transpiler import visualiser
 
 
-def decompose_qc_to_bricks_qiskit(qc: QuantumCircuit, opt=3, draw=False):
+def decompose_qc_to_bricks_qiskit(qc: QuantumCircuit, opt=3, draw=False,
+                                  routing_method: str = 'sabre',
+                                  layout_method: str ='trivial'):
     #
     # # print("Decomposing Quantum circuit to generator set...", end=" ")
     #
@@ -24,18 +26,36 @@ def decompose_qc_to_bricks_qiskit(qc: QuantumCircuit, opt=3, draw=False):
     basis = ['rz', 'rx', 'cx', 'id']
 
     # 2. Define the coupling map for your device/simulator:
-    coupling = CouplingMap([[i, i+1] for i in range(qc.num_qubits -1)]) # -1 so the amount of qubits remains right
+    if qc.num_qubits > 1:
+        coupling = CouplingMap([[i, i+1] for i in range(qc.num_qubits -1)]) # -1 so the amount of qubits remains right
+    else:
+        coupling = CouplingMap([[0, 0]])
+
+    # pm = PassManager()
+    # # 1) Unroll everything down to rz, rx, cx
+    # pm.append(UnrollCustomDefinitions(basis))
+    # # 2) Collect every 1-qubit run and decompose to RZ–RX–RZ
+    # pm.append(OneQubitEulerDecomposition(basis=basis))
+
+# | Layout Method    | Strategy                                               |
+# | ---------------- | ------------------------------------------------------ |
+# | `trivial`        | 1-to-1 mapping                                         |
+# | `dense`          | Densest‐subgraph heuristic                             |
+# | `noise_adaptive` | Minimize error rates (readout & 2-qubit)               |
+# | `sabre`          | Sabre seed + forwards/backwards swap refinement        |
+# | `default`        | VF2 perfect + Sabre fallback (or `trivial` at level 0) |
+
 
     # 3. Transpile with routing
     # Lookahead routing: evaluates cost-to-go windows to insert SWAPs globally
-    # Sabre: runs routing forward and backward to refine qubit movements in both directions -- BUG IN GRAPH TEST (pb backward routing)
+    # Sabre: runs routing forward and backward to refine qubit movements in both directions
     # Stochastic routing: randomizes swap choices to explore bidirectional traffic patterns
     qc_mapped = transpile(
         qc,
         basis_gates=basis,
         coupling_map=coupling,
-        layout_method='trivial',  # keep initial virtual→physical mapping
-        routing_method='stochastic', #'sabre', #'lookahead', #'basic',  # use the simple SWAP-insertion pass
+        layout_method=layout_method,  # keep initial virtual→physical mapping
+        routing_method= routing_method, #'stochastic', #'sabre', #'lookahead', #'basic',  # use the simple SWAP-insertion pass
         optimization_level=opt
     )
 
