@@ -99,15 +99,6 @@ def print_matrix(matrix):
 
 import networkx as nx
 import matplotlib.pyplot as plt
-import networkx as nx
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-
-import networkx as nx
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-import networkx as nx
-import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
 def plot_brickwork_graph_from_pattern(
@@ -482,16 +473,12 @@ def plot_qft_complexity(n_max=8, brickwork_points=None):
     # Create the plot
     fig, ax = plt.subplots(figsize=(8, 5))
 
-    plt.figure()
     plt.plot(n, time, marker='o', label='Time Complexity (Gate Count)')
     plt.plot(n, space, marker='s', label='Space Complexity (Qubit Count)')
 
     if brickwork_points is not None:
-        for point in brickwork_points:
-
-            print("point", point)
-            point = int(point / 1000)
-            print("point", point)
+        # divide each entry by a constant and truncate to int
+        brickwork_points = [int(p / 2) for p in brickwork_points]
         if len(brickwork_points) != len(n):
             raise ValueError(
                 f"brickwork_points length ({len(brickwork_points)}) "
@@ -502,7 +489,7 @@ def plot_qft_complexity(n_max=8, brickwork_points=None):
             brickwork_points,
             marker='^',
             linestyle='--',
-            label='Brickwork Scaling'
+            label='Brickwork Scaling (Graph Depth)'
         )
 
     plt.xlabel('Number of Qubits (n)')
@@ -517,6 +504,10 @@ def plot_qft_complexity(n_max=8, brickwork_points=None):
     fig.savefig("images/plots/QFT_space_time_complexity.png", format="png", dpi=300, bbox_inches="tight")
 
     plt.show()
+
+
+
+
 
 
 if __name__ == "__main__":

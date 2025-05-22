@@ -48,44 +48,65 @@ def main():
     # circuit_depths.append(bw_pattern.get_graph().__sizeof__())
     # print("sizeof: ", len(bw_pattern.get_angles()))
 
+    n = 24
+
+    bw_depths = []
+
+    for i in range(1, n):
+        qc, _ = circuits.qft(i)
+
+        # Decompose to CX, rzrxrz, id   -   Need opt = 3 for SU(2) rotation merging
+        decomposed_qc = decomposer.decompose_qc_to_bricks_qiskit(qc, opt=3,
+                                                                 routing_method='sabre',
+                                                                 layout_method='default')
+
+        # Optiise instruction matrix with dependency graph
+        qc_mat, cx_mat = decomposer.instructions_to_matrix_dag(decomposed_qc)
+        qc_mat_aligned = decomposer.align_bricks(cx_mat, qc_mat)
+
+        bw_depths.append(len(qc_mat_aligned[0]))
+        print(f"i: {i}, bricks: {len(qc_mat_aligned[0])}")
+
+
+    visualiser.plot_qft_complexity(n-1, bw_depths)
 
 
 
-    n = 8
-    layout_method = "trivial"
-    routing_method = "sabre"
+    # n = 8
+    # layout_method = "default"
+    # routing_method = "stochastic"
+    #
+    # for i in range(1, 8):
+    #     qc, input_vector = circuits.qft(i)
+    #
+    #     bw_pattern, col_map= brickwork_transpiler.transpile(qc, input_vector)
+    #
+    #     if i < 1:
+    #         visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+    #                                                      node_colours=col_map,
+    #                                                      use_node_colours=True,
+    #                                                      title=f"Brickwork Graph: QFT({i}) - "
+    #                                                            f"routing method: Sabre - "
+    #                                                            f"layout method: trivial")
+    #
+    #     # Always is an integer because the graph is divisable by the amount of nodes -- rectangle
+    #     circuit_depth = int(len(bw_pattern.get_angles()) + len(bw_pattern.output_nodes) / len(bw_pattern.output_nodes))
+    #     circuit_depths.append(circuit_depth)
+    #     circuit_sizes.append(len(bw_pattern) + len(bw_pattern.output_nodes))
+    #
+    # visualiser.plot_depths(circuit_depths,
+    #                        subtitle=f"QFT 1 to {n} qubits",
+    #                        routing_method=routing_method,
+    #                        layout_method=layout_method)
+    #
+    # visualiser.plot_depths(circuit_sizes,
+    #                        title="Circuit Size vs. Input Size",
+    #                        subtitle=f"QFT 1 to {n} qubits",
+    #                        routing_method=routing_method,
+    #                        layout_method=layout_method)
 
-    for i in range(1, 8):
-        qc, input_vector = circuits.qft(i)
 
-        bw_pattern, col_map= brickwork_transpiler.transpile(qc, input_vector)
-
-        if i < 1:
-            visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
-                                                         node_colours=col_map,
-                                                         use_node_colours=True,
-                                                         title=f"Brickwork Graph: QFT({i}) - "
-                                                               f"routing method: Sabre - "
-                                                               f"layout method: trivial")
-
-        # Always is an integer because the graph is divisable by the amount of nodes -- rectangle
-        circuit_depth = int(len(bw_pattern.get_angles()) + len(bw_pattern.output_nodes) / len(bw_pattern.output_nodes))
-        circuit_depths.append(circuit_depth)
-        circuit_sizes.append(len(bw_pattern) + len(bw_pattern.output_nodes))
-
-    visualiser.plot_depths(circuit_depths,
-                           subtitle=f"QFT 1 to {n} qubits",
-                           routing_method=routing_method,
-                           layout_method=layout_method)
-
-    visualiser.plot_depths(circuit_sizes,
-                           title="Circuit Size vs. Input Size",
-                           subtitle=f"QFT 1 to {n} qubits",
-                           routing_method=routing_method,
-                           layout_method=layout_method)
-
-
-    visualiser.plot_qft_complexity(n-1, circuit_depths)
+    # visualiser.plot_qft_complexity(n-1, circuit_depths)
 
 
     return 0
