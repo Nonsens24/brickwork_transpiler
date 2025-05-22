@@ -470,15 +470,30 @@ def plot_qft_complexity(n_max=8, brickwork_points=None):
     # time = n H-gates + n(n−1)/2 CP-gates + floor(n/2) swaps
     time = n + (n * (n - 1)) // 2 + (n // 2)
 
+    # n Hadamards at 3 elementary gates each,
+    # n(n–1)/2 controlled-phase rotations,
+    # and (n/2) swaps at 3 CX each:
+
+    # Hadamards → Rz–Rx–Rz
+    # controlled-phase gates
+    # swaps → 3 CX per swap
+    time_adjusted = (3 * n)  + (n * (n - 1)) // 2 + (3 * (n // 2))
+    time_adjusted_bricks = n + (n * (n - 1)) // 2 + (6 * (n // 2)) # 6 bricks per swap / 1 brick per H / 1 brick per CX (deep)
+
+
+    upper_bound_bricks = 3 * time_adjusted_bricks
+
     # Create the plot
     fig, ax = plt.subplots(figsize=(8, 5))
 
-    plt.plot(n, time, marker='o', label='Time Complexity (Gate Count)')
-    plt.plot(n, space, marker='s', label='Space Complexity (Qubit Count)')
+    plt.plot(n, time, marker='o', label='Time Complexity QFT (Non-decomposed Gate Count)')
+    plt.plot(n, time_adjusted_bricks, marker='^', label='Time Complexity QFT LB (Brick Count)')
+    plt.plot(n, upper_bound_bricks, marker='v', label='Theoretical UB (Brick Count)')
+    # plt.plot(n, space, marker='s', label='Space Complexity (Qubit Count)')
 
     if brickwork_points is not None:
         # divide each entry by a constant and truncate to int
-        brickwork_points = [int(p / 2) for p in brickwork_points]
+        # brickwork_points = [int(p / 2) for p in brickwork_points]
         if len(brickwork_points) != len(n):
             raise ValueError(
                 f"brickwork_points length ({len(brickwork_points)}) "
@@ -487,9 +502,9 @@ def plot_qft_complexity(n_max=8, brickwork_points=None):
         plt.plot(
             n,
             brickwork_points,
-            marker='^',
+            marker='s',
             linestyle='--',
-            label='Brickwork Scaling (Graph Depth)'
+            label='Brickwork Scaling (Brick Count)'
         )
 
     plt.xlabel('Number of Qubits (n)')
