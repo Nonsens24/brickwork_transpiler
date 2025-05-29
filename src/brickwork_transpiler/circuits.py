@@ -283,6 +283,27 @@ def test_large_cx_multiple():
 
     return qc, input_vector
 
+def presentation_circ():
+    input_vector = Statevector.from_label('+++++')
+
+    qc = QuantumCircuit(5)
+    qc.h(0)
+    qc.rx(np.pi / 3, 0)
+    qc.cx(0, 1)
+    qc.h(1)
+    qc.cx(1, 0)
+    qc.cx(1, 2)
+    qc.rz(np.pi / 2, 2)
+    qc.cx(2, 1)
+
+    qc.rx(-np.pi / 3, 3)
+    qc.rz(np.pi / 4, 4)
+    qc.cx(3, 4)
+    qc.h(4)
+    qc.rz(np.pi / 2, 3)
+
+    return qc, input_vector
+
 def qft(n):
     """
     Returns a QuantumCircuit implementing the n-qubit Quantum Fourier Transform.

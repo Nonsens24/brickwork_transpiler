@@ -25,7 +25,7 @@ import utils
 import visualiser
 from libs.gospel.gospel.brickwork_state_transpiler.brickwork_state_transpiler import generate_random_pauli_pattern
 from libs.gospel.gospel.brickwork_state_transpiler.brickwork_state_transpiler import transpile
-from src.brickwork_transpiler import decomposer, graph_builder, pattern_converter, brickwork_transpiler
+from src.brickwork_transpiler import decomposer, graph_builder, pattern_converter, brickwork_transpiler, qrs_knn_grover
 from src.brickwork_transpiler.noise import to_noisy_pattern
 from src.brickwork_transpiler.visualiser import plot_graph
 import src.brickwork_transpiler.circuits as circuits
@@ -38,8 +38,59 @@ from graphix.channels import depolarising_channel
 
 def main():
 
-    circuit_depths = []
-    circuit_sizes = []
+
+    # Test QRS
+
+    feature_mat = [
+        [1, 0, 1, 0, 1],  # Sebastian-I
+        [0, 1, 0, 1, 0],  # Tzula-C
+        [1, 1, 1, 0, 1],  # Rex-E
+        [0, 1, 1, 1, 0],  # Scott-T
+    ]
+
+    fm_lin = [[0, 0, 0, 0, 0],  # i = 0
+        [1, 0, 1, 0, 1],  # i = 1 = g0
+        [0, 1, 0, 1, 0],  # i = 2 = g1
+        [1, 1, 1, 1, 1],  # i = 3 = g0 XOR g1
+    ]
+
+    # 2) database load via G by single‐CNOTs
+    G = [
+        [1, 0, 1, 0],  # feature qubit 0 ← index qubits 0,2
+        [0, 1, 0, 1],  # feature qubit 1 ← index qubits 1,3
+        [1, 1, 1, 1],  # feature qubit 2 ← index qubits 0,1,2,3
+        [0, 1, 1, 1],  # feature qubit 3 ← index qubits 1,2,3
+        [1, 0, 1, 0],  # feature qubit 4 ← index qubits 0,2
+    ]
+
+    # Linear lol
+    feature_mat_paper = [
+        [0, 0, 0, 0, 0, 0],  # 0000 → 000000
+        [0, 0, 0, 1, 1, 0],  # 0001 → 000110
+        [0, 0, 1, 0, 0, 1],  # 0010 → 001001
+        [0, 0, 1, 1, 1, 1],  # 0011 → 001111
+        [0, 0, 0, 1, 0, 0],  # 0100 → 000100
+        [0, 0, 0, 0, 1, 0],  # 0101 → 000010
+        [0, 0, 1, 1, 0, 1],  # 0110 → 001101
+        [0, 0, 1, 0, 1, 1],  # 0111 → 001011
+        [1, 0, 0, 0, 0, 0],  # 1000 → 100000
+        [1, 0, 0, 1, 1, 0],  # 1001 → 100110
+        [1, 0, 1, 0, 0, 1],  # 1010 → 101001
+        [1, 0, 1, 1, 1, 1],  # 1011 → 101111
+        [1, 0, 0, 1, 0, 0],  # 1100 → 100100
+        [1, 0, 0, 0, 1, 0],  # 1101 → 100010
+        [1, 0, 1, 1, 0, 1],  # 1110 → 101101
+        [1, 0, 1, 0, 1, 1],  # 1111 → 101011
+    ]
+
+    qrs = qrs_knn_grover.qrs(16, feature_mat_paper, "101011", True, grover_iterations=3)
+
+
+
+    # GRAPHING OF BW GROWTH:
+
+    # circuit_depths = []
+    # circuit_sizes = []
 
     # qc, input_vector = circuits.qft(3)
     #
@@ -48,28 +99,29 @@ def main():
     # circuit_depths.append(bw_pattern.get_graph().__sizeof__())
     # print("sizeof: ", len(bw_pattern.get_angles()))
 
-    n = 24
 
-    bw_depths = []
-
-    for i in range(1, n):
-        qc, _ = circuits.qft(i)
-
-        # Decompose to CX, rzrxrz, id   -   Need opt = 3 for SU(2) rotation merging
-        decomposed_qc = decomposer.decompose_qc_to_bricks_qiskit(qc, opt=3,
-                                                                 routing_method='sabre',
-                                                                 layout_method='default')
-
-        # Optiise instruction matrix with dependency graph
-        qc_mat, cx_mat = decomposer.instructions_to_matrix_dag(decomposed_qc)
-        qc_mat_aligned = decomposer.align_bricks(cx_mat, qc_mat)
-
-        bw_depths.append(len(qc_mat_aligned[0]))
-        print(f"i: {i}, bricks: {len(qc_mat_aligned[0])}")
-
-
-    visualiser.plot_qft_complexity(n-1, bw_depths)
-
+    # n = 24
+    #
+    # bw_depths = []
+    #
+    # for i in range(1, n):
+    #     qc, _ = circuits.qft(i)
+    #
+    #     # Decompose to CX, rzrxrz, id   -   Need opt = 3 for SU(2) rotation merging
+    #     decomposed_qc = decomposer.decompose_qc_to_bricks_qiskit(qc, opt=3,
+    #                                                              routing_method='sabre',
+    #                                                              layout_method='default')
+    #
+    #     # Optiise instruction matrix with dependency graph
+    #     qc_mat, cx_mat = decomposer.instructions_to_matrix_dag(decomposed_qc)
+    #     qc_mat_aligned = decomposer.align_bricks(cx_mat, qc_mat)
+    #
+    #     bw_depths.append(len(qc_mat_aligned[0]))
+    #     print(f"i: {i}, bricks: {len(qc_mat_aligned[0])}")
+    #
+    #
+    # visualiser.plot_qft_complexity(n-1, bw_depths)
+    # END GRAPHING
 
 
     # n = 8

@@ -189,3 +189,84 @@ def calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vector):    # 
 
     qc_perm = permute_qubits(qc, perm=perm)
     return input_vector.evolve(qc_perm)
+
+
+def feature_to_generator(feature_mat):
+    """
+    Given feature_mat: list of N rows (each a list of l bits),
+    returns an l x q generator matrix G (as a list of l lists of length q)
+    satisfying f(i) = G @ i mod 2 for all i in 0..N-1,
+    or raises ValueError if feature_mat is not a linear code.
+    """
+    # 1) Dimensions
+    N = len(feature_mat)
+    if N == 0:
+        raise ValueError("feature_mat must have at least one row")
+    l = len(feature_mat[0])
+    if any(len(row) != l for row in feature_mat):
+        raise ValueError("All rows of feature_mat must have the same length l")
+
+    # 2) Check N = 2^q
+    if N & (N - 1) != 0:
+        raise ValueError(f"N = {N} is not a power of 2")
+    q = N.bit_length() - 1
+
+    # 3) Build G by sampling f(e_k) for k=0..q-1
+    #    e_k has index = (1 << k)
+    basis_indices = [1 << k for k in range(q)]
+    # G[j][k] = j-th bit of f(2^k)
+    G = [[feature_mat[i][j] for i in basis_indices] for j in range(l)]
+
+    # 4) Verify that f(i) == G @ i mod 2 for all i
+    for i in range(N):
+        # get binary expansion of i: bits[k]
+        bits = [(i >> k) & 1 for k in range(q)]
+        # compute G·bits mod2
+        f_lin = [ sum(G[j][k] * bits[k] for k in range(q)) & 1
+                  for j in range(l) ]
+        if f_lin != feature_mat[i]:
+            raise ValueError(f"feature_mat is not linear: "
+                             f"mismatch at i={i}: "
+                             f"expected {feature_mat[i]}, got {f_lin}")
+
+    return G
+
+
+def feature_to_affine_generator(feature_mat):
+    """
+    feature_mat: list of N = 2^q rows, each an l-bit list.
+    Returns (G, c) where
+      c = feature_mat[0]        # the affine offset
+      G = l×q binary matrix     # pure linear part
+    such that f(i) = (G @ i) XOR c.
+    Raises ValueError if the *residual* map is not linear.
+    """
+    N = len(feature_mat)
+    if N == 0:
+        raise ValueError("Need at least one row")
+    l = len(feature_mat[0])
+    if any(len(r) != l for r in feature_mat):
+        raise ValueError("All rows must have length l")
+
+    # check power-of-two
+    if N & (N-1) != 0:
+        raise ValueError(f"N={N} not a power of 2")
+    q = N.bit_length() - 1
+
+    # 1) extract offset c = f(0)
+    c = feature_mat[0].copy()
+
+    # 2) build the *residual* table r(i) = f(i) XOR c
+    residual = [
+        [(bit ^ c_j) for (bit, c_j) in zip(feature_mat[i], c)]
+        for i in range(N)
+    ]
+
+    # 3) now residual[0] == zero must hold
+    if any(residual[0]):
+        raise ValueError("Residual at i=0 not zero; can't form affine map")
+
+    # 4) use the same linear-code routine on residual
+    #    (this will check r(i+j)=r(i)+r(j) for all i,j)
+    G = feature_to_generator(residual)
+    return G, c
