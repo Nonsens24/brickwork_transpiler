@@ -88,10 +88,12 @@ def initialise_database(n_items: int,
                 if b == '0':
                     qc.x(k)
 
+    feature_qubits = list(range(q + l, q + l * 2))
+
     # --- 3) append the user vector as X-flips ---
-    for idx, bit in enumerate(user_vector):
-        if bit == '1':
-            qc.x(q + l + idx)
+    for i, bit in enumerate(reversed(user_vector)):
+        if bit == '0':
+            qc.x(feature_qubits[i])
 
     # print(qc.draw())
 
@@ -107,16 +109,16 @@ def knn(qrs: QuantumCircuit, feature_size: int, item_qubits: int, user_vector: s
     qrs.add_register(c0)            # TODO: Move this to the top of the circuit!
 
     # Hamming distance calculations:
-    for q in range(feature_size + item_qubits + 1, qrs.num_qubits - 1):
-        qrs.cx(qrs.qubits[q], qrs.qubits[qrs.num_qubits - q])
-        print(f"feature_size = {feature_size}, q = {q}, qrs.num - q = {qrs.num_qubits - q}")
+    for q in range(feature_size + item_qubits, qrs.num_qubits - 1): # -c0
+        qrs.cx(qrs.qubits[q], qrs.qubits[qrs.num_qubits - q+2]) # -c0 - 1 index
+        print(f"feature_size = {feature_size}, q = {q}, qrs.num - q = {qrs.num_qubits - q}, item_qubits: {item_qubits}")
 
     # print(qrs.draw(output='text'))
 
     # Quantum summing of Hamming distances:
     qrs.h(c0)
 
-    for q in range(feature_size + item_qubits, 1, -1):
+    for q in range(feature_size + item_qubits - 1, item_qubits - 1, -1): #start -1 for indexing
         qrs.cp(-np.pi/feature_size, qrs.qubits[q], c0) # feature size = l from the paper P2
         qrs.rz(np.pi/2*feature_size, qrs.qubits[q])     # P1
 
@@ -150,30 +152,32 @@ def grover(
 
     feature_qubits = list(range(q, q + l))
 
+
+    # b) prepare ancilla in |–> for phase kickback
+    qc.x(qA)
+    qc.h(qA)
+
+    # Initialise circuit:
+    qc.h(feature_qubits)
+
     for _ in range(iterations):
+
         # ───────────── Oracle ─────────────
-        # a) Flip those feature qubits where user_vector bit == '0'
-        for i, bit in enumerate(user_vector):
+        for i, bit in enumerate(reversed(user_vector)):
             if bit == '0':
                 qc.x(feature_qubits[i])
-
-        # b) prepare ancilla in |–> for phase kickback
-        qc.x(qA)
-        qc.h(qA)
 
         # c) multi-controlled X from all feature_qubits → qA
         qc.mcx(feature_qubits, qA)
 
-        # d) undo ancilla prep
-        qc.h(qA)
-        qc.x(qA)
-
         # e) uncompute the feature-qubit bit-flips
-        for i, bit in enumerate(user_vector):
+        for i, bit in enumerate(reversed(user_vector)):
             if bit == '0':
                 qc.x(feature_qubits[i])
 
         # ────────── Diffusion (inversion-about-mean) ──────────
+
+
         qc.h(feature_qubits)
         qc.x(feature_qubits)
 
@@ -184,5 +188,7 @@ def grover(
 
         qc.x(feature_qubits)
         qc.h(feature_qubits)
+
+    qc.h(qA)
 
     return qc
