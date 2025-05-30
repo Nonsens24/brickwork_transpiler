@@ -7,7 +7,9 @@ import numpy as np
 from matplotlib import pyplot as plt
 from qiskit import QuantumCircuit
 from qiskit.quantum_info import Statevector
-from qiskit.visualization import circuit_drawer
+from qiskit.visualization import circuit_drawer, plot_histogram
+from qiskit_aer import AerSimulator
+
 # sys.path.append('/Users/rexfleur/Documents/TUDelft/Master_CESE/Thesis/Code/gospel')  # Full path to the cloned repo
 # from gospel.brickwork_state_transpiler import generate_random_pauli_pattern
 # from gospel.brick
@@ -42,10 +44,10 @@ def main():
     # Test QRS
 
     feature_mat = [
-        [1, 0, 1, 0, 1],  # Sebastian-I
+        [1, 0, 0, 0, 1],  # Sebastian-I
         [0, 1, 0, 1, 0],  # Tzula-C
         [1, 1, 1, 0, 1],  # Rex-E
-        [0, 1, 1, 1, 0],  # Scott-T
+        [0, 1, 1, 1, 1],  # Scott-T
     ]
 
     fm_lin = [[0, 0, 0, 0, 0],  # i = 0
@@ -83,9 +85,52 @@ def main():
         [1, 0, 1, 0, 1, 1],  # 1111 → 101011
     ]
 
-    qrs = qrs_knn_grover.qrs(16, feature_mat_paper, "101011", True, grover_iterations=3)
+    from qiskit import ClassicalRegister, transpile
+    import matplotlib.pyplot as plt
 
+    user_feature = "11000"
+    qrs = qrs_knn_grover.qrs(4, feature_mat, user_feature, True, grover_iterations=2)
 
+    # 1) which qubits hold your “recommendation” bits?
+    #    (your comment said 4–10 → that’s 7 qubits)
+    measure_qubits = list(range(2, 7))  #
+    print("Measure qubits:", measure_qubits)
+
+    # 2) make a classical register of the same size
+    cr = ClassicalRegister(len(measure_qubits), name='c')
+    cr0 = ClassicalRegister(1, name='cr0')
+
+    # 3) copy & attach
+    qc_meas = qrs.copy()
+    qc_meas.add_register(cr)
+
+    # 4) measure 4→c[0], 5→c[1], …, 10→c[6]
+    for i, q in enumerate(measure_qubits):
+        qc_meas.measure(q, cr[i])
+
+    qc_meas.add_register(cr0)
+    qc_meas.measure(qrs.num_qubits-2, cr0)
+
+    # 5) simulate
+    print("Simulating...")
+    sim = AerSimulator()
+    qc_t = transpile(qc_meas, sim, optimization_level=3)
+    shots = 1024
+    result = sim.run(qc_t, shots=shots).result()
+    counts = result.get_counts()
+
+    # 6) sort & plot
+    sorted_keys = sorted(counts.keys())  # '0000000' → '1111111'
+    sorted_vals = [counts[k] for k in sorted_keys]
+
+    plt.figure(figsize=(8, 4))
+    plt.bar(sorted_keys, sorted_vals)
+    plt.title(f"Recommendation for user vector: {user_feature}")
+    plt.xlabel(f'Measured bitstring (qubits {measure_qubits[0]} - {measure_qubits[len(measure_qubits) - 1]})')
+    plt.ylabel(f'Counts (out of {shots})')
+    plt.xticks(rotation=90)
+    plt.tight_layout()
+    plt.show()
 
     # GRAPHING OF BW GROWTH:
 
