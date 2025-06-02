@@ -520,7 +520,50 @@ def plot_qft_complexity(n_max=8, brickwork_points=None):
 
     plt.show()
 
+import matplotlib.pyplot as plt
 
+def plot_bw_scaling(input_brick_depths: list[int], aligned_brick_depths: list[int]):
+    # 1) Check lengths first:
+    if len(aligned_brick_depths) != len(input_brick_depths):
+        raise ValueError(
+            f"aligned_brick_depths length ({len(aligned_brick_depths)}) "
+            f"must equal input_brick_depths length ({len(input_brick_depths)})"
+        )
+
+    # 2) Compute elementwise “upper_bound_bricks = 3 * input_brick_depths”
+    upper_bound_bricks = [3 * d for d in input_brick_depths]
+
+    # 3) Create the plot
+    fig, ax = plt.subplots(figsize=(8, 5))
+
+    # If you want the x‐axis to correspond to indices 0,1,2,…, you can omit a third argument:
+    ax.plot(aligned_brick_depths, marker='o',
+            label='Time Complexity QFT (Non-decomposed Gate Count)')
+    ax.plot(input_brick_depths,    marker='^',
+            label='Time Complexity QFT LB (Brick Count)')
+    ax.plot(upper_bound_bricks,    marker='v',
+            label='Theoretical UB (Brick Count)')
+
+    # 4) Labeling
+    ax.set_xlabel('Number of Qubits (n)')
+    ax.set_ylabel('Count')
+    ax.set_title('BQRS Circuit Complexity vs Number of Qubits')
+
+    # 5) Choose xticks so that there is one tick per element.
+    #    Here we place ticks at 0..(len-1) but label them with input_brick_depths.
+    ax.set_xticks(range(len(input_brick_depths)))
+    ax.set_xticklabels(input_brick_depths, rotation=45)
+
+    ax.grid(True)
+    ax.legend()
+
+    # 6) Save and show
+    fig.savefig("images/plots/BQRS_space_time_complexity.pdf",
+                format="pdf", bbox_inches="tight")
+    fig.savefig("images/plots/BQRS_space_time_complexity.png",
+                format="png", dpi=300, bbox_inches="tight")
+
+    plt.show()
 
 
 

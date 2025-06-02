@@ -2,7 +2,7 @@ from qiskit import QuantumCircuit
 from src.brickwork_transpiler import decomposer, graph_builder, pattern_converter, utils, visualiser
 
 
-def transpile(qc: QuantumCircuit, input_vector, routing_method=None, layout_method=None):
+def transpile(qc: QuantumCircuit, input_vector=None, routing_method=None, layout_method=None):
 
     # Decompose to CX, rzrxrz, id   -   Need opt = 3 for SU(2) rotation merging
     decomposed_qc = decomposer.decompose_qc_to_bricks_qiskit(qc, opt=3,
@@ -29,6 +29,7 @@ def transpile(qc: QuantumCircuit, input_vector, routing_method=None, layout_meth
     bw_nx_graph = graph_builder.to_networkx_graph(bw_graph_data)
 
     # Add angles and convert to Graphix pattern
+    print("Calculating measurement dependencies...")
     bw_pattern, col_map = pattern_converter.to_pattern(qc_mat_aligned, bw_nx_graph)
 
     # Calculate reference statevector
