@@ -1,4 +1,5 @@
 import sys
+from pyexpat import features
 
 import networkx as nx
 import numpy as np
@@ -47,6 +48,24 @@ def main():
 
 
     # Test the QRS
+
+
+    #Experimental data
+    bw_in_depths = [973, 1374 , 1980, 4082, 8857, 18758]
+    user_counts = [4, 8, 16, 32, 64, 128]
+    bw_aligned_depths = [1236, 1746 , 2559, 5315, 11613, 26009]
+    feature_length = 6
+    feature_widths = [4, 6, 8, 10, 12]
+
+    visualiser.plot_qrs_bw_scaling(user_counts, bw_in_depths, bw_aligned_depths, feature_length)
+
+    visualiser.plot_time_complexity_3d(user_counts, feature_widths)
+
+    visualiser.plot_time_complexity_with_bw_lines(user_counts, feature_widths,
+                                                  bw_in_depths, bw_aligned_depths,
+                                                  feature_length, azim=245)
+
+    return 0
 
     # --- (2) Application‐specific code that uses qrs(...) to get counts & plot ---
 
@@ -156,27 +175,45 @@ def main():
         "Scott-T",
     ]
 
-
-    names2=[]
-    # 17 rows, 2680 columns, 1680 cx gates (no optimisation
     feature_mat2 = [
-        [0, 0, 0, 0, 0, 0],  # 0000 → 000000
-        [0, 0, 0, 1, 1, 0],  # 0001 → 000110
-        [0, 0, 1, 0, 0, 1],  # 0010 → 001001
-        [0, 0, 1, 1, 1, 1],  # 0011 → 001111
-        [0, 0, 0, 1, 0, 0],  # 0100 → 000100
-        [0, 0, 0, 0, 1, 0],  # 0101 → 000010
-        [0, 0, 1, 1, 0, 1],  # 0110 → 001101
-        [0, 0, 1, 0, 1, 1],  # 0111 → 001011
-        [1, 0, 0, 0, 0, 0],  # 1000 → 100000
-        [1, 0, 0, 1, 1, 0],  # 1001 → 100110
-        [1, 0, 1, 0, 0, 1],  # 1010 → 101001
-        [1, 0, 1, 1, 1, 1],  # 1011 → 101111
-        [1, 0, 0, 1, 0, 0],  # 1100 → 100100
-        [1, 0, 0, 0, 1, 0],  # 1101 → 100010
-        [1, 0, 1, 1, 0, 1],  # 1110 → 101101
-        [1, 0, 1, 0, 1, 1],  # 1111 → 101011
+        [0, 0, 0, 1, 1, 0],  # Sebastian-I
+        [0, 1, 0, 1, 0, 0],  # Tzula-C
+        [1, 1, 1, 0, 1, 0],  # Rex-E
+        [0, 1, 1, 1, 1, 0],  # Scott-T
+        [0, 0, 0, 1, 1, 0],  # Sebastian-I
+        [0, 1, 0, 1, 0, 0],  # Tzula-C
+        [1, 1, 1, 0, 1, 0],  # Rex-E
+        [0, 1, 1, 1, 1, 0],  # Scott-T
     ]
+
+    names2 = [
+        "Sebastian-I",
+        "Tzula-C",
+        "Rex-E",
+        "Scott-T",
+    ]
+
+
+    # names2=[]
+    # # 17 rows, 2680 columns, 1680 cx gates (no optimisation
+    # feature_mat2 = [
+    #     [0, 0, 0, 0, 0, 0],  # 0000 → 000000
+    #     [0, 0, 0, 1, 1, 0],  # 0001 → 000110
+    #     [0, 0, 1, 0, 0, 1],  # 0010 → 001001
+    #     [0, 0, 1, 1, 1, 1],  # 0011 → 001111
+    #     [0, 0, 0, 1, 0, 0],  # 0100 → 000100
+    #     [0, 0, 0, 0, 1, 0],  # 0101 → 000010
+    #     [0, 0, 1, 1, 0, 1],  # 0110 → 001101
+    #     [0, 0, 1, 0, 1, 1],  # 0111 → 001011
+    #     [1, 0, 0, 0, 0, 0],  # 1000 → 100000
+    #     [1, 0, 0, 1, 1, 0],  # 1001 → 100110
+    #     [1, 0, 1, 0, 0, 1],  # 1010 → 101001
+    #     [1, 0, 1, 1, 1, 1],  # 1011 → 101111
+    #     [1, 0, 0, 1, 0, 0],  # 1100 → 100100
+    #     [1, 0, 0, 0, 1, 0],  # 1101 → 100010
+    #     [1, 0, 1, 1, 0, 1],  # 1110 → 101101
+    #     [1, 0, 1, 0, 1, 1],  # 1111 → 101011
+    # ]
 
     names3=[]
     # 17 rows, 2680 columns, 1680 cx gates (no optimisation
@@ -571,8 +608,11 @@ def main():
         bw_depths_input.append(len(qc_mat[0]))
         print(f"feature mat: {id_fm}, aligned depth: {len(qc_mat_aligned[0])}, input depth: {len(qc_mat[0])}")
 
+    visualiser.plot_qrs_bw_scaling(bw_depths_input, bw_depths_aligned)
 
-    visualiser.plot_bw_scaling(bw_depths_input, bw_depths_aligned)
+    # Saved experimental data:
+
+
 
     # print("Transpiling circuit...")
     # bw_pattern, col_map = brickwork_transpiler.transpile(qrs_circuit)

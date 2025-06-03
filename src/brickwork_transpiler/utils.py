@@ -270,3 +270,87 @@ def feature_to_affine_generator(feature_mat):
     #    (this will check r(i+j)=r(i)+r(j) for all i,j)
     G = feature_to_generator(residual)
     return G, c
+
+
+def time_complexity_knn_grover(q: int, l: int, c: int) -> dict[str, int]:
+    """
+    Estimate the (asymptotic) gate‐count “time complexity” of the full QRS circuit
+    as described in Sawerwain & Wróblewski (2019). All counts here are in terms of
+    elementary gates (single‐ and two‐qubit gates) and follow the O(·) formulas from the paper.
+
+    Parameters
+    ----------
+    q : int
+        Number of qubits used to label database entries.
+        •  N = 2**q  is the size of the classical database (number of rows).
+        •  e.g. if q=4, then N=16 database items.
+
+    l : int
+        Width (in bits) of the feature‐vector register.
+        •  Each database‐entry feature and the user‐feature both live in an l-qubit subregister.
+        •  Hamming‐distance calculations, Grover oracles, etc., all scale in l.
+
+    c : int
+        “Extra” two‐qubit‐gate count arising when one decomposes multi-controlled Z (and
+        other multi-controlled) gates in Grover’s diffusion/oracle into elementary CNOT+single‐qubit gates.
+        •  In practice  c ≈ O(l) or O(l²) depending on your compilation strategy.
+        •  Here we simply treat c as a parameter: “how many extra two-qubit gates are needed to implement each
+           multi-controlled Z in the Grover step?”
+
+    Returns
+    -------
+    dict[str, int]
+        A dictionary with the following keys (all counts are exact, not Big-O, but they follow the
+        same growth rates given in the paper):
+
+        • "Database_creation" : int
+            ⟶ O₁(l, N) = 2ˡ  +  N·(N − 1)//2
+            (number of gates to initialize the full database: Hadamards for user‐feature superposition
+            plus pairwise permutes to encode all N classical rows in |ψ_ff〉).
+
+        • "kNN_distance"     : int
+            ⟶ O₂(l) = 3·l + 2
+            (gate‐count for computing Hamming distances + “quantum summing” of distance).
+
+        • "Grover_amplify"   : int
+            ⟶ O₃(l, c) = 7·l + 2·c + 3
+            (gate‐count in the amplitude‐amplification stage: multi-controlled oracle + diffusion
+            after k-NN has picked “close” entries).
+
+        • "Total"            : int
+            Sum of the above three numbers.  This is the total elementary-gate count of the
+            entire circuit (once), up to constants.
+
+    Notes
+    -----
+    1. The dominating term is “Database_creation” (O(2ˡ + N²))—once you build the database,
+       you don’t have to rebuild it on each query.
+    2. If you only care about the per‐query cost (i.e., once the database is loaded),
+       then “Total_per_query” = kNN_distance + Grover_amplify = (3·l + 2) + (7·l + 2·c + 3) = 10·l + 2·c + 5.
+    3. In many realistic settings, N = 2**q is very large (exponential in q), so the N·(N−1)/2 term
+       is truly quadratic in N.
+    4. The parameter c depends on your circuit decomposition strategy for multi-controlled Z gates
+       in Grover: for instance, a naive “barenco-style” proliferation gives c = O(l), whereas more
+       optimized decompositions can push it toward O(l log l).
+    5. All counts here assume a standard universal gate set (Hadamard, single‐qubit Z/X, and CNOT).
+    """
+
+    N = 2**q
+
+    # 1) Database creation cost: 2^l (Hadamards for user feature) + N*(N−1)/2 (permutations for |ψ_ff⟩)
+    database_creation = 2**l + (N * (N - 1)) // 2
+
+    # 2) k-NN Hamming-distance and summing: exactly 3*l + 2 gates
+    kNN_distance = 3 * l + 2
+
+    # 3) Grover amplitude amplification: 7*l + 2*c + 3 gates
+    grover_amplify = 7 * l + 2 * c + 3
+
+    total = database_creation + kNN_distance + grover_amplify
+
+    return {
+        "Database_creation": database_creation,
+        "kNN_distance":     kNN_distance,
+        "Grover_amplify":   grover_amplify,
+        "Total":            total,
+    }

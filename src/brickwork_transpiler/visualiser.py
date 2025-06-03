@@ -1,3 +1,4 @@
+import math
 from fractions import Fraction
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -520,47 +521,417 @@ def plot_qft_complexity(n_max=8, brickwork_points=None):
 
     plt.show()
 
-import matplotlib.pyplot as plt
 
-def plot_bw_scaling(input_brick_depths: list[int], aligned_brick_depths: list[int]):
-    # 1) Check lengths first:
-    if len(aligned_brick_depths) != len(input_brick_depths):
+def plot_qrs_bw_scaling(user_counts: list[int],
+                    input_brick_depths: list[int],
+                    aligned_brick_depths: list[int],
+                    feature_length: int):
+    """
+    Plot three curves (aligned_counts, input_counts, and their theoretical upper bound)
+    against a specified list of user_counts on the x-axis.
+
+    Parameters
+    ----------
+    user_counts : list[int]
+        The number of users for each data point (e.g. [4, 8, 16, 32, 64, 128]).
+    input_counts : list[int]
+        The measured “input brick” counts for each user count.
+    aligned_counts : list[int]
+        The measured “aligned brick” counts for each user count.
+    """
+
+    # 1) Sanity check: all three lists must have the same length
+    n = len(user_counts)
+    if len(input_brick_depths) != n or len(aligned_brick_depths) != n:
         raise ValueError(
-            f"aligned_brick_depths length ({len(aligned_brick_depths)}) "
-            f"must equal input_brick_depths length ({len(input_brick_depths)})"
+            f"All input lists must have the same length: "
+            f"user_counts={n}, input_brick_depths={len(input_brick_depths)}, aligned_brick_depths={len(aligned_brick_depths)}"
         )
 
-    # 2) Compute elementwise “upper_bound_bricks = 3 * input_brick_depths”
-    upper_bound_bricks = [3 * d for d in input_brick_depths]
+    # 2) Compute theoretical upper bound: 3× input_brick_depths
+    theoretical_ub = [3 * x for x in input_brick_depths]
 
-    # 3) Create the plot
+    # 3) Create the figure and axes
+    import matplotlib.pyplot as plt
     fig, ax = plt.subplots(figsize=(8, 5))
 
-    # If you want the x‐axis to correspond to indices 0,1,2,…, you can omit a third argument:
-    ax.plot(aligned_brick_depths, marker='o',
-            label='Time Complexity QFT (Non-decomposed Gate Count)')
-    ax.plot(input_brick_depths,    marker='^',
-            label='Time Complexity QFT LB (Brick Count)')
-    ax.plot(upper_bound_bricks,    marker='v',
+    # 4) Plot each series vs. user_counts
+    ax.plot(user_counts, aligned_brick_depths, marker='o',
+            label='BQRS brickwork scaling (Brick Count)')
+    ax.plot(user_counts, input_brick_depths, marker='^',
+            label='Time Complexity BQRS LB (Brick Count)')
+    ax.plot(user_counts, theoretical_ub, marker='v',
             label='Theoretical UB (Brick Count)')
 
-    # 4) Labeling
-    ax.set_xlabel('Number of Qubits (n)')
+    # 5) Labeling
+    ax.set_xlabel('Number of Users')
     ax.set_ylabel('Count')
-    ax.set_title('BQRS Circuit Complexity vs Number of Qubits')
+    ax.set_title(f'BQRS Circuit Complexity vs Number of Users (feature length = {feature_length})')
 
-    # 5) Choose xticks so that there is one tick per element.
-    #    Here we place ticks at 0..(len-1) but label them with input_brick_depths.
-    ax.set_xticks(range(len(input_brick_depths)))
-    ax.set_xticklabels(input_brick_depths, rotation=45)
+    # 6) Ensure x-axis ticks are exactly the user_counts values
+    ax.set_xticks(user_counts)
+    ax.set_xticklabels([str(u) for u in user_counts], rotation=45)
 
     ax.grid(True)
     ax.legend()
 
-    # 6) Save and show
-    fig.savefig("images/plots/BQRS_space_time_complexity.pdf",
+    # 7) Save & show
+    fig.savefig("images/plots/BQRS_space_time_scaling_by_users.pdf",
                 format="pdf", bbox_inches="tight")
-    fig.savefig("images/plots/BQRS_space_time_complexity.png",
+    fig.savefig("images/plots/BQRS_space_time_scaling_by_users.png",
+                format="png", dpi=300, bbox_inches="tight")
+
+    plt.show()
+
+    import math
+    import matplotlib.pyplot as plt
+
+def decomposition_cost(l: int) -> int:
+    """
+    Estimate the two-qubit (“CX”) gate count needed to decompose an l-controlled
+    gate into {Rz, Rx, CX, I}. We use a simple linear model:
+        c = 2*l - 1
+
+    In other words, each l-controlled CZ or CX is assumed to expand into (2*l - 1) CXs
+    plus single-qubit rotations (Rz, Rx) and identity wires.
+    """
+    return 2 * l - 1
+
+def plot_time_complexity(user_counts: list[int], feature_widths: list[int]) -> None:
+    """
+    For each (user_count, feature_width) pair, invoke `time_complexity(q, l, c)`
+    to compute gate-counts, then plot the resulting metrics against user_counts.
+
+    We assume:
+      •  `q = log2(user_count)` must be an integer (so user_count is a power of two).
+      •  `l = feature_width` is the width (in qubits) of each feature vector.
+      •  `c = decomposition_cost(l)` is the two-qubit cost of each multi-controlled gate,
+         under the basis {Rz, Rx, CX, I}.
+
+    Each call to `time_complexity` returns a dict with keys:
+      - "Database_creation"  : int (≈ 2^l + (2^q·(2^q − 1)//2))
+      - "kNN_distance"       : int (≡ 3·l + 2)
+      - "Grover_amplify"     : int (≡ 7·l + 2·c + 3)
+      - "Total"              : int (sum of the above)
+
+    The function then produces a single 2D plot (gate-count vs. number of users) showing:
+      •  Total complexity
+      •  Database creation cost
+      •  k-NN distance cost
+      •  Grover amplification cost
+
+    Parameters
+    ----------
+    user_counts : list[int]
+        A list of “number of users” values (each must be a power of two).
+        Internally we take q = log2(user_count) to pass into `time_complexity`.
+
+    feature_widths : list[int]
+        A list of feature-vector widths (l). Must have the same length as user_counts.
+
+    Raises
+    ------
+    ValueError
+        If the two input lists differ in length, or if any user_count is not a power of two.
+    """
+
+    if len(user_counts) != len(feature_widths):
+        raise ValueError(
+            f"user_counts length ({len(user_counts)}) must equal "
+            f"feature_widths length ({len(feature_widths)})"
+        )
+
+    # Containers for each metric
+    total_complexities = []
+    db_creations = []
+    kNNs = []
+    grovers = []
+
+    for uc, l in zip(user_counts, feature_widths):
+        # Ensure user_count is a power of two so q = integer log2(uc)
+        if uc <= 0 or (uc & (uc - 1)) != 0:
+            raise ValueError(f"User count {uc} is not a positive power of two.")
+        q = int(math.log2(uc))
+
+        # Compute c from our decomposition model
+        c = decomposition_cost(l)
+
+        # Invoke the time_complexity function defined earlier
+        metrics = time_complexity(q=q, l=l, c=c)
+
+        db_creations.append(metrics["Database_creation"])
+        kNNs.append(metrics["kNN_distance"])
+        grovers.append(metrics["Grover_amplify"])
+        total_complexities.append(metrics["Total"])
+
+    # --- Create the plot ---
+    fig, ax = plt.subplots(figsize=(8, 5))
+
+    # Total complexity vs. number of users
+    ax.plot(user_counts, total_complexities, marker='o', linestyle='-',
+            label='Total Gate Count')
+
+    # Breakdown curves
+    ax.plot(user_counts, db_creations, marker='s', linestyle='--',
+            label='Database Creation')
+    ax.plot(user_counts, kNNs, marker='^', linestyle='-.',
+            label='kNN Distance')
+    ax.plot(user_counts, grovers, marker='v', linestyle=':',
+            label='Grover Amplify')
+
+    # Label axes
+    ax.set_xlabel('Number of Users\n(q = log₂(user_count))')
+    ax.set_ylabel('Gate Count')
+    ax.set_title('QRS Circuit Time Complexity vs Number of Users')
+
+    # Force x-ticks exactly at each user_count
+    ax.set_xticks(user_counts)
+    ax.set_xticklabels([str(u) for u in user_counts], rotation=45)
+
+    ax.grid(True)
+    ax.legend()
+    plt.tight_layout()
+    plt.show()
+
+import math
+import numpy as np
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
+
+
+def time_complexity(q: int, l: int, c: int) -> dict[str, int]:
+    """
+    As defined previously, returns a dict of gate-count metrics for given (q, l, c).
+    """
+    N = 2 ** q
+    database_creation = 2 ** l + (N * (N - 1)) // 2
+    kNN_distance = 3 * l + 2
+    grover_amplify = 7 * l + 2 * c + 3
+    total = database_creation + kNN_distance + grover_amplify
+
+    return {
+        "Database_creation": database_creation,
+        "kNN_distance": kNN_distance,
+        "Grover_amplify": grover_amplify,
+        "Total": total,
+    }
+
+def plot_time_complexity_3d(user_counts: list[int], feature_widths: list[int]) -> None:
+    """
+    Produces a 3D surface plot of Total Gate Count as a function of:
+      • x-axis: number of users (must be powers of two)
+      • y-axis: feature-vector width l
+      • z-axis: Total gate count from time_complexity(q, l, c)
+
+    For each pair (u, l) in the grid formed by user_counts × feature_widths:
+      1. Compute q = log2(u) (raises ValueError if u is not a power of two).
+      2. Compute c = decomposition_cost(l).
+      3. Compute metrics = time_complexity(q, l, c).
+      4. Extract metrics["Total"] into a 2D array Z.
+
+    Parameters
+    ----------
+    user_counts : list[int]
+        A strictly positive list of integers, each a power of two.
+    feature_widths : list[int]
+        A strictly positive list of integers representing l. Can be any positive ints.
+
+    Raises
+    ------
+    ValueError
+        If any user_count is not a positive power of two.
+    """
+
+    # 1) Verify inputs
+    for u in user_counts:
+        if u <= 0 or (u & (u - 1)) != 0:
+            raise ValueError(f"User count {u} is not a positive power of two.")
+
+    user_counts = sorted(user_counts)
+    feature_widths = sorted(feature_widths)
+
+    # 2) Build meshgrid over (user_counts, feature_widths)
+    U_vals = np.array(user_counts)
+    L_vals = np.array(feature_widths)
+    U_grid, L_grid = np.meshgrid(U_vals, L_vals, indexing='xy')  # shape: (len(L), len(U))
+
+    # 3) Compute Total complexity for each (u, l)
+    Z_total = np.zeros_like(U_grid, dtype=float)
+    for i, l in enumerate(L_vals):
+        c = decomposition_cost(int(l))
+        for j, u in enumerate(U_vals):
+            q = int(math.log2(int(u)))
+            metrics = time_complexity(q=q, l=int(l), c=c)
+            Z_total[i, j] = metrics["Total"]
+
+    # 4) Plot 3D surface
+    fig = plt.figure(figsize=(9, 6))
+    ax = fig.add_subplot(111, projection='3d')
+
+    # Convert U_grid and L_grid to float for plotting
+    ax.plot_surface(
+        U_grid.astype(float),
+        L_grid.astype(float),
+        Z_total,
+        cmap='viridis',
+        edgecolor='none',
+        alpha=0.8
+    )
+
+    # 5) Labeling
+    ax.set_xlabel('Number of Users (N = 2^q)')
+    ax.set_ylabel('Feature Width (l)')
+    ax.set_zlabel('Total Gate Count')
+    ax.set_title('3D Surface of QRS Time Complexity')
+
+    # 6) Configure ticks
+    ax.set_xticks(U_vals)
+    ax.set_xticklabels([str(int(u)) for u in U_vals], rotation=45, ha='right')
+    ax.set_yticks(L_vals)
+    ax.set_yticklabels([str(int(l)) for l in L_vals])
+    # … after plotting the surface …
+    ax.view_init(elev=20, azim=245)
+    # plt.tight_layout()
+
+    # Save & show
+    fig.savefig(f"images/plots/BQRS_space_time_3d.pdf",
+                format="pdf", bbox_inches="tight")
+    fig.savefig(f"images/plots/BQRS_space_time_3d.png",
+                format="png", dpi=300, bbox_inches="tight")
+
+    plt.show()
+
+
+
+import math
+from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
+
+
+def plot_time_complexity_with_bw_lines(
+    user_counts: list[int],
+    feature_widths: list[int],
+    bw_in_depths: list[int],
+    bw_aligned_depths: list[int],
+    feature_length: int,
+    elev: float = 20,
+    azim: float = 240
+) -> None:
+    """
+    3D surface of Total Gate Count vs. (Number of Users, Feature Width), with two overlay lines
+    (bw_in_depths and bw_aligned_depths) at a fixed feature_width = feature_length.
+
+    Parameters
+    ----------
+    user_counts : list[int]
+        List of powers-of-two (e.g. [4, 8, 16, 32, 64, 128]).
+    feature_widths : list[int]
+        List of feature-vector widths (e.g. [4, 5, 6, 7, 8]).
+    bw_in_depths : list[int]
+        Z-values for the “in-depths” line corresponding to each user_count at l = feature_length.
+    bw_aligned_depths : list[int]
+        Z-values for the “aligned-depths” line corresponding to each user_count at l = feature_length.
+    feature_length : int
+        The fixed l value at which bw_in_depths and bw_aligned_depths are defined.
+    elev : float, optional
+        Elevation angle in degrees for the 3D view (default=30).
+    azim : float, optional
+        Azimuth angle in degrees for the 3D view (default=45).
+    """
+
+    # 1) Validate that each user_count is a power of two
+    for u in user_counts:
+        if u <= 0 or (u & (u - 1)) != 0:
+            raise ValueError(f"User count {u} is not a positive power of two.")
+    if len(user_counts) != len(bw_in_depths) or len(user_counts) != len(bw_aligned_depths):
+        raise ValueError("Lengths of user_counts, bw_in_depths, and bw_aligned_depths must match.")
+    if feature_length not in feature_widths:
+        raise ValueError("feature_length must be one of the values in feature_widths.")
+
+    # Sort inputs
+    user_counts = sorted(user_counts)
+    feature_widths = sorted(feature_widths)
+
+    # 2) Build meshgrid over (user_counts, feature_widths)
+    U_vals = np.array(user_counts)
+    L_vals = np.array(feature_widths)
+    U_grid, L_grid = np.meshgrid(U_vals, L_vals, indexing='xy')  # shape: (len(L), len(U))
+
+    # 3) Compute Total complexity for each (u, l)
+    Z_total = np.zeros_like(U_grid, dtype=float)
+    for i, l in enumerate(L_vals):
+        c = decomposition_cost(int(l))
+        for j, u in enumerate(U_vals):
+            q = int(math.log2(int(u)))
+            metrics = time_complexity(q=q, l=int(l), c=c)
+            Z_total[i, j] = metrics["Total"]
+
+    # 4) Plot 3D surface
+    fig = plt.figure(figsize=(10, 7))
+    ax = fig.add_subplot(111, projection='3d')
+
+    surf = ax.plot_surface(
+        U_grid.astype(float),
+        L_grid.astype(float),
+        Z_total,
+        cmap='viridis',
+        edgecolor='none',
+        alpha=0.8,
+        zorder=0
+    )
+
+    # 5) Overlay the two lines at l = feature_length
+    y_line = [feature_length] * len(user_counts)
+    x_line = user_counts
+    z_in = bw_in_depths
+    z_aligned = bw_aligned_depths
+
+    # Plot "in-depths" line
+    ax.plot(
+        x_line,
+        y_line,
+        z_in,
+        color='red',
+        marker='^',
+        markersize=6,
+        label='Decomposed BW Complexity (l={})'.format(feature_length),
+        linewidth=2,
+        zorder=10
+    )
+
+    # Plot "aligned-depths" line
+    ax.plot(
+        x_line,
+        y_line,
+        z_aligned,
+        color='blue',
+        marker='o',
+        markersize=6,
+        label='Aligned Decomposed BW Complexity (l={})'.format(feature_length),
+        linewidth=2,
+        zorder=10 # Because of bug in depth buffer force lines on top
+    )
+
+    # 6) Adjust view angle
+    ax.view_init(elev=elev, azim=azim)
+
+    # 7) Labeling
+    ax.set_xlabel('Number of Users (N = 2^q)')
+    ax.set_ylabel('Feature Width (l)')
+    ax.set_zlabel('Gate Count / Depth')
+    ax.set_title('3D Surface of QRS Time Complexity with BW Depth Lines')
+
+    ax.set_xticks(U_vals)
+    ax.set_xticklabels([str(int(u)) for u in U_vals], rotation=45, ha='right')
+    ax.set_yticks(L_vals)
+    ax.set_yticklabels([str(int(l)) for l in L_vals])
+
+    ax.legend()
+    # plt.tight_layout()
+
+    # Save & show
+    fig.savefig(f"images/plots/BQRS_space_time_3d_with_bw_l{feature_length}.pdf",
+                format="pdf", bbox_inches="tight")
+    fig.savefig(f"images/plots/BQRS_space_time_3d_with_bw_l{feature_length}.png",
                 format="png", dpi=300, bbox_inches="tight")
 
     plt.show()
