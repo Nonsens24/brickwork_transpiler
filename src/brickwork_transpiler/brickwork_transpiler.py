@@ -6,7 +6,7 @@ def transpile(qc: QuantumCircuit, input_vector=None, routing_method=None, layout
 
     # Decompose to CX, rzrxrz, id   -   Need opt = 3 for SU(2) rotation merging
     decomposed_qc = decomposer.decompose_qc_to_bricks_qiskit(qc, opt=3,
-                                                                routing_method='sabre',
+                                                                routing_method='stochastic',
                                                                 layout_method='trivial')
 
     print(decomposed_qc.draw())

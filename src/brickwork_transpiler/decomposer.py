@@ -1,3 +1,4 @@
+from matplotlib import pyplot as plt
 from qiskit import QuantumCircuit, transpile
 from qiskit.circuit import Instruction
 from qiskit.converters import circuit_to_dag
@@ -9,7 +10,7 @@ from src.brickwork_transpiler import visualiser
 
 
 def decompose_qc_to_bricks_qiskit(qc: QuantumCircuit, opt=3, draw=False,
-                                  routing_method: str = 'sabre',
+                                  routing_method: str = 'default',
                                   layout_method: str ='trivial'):
     #
     # # print("Decomposing Quantum circuit to generator set...", end=" ")
@@ -24,6 +25,8 @@ def decompose_qc_to_bricks_qiskit(qc: QuantumCircuit, opt=3, draw=False,
 
     # 1. Define your basis
     basis = ['rz', 'rx', 'cx', 'id']
+
+    print(qc)
 
     # 2. Define the coupling map for your device/simulator:
     if qc.num_qubits > 1:
@@ -58,6 +61,12 @@ def decompose_qc_to_bricks_qiskit(qc: QuantumCircuit, opt=3, draw=False,
         routing_method= routing_method, #'stochastic', #'sabre', #'lookahead', #'basic',  # use the simple SWAP-insertion pass
         optimization_level=opt
     )
+
+    qc_mapped.draw(output='mpl',
+                       fold=40,
+                       )
+    plt.savefig(f"images/qft3_example_poster_after_decomposition.png", dpi=300, bbox_inches="tight")
+    plt.show()
 
     if draw:
         print(qc_mapped.draw())
@@ -557,19 +566,10 @@ def align_cx_matrix(cx_matrix: List[List[List[Instruction]]]) -> List[List[List[
 
         placed_cols[gid] = place
 
+    visualiser.print_matrix(aligned)
     return aligned
 
 
-from typing import List, Optional
-
-from typing import List
-import copy
-
-from typing import List
-import copy
-
-
-from typing import List
 
 from typing import List
 

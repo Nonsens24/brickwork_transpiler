@@ -105,14 +105,14 @@ import matplotlib.patches as mpatches
 def plot_brickwork_graph_from_pattern(
         bw_pattern,
         show_angles: bool = True,
-        node_size: float = 600,
+        node_size: float = 1200,  # increased
         node_color: str = 'skyblue',
         edge_color: str = 'gray',
-        font_size: int = 8,
+        font_size: int = 8,  # small labels
         figsize: tuple = None,
-        cell_size: float = 0.5,
-        node_spacing: float = 1.2,     # ← new: how many “cell_sizes” between nodes
-        margin: float = 0.5,
+        cell_size: float = 0.6,  # slightly bigger cells
+        node_spacing: float = 1.5,  # more spacing between nodes
+        margin: float = 1.0,  # more margin around the graph
         title: str = "Brickwork Graph",
         use_node_colours: bool = False,
         node_colours: dict = None
@@ -135,21 +135,20 @@ def plot_brickwork_graph_from_pattern(
     n_rows, n_cols = max(rows) + 1, max(cols) + 1
 
     # 4. Figure & layout
-    legend_height = 0.5   # inches for the legend row
+    legend_height = 0.6  # a bit more space for legend
     if figsize is None:
-        # total spacing per “cell” in inches
         spacing = cell_size * node_spacing
-        total_width  = spacing * (n_cols + 2*margin)
-        total_height = spacing * (n_rows + 2*margin) + legend_height
+        total_width = spacing * (n_cols + 2 * margin)
+        total_height = spacing * (n_rows + 2 * margin) + legend_height
         figsize = (total_width, total_height)
 
-    fig = plt.figure(figsize=figsize)
+    fig = plt.figure(figsize=figsize, dpi=150)  # higher dpi for clean look
     gs = fig.add_gridspec(
         2, 1,
-        height_ratios=[n_rows*cell_size*node_spacing, legend_height],
+        height_ratios=[n_rows * cell_size * node_spacing, legend_height],
         hspace=0.0
     )
-    ax        = fig.add_subplot(gs[0, 0])
+    ax = fig.add_subplot(gs[0, 0])
     legend_ax = fig.add_subplot(gs[1, 0])
     legend_ax.axis('off')
 
@@ -160,7 +159,7 @@ def plot_brickwork_graph_from_pattern(
     }
 
     # 6. Draw edges
-    nx.draw_networkx_edges(G, pos, ax=ax, edge_color=edge_color)
+    nx.draw_networkx_edges(G, pos, ax=ax, edge_color=edge_color, width=1.5)
 
     # 7. Draw nodes
     colours = (
@@ -171,7 +170,8 @@ def plot_brickwork_graph_from_pattern(
     nx.draw_networkx_nodes(
         G, pos, ax=ax,
         node_size=node_size,
-        node_color=colours
+        node_color=colours,
+        edgecolors='black', linewidths=0.5  # thin black border around nodes
     )
 
     # 8. Draw labels
@@ -187,6 +187,7 @@ def plot_brickwork_graph_from_pattern(
         G, pos,
         labels=labels,
         font_size=font_size,
+        font_family='DejaVu Sans',  # modern clean font
         ax=ax
     )
 
@@ -197,14 +198,14 @@ def plot_brickwork_graph_from_pattern(
                 (n_cols - 1 + margin) * node_spacing)
     ax.set_ylim((n_rows - 1 + margin) * node_spacing,
                 -margin * node_spacing)
-    ax.set_title(title)
+    ax.set_title(title, fontsize=14, fontweight='bold')
     ax.axis('off')
 
     # 10. Legend below
     if use_node_colours:
         handles = [
             mpatches.Patch(color='lightcoral',  label='CX gate - ⊕ top'),
-            mpatches.Patch(color='lightsalmon', label='CX gate - ⊕ bot'),   # ● ctrl / ⊕ targ
+            mpatches.Patch(color='lightsalmon', label='CX gate - ⊕ bot'),
             mpatches.Patch(color='lightblue',   label='Identity'),
             mpatches.Patch(color='lightgreen',  label='Euler rotation'),
             mpatches.Patch(color='skyblue',     label='Output qubits'),
@@ -214,13 +215,137 @@ def plot_brickwork_graph_from_pattern(
             title="Gate types",
             loc='center',
             ncol=4,
-            frameon=True
+            frameon=False,  # remove frame for cleaner look
+            fontsize=9,
+            title_fontsize=10
         )
 
     plt.show()
-    #Save vector graphics img
+
+    # Save vector graphics
     fig.savefig(f"images/graphs/{title}.pdf", format="pdf", bbox_inches="tight")
     fig.savefig(f"images/graphs/{title}.png", format="png", dpi=300, bbox_inches="tight")
+
+
+# def plot_brickwork_graph_from_pattern(
+#         bw_pattern,
+#         show_angles: bool = True,
+#         node_size: float = 600,
+#         node_color: str = 'skyblue',
+#         edge_color: str = 'gray',
+#         font_size: int = 8,
+#         figsize: tuple = None,
+#         cell_size: float = 0.5,
+#         node_spacing: float = 1.2,     # ← new: how many “cell_sizes” between nodes
+#         margin: float = 0.5,
+#         title: str = "Brickwork Graph",
+#         use_node_colours: bool = False,
+#         node_colours: dict = None
+#     ):
+#     if node_colours is None:
+#         node_colours = {}
+#
+#     # 1. Build graph
+#     nodes, edges = bw_pattern.get_graph()
+#     G = nx.Graph()
+#     G.add_nodes_from(nodes)
+#     G.add_edges_from(edges)
+#
+#     # 2. Angles
+#     angles = bw_pattern.get_angles() if show_angles else {}
+#
+#     # 3. Grid dims
+#     rows = [r for (r, _) in nodes]
+#     cols = [c for (_, c) in nodes]
+#     n_rows, n_cols = max(rows) + 1, max(cols) + 1
+#
+#     # 4. Figure & layout
+#     legend_height = 0.5   # inches for the legend row
+#     if figsize is None:
+#         # total spacing per “cell” in inches
+#         spacing = cell_size * node_spacing
+#         total_width  = spacing * (n_cols + 2*margin)
+#         total_height = spacing * (n_rows + 2*margin) + legend_height
+#         figsize = (total_width, total_height)
+#
+#     fig = plt.figure(figsize=figsize)
+#     gs = fig.add_gridspec(
+#         2, 1,
+#         height_ratios=[n_rows*cell_size*node_spacing, legend_height],
+#         hspace=0.0
+#     )
+#     ax        = fig.add_subplot(gs[0, 0])
+#     legend_ax = fig.add_subplot(gs[1, 0])
+#     legend_ax.axis('off')
+#
+#     # 5. Compute positions with uniform spacing
+#     pos = {
+#         (r, c): (c * node_spacing, r * node_spacing)
+#         for (r, c) in nodes
+#     }
+#
+#     # 6. Draw edges
+#     nx.draw_networkx_edges(G, pos, ax=ax, edge_color=edge_color)
+#
+#     # 7. Draw nodes
+#     colours = (
+#         [node_colours.get(node, node_color) for node in G.nodes()]
+#         if use_node_colours else
+#         node_color
+#     )
+#     nx.draw_networkx_nodes(
+#         G, pos, ax=ax,
+#         node_size=node_size,
+#         node_color=colours
+#     )
+#
+#     # 8. Draw labels
+#     labels = {}
+#     for node in nodes:
+#         r, c = node
+#         if show_angles and node in angles:
+#             θ = angles[node]
+#             labels[node] = f"({r},{c})\n{θ:.2f}π"
+#         else:
+#             labels[node] = f"({r},{c})"
+#     nx.draw_networkx_labels(
+#         G, pos,
+#         labels=labels,
+#         font_size=font_size,
+#         ax=ax
+#     )
+#
+#     # 9. Final tweaks on main axes
+#     ax.set_aspect('equal')
+#     ax.invert_yaxis()
+#     ax.set_xlim(-margin * node_spacing,
+#                 (n_cols - 1 + margin) * node_spacing)
+#     ax.set_ylim((n_rows - 1 + margin) * node_spacing,
+#                 -margin * node_spacing)
+#     ax.set_title(title)
+#     ax.axis('off')
+#
+#     # 10. Legend below
+#     if use_node_colours:
+#         handles = [
+#             mpatches.Patch(color='lightcoral',  label='CX gate - ⊕ top'),
+#             mpatches.Patch(color='lightsalmon', label='CX gate - ⊕ bot'),   # ● ctrl / ⊕ targ
+#             mpatches.Patch(color='lightblue',   label='Identity'),
+#             mpatches.Patch(color='lightgreen',  label='Euler rotation'),
+#             mpatches.Patch(color='skyblue',     label='Output qubits'),
+#         ]
+#         legend_ax.legend(
+#             handles=handles,
+#             title="Gate types",
+#             loc='center',
+#             ncol=4,
+#             frameon=True
+#         )
+#
+#     plt.show()
+#     #Save vector graphics img
+#     fig.savefig(f"images/graphs/{title}.pdf", format="pdf", bbox_inches="tight")
+#     fig.savefig(f"images/graphs/{title}.png", format="png", dpi=300, bbox_inches="tight")
 
 # plot_graphix_pattern_scalar_index.py
 

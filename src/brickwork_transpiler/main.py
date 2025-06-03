@@ -7,7 +7,7 @@ import qiskit.compiler.transpiler
 # from graphix.rng import ensure_rng
 # from graphix.states import BasicStates
 from matplotlib import pyplot as plt
-from numba.core.cgutils import sizeof
+# from numba.core.cgutils import sizeof
 from qiskit import QuantumCircuit, ClassicalRegister
 from qiskit.quantum_info import Statevector
 from qiskit.visualization import circuit_drawer, plot_histogram
@@ -30,7 +30,8 @@ import utils
 import visualiser
 from libs.gospel.gospel.brickwork_state_transpiler.brickwork_state_transpiler import generate_random_pauli_pattern
 from libs.gospel.gospel.brickwork_state_transpiler.brickwork_state_transpiler import transpile
-from src.brickwork_transpiler import decomposer, graph_builder, pattern_converter, brickwork_transpiler, qrs_knn_grover
+from src.brickwork_transpiler import decomposer, graph_builder, pattern_converter, brickwork_transpiler, qrs_knn_grover, \
+    hhl
 from src.brickwork_transpiler.noise import to_noisy_pattern
 from src.brickwork_transpiler.visualiser import plot_graph
 import src.brickwork_transpiler.circuits as circuits
@@ -46,7 +47,28 @@ import src.brickwork_transpiler.qrs_knn_grover_adapted as qrs_knn_adapted
 def main():
 
 
+    # Plot HHL
+    # hhl_circ = hhl.generate_example_hhl_QC()
+    qc, _ = circuits.qft(3)
 
+    # print(hhl_circ)
+    # hhl_circ.draw(output='mpl',
+    #                    fold=30,
+    #                    )
+    # plt.savefig(f"images/qft3_example_poster_before_decomposition.png", dpi=300, bbox_inches="tight")
+    # plt.show()
+
+    print("Transpiling HHL circuit...")
+    bw_pattern, col_map = brickwork_transpiler.transpile(qc)
+
+    print("Plotting brickwork graph...")
+    visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+                                                 node_colours=col_map,
+                                                 use_node_colours=True,
+                                                 title="Brickwork graph")
+
+
+    return 0
     # Test the QRS
 
 
