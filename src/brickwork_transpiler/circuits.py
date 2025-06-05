@@ -230,6 +230,15 @@ def test_circ():
 
     return qc, input_vector
 
+
+def test_small_cx():
+    input_vector = Statevector.from_label('++++')
+
+    qc= QuantumCircuit(4)
+    qc.cx(0, 3)
+
+    return qc, input_vector
+
 def test_large_cx():
     input_vector = Statevector.from_label('++++++')
 

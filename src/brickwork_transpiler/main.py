@@ -49,23 +49,40 @@ def main():
 
     # Plot HHL
     # hhl_circ = hhl.generate_example_hhl_QC()
-    qc, _ = circuits.qft(3)
+    qc, _ = circuits.test_small_cx()
 
-    # print(hhl_circ)
-    # hhl_circ.draw(output='mpl',
-    #                    fold=30,
-    #                    )
-    # plt.savefig(f"images/qft3_example_poster_before_decomposition.png", dpi=300, bbox_inches="tight")
-    # plt.show()
+    print(qc)
+    qc.draw(output='mpl',
+                       fold=30,
+                       )
+    plt.savefig(f"images/cx_uneven.png", dpi=300, bbox_inches="tight")
+    plt.show()
+    # | Layout Method    | Strategy                                               |
+    # | ---------------- | ------------------------------------------------------ |
+    # | `trivial`        | 1-to-1 mapping                                         |
+    # | `dense`          | Densest‐subgraph heuristic                             |
+    # | `noise_adaptive` | Minimize error rates (readout & 2-qubit)               |
+    # | `sabre`          | Sabre seed + forwards/backwards swap refinement        |
+    # | `default`        | VF2 perfect + Sabre fallback (or `trivial` at level 0) |
+    # Routing: 'stochastic', #'sabre', #'lookahead', #'basic',
+
 
     print("Transpiling HHL circuit...")
-    bw_pattern, col_map = brickwork_transpiler.transpile(qc)
+    bw_pattern, col_map = brickwork_transpiler.transpile(qc, routing_method='stochastic', layout_method='sabre')
 
     print("Plotting brickwork graph...")
     visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
                                                  node_colours=col_map,
                                                  use_node_colours=True,
-                                                 title="Brickwork graph")
+                                                 title="Brickwork graph: big CX - routing + uneven")
+
+    print("Plotting locked graph")
+    visualiser.plot_brickwork_graph_locked(bw_pattern)
+
+    # visualiser.plot_brickwork_graph_from_pattern_old_style(bw_pattern,
+    #                                              node_colours=col_map,
+    #                                              use_node_colours=True,
+    #                                              title="Brickwork graph: shift")
 
 
     return 0
@@ -73,21 +90,21 @@ def main():
 
 
     #Experimental data
-    bw_in_depths = [973, 1374 , 1980, 4082, 8857, 18758]
-    user_counts = [4, 8, 16, 32, 64, 128]
-    bw_aligned_depths = [1236, 1746 , 2559, 5315, 11613, 26009]
-    feature_length = 6
-    feature_widths = [4, 6, 8, 10, 12]
-
-    visualiser.plot_qrs_bw_scaling(user_counts, bw_in_depths, bw_aligned_depths, feature_length)
-
-    visualiser.plot_time_complexity_3d(user_counts, feature_widths)
-
-    visualiser.plot_time_complexity_with_bw_lines(user_counts, feature_widths,
-                                                  bw_in_depths, bw_aligned_depths,
-                                                  feature_length, azim=245)
-
-    return 0
+    # bw_in_depths = [973, 1374 , 1980, 4082, 8857, 18758]
+    # user_counts = [4, 8, 16, 32, 64, 128]
+    # bw_aligned_depths = [1236, 1746 , 2559, 5315, 11613, 26009]
+    # feature_length = 6
+    # feature_widths = [4, 6, 8, 10, 12]
+    #
+    # visualiser.plot_qrs_bw_scaling(user_counts, bw_in_depths, bw_aligned_depths, feature_length)
+    #
+    # visualiser.plot_time_complexity_3d(user_counts, feature_widths)
+    #
+    # visualiser.plot_time_complexity_with_bw_lines(user_counts, feature_widths,
+    #                                               bw_in_depths, bw_aligned_depths,
+    #                                               feature_length, azim=245)
+    #
+    # return 0
 
     # --- (2) Application‐specific code that uses qrs(...) to get counts & plot ---
 
@@ -185,7 +202,7 @@ def main():
     # 1) Define the feature matrix and corresponding user names
     feature_mat1 = [
         [0, 0, 0, 1, 1, 0],  # Sebastian-I
-        [0, 1, 0, 1, 0, 0],  # Tzula-C
+        [1, 0, 0, 1, 1, 1],  # Tzula-C
         [1, 1, 1, 0, 1, 0],  # Rex-E
         [0, 1, 1, 1, 1, 0],  # Scott-T
     ]
@@ -482,8 +499,8 @@ def main():
     user_feature = "101011"
     grover_iterations = 2
 
-    feature_mats = [feature_mat1, feature_mat2, feature_mat3, feature_mat4, feature_mat5]
-    names = [names1, names2, names3, names4, names5]
+    feature_mats = [feature_mat3] #, feature_mat2, feature_mat3, feature_mat4, feature_mat5]
+    names = [names3] #, names2, names3, names4, names5]
 
     # | User/IceCream | Chocolate | Vanilla | Strawberry | Nuts | Vegan |
     # | ------------- | --------- | ------- | ---------- | ---- | ----- |
@@ -521,7 +538,7 @@ def main():
             n_items=len(feature_mat),
             feature_mat=feature_mat,
             user_vector=user_feature,
-            plot=False,
+            plot=True,
             grover_iterations=grover_iterations
         )
 
@@ -552,85 +569,85 @@ def main():
         qc_meas.measure(qrs_circuit.num_qubits - 2, cr_flag)
 
         # 7) Simulate the measured circuit -- not required for graphing
-        # print("Simulating...")
-        # sim = AerSimulator()
-        # qc_transpiled = qiskit.compiler.transpiler.transpile(qc_meas, sim, optimization_level=3)
-        #
-        #
-        # shots=1024
-        # result = sim.run(qc_transpiled, shots=shots).result()
-        # raw_counts = result.get_counts()
-        #
-        # # 1) Keep only c0=0 shots
-        # filtered_counts = {}
-        # for full_bitstr, cnt in raw_counts.items():
-        #     if full_bitstr[0] == '0':  # only c0=0
-        #         filtered_counts[full_bitstr] = filtered_counts.get(full_bitstr, 0) + cnt
-        #
-        # # 2) Build sorted lists for plotting
-        # sorted_keys = sorted(filtered_counts.keys())
-        # sorted_vals = [filtered_counts[k] for k in sorted_keys]
-        #
-        # xtick_labels = []
-        # for full_bitstr in sorted_keys:
-        #     # leading_bit is always '0' here
-        #     leading_bit = full_bitstr[0]
-        #
-        #     # raw_suffix = e.g. "11000" which is [c_feat4,c_feat3,c_feat2,c_feat1,c_feat0]
-        #     raw_suffix = full_bitstr[-feature_length:]
-        #
-        #     # reverse it so that index 0→qubit2, …, index4→qubit6
-        #     true_bits = raw_suffix[::-1]
-        #
-        #     # Hamming distance between true_bits and user_feature
-        #     hd = sum(b1 != b2 for b1, b2 in zip(true_bits, user_feature))
-        #
-        #     if true_bits in bitstring_to_name:
-        #         person = bitstring_to_name[true_bits]
-        #         label = f"{person} ({true_bits} {hd})"
-        #     else:
-        #         label = f"No_name ({true_bits} {hd})"
-        #
-        #     xtick_labels.append(label)
-        #
-        # # 1) Compute total count
-        # total = sum(sorted_vals)
-        #
-        # # 2) Convert each count into a percentage
-        # sorted_vals_pct = [v / total * 100 for v in sorted_vals]
-        #
-        # # 3) Plot using those percentages
-        # plt.figure(figsize=(8, 4))
-        # plt.bar(sorted_keys, sorted_vals_pct)
-        # plt.title(
-        #     f"Recommendation for user vector: {user_feature}  –  "
-        #     f"{grover_iterations} Grover iterations (post‐selected on c0=0)"
-        # )
-        # plt.xlabel("Measured bitstrings")
-        # plt.ylabel("Recommendation prob. (%)")
-        # plt.xticks(ticks=sorted_keys, labels=xtick_labels, rotation=45)
-        # plt.tight_layout()
-        #
-        # plt.savefig(f"images/qrs/recommendation_plot_grover_{grover_iterations}.png", dpi=300, bbox_inches="tight")
-        # plt.show()
+        print("Simulating...")
+        sim = AerSimulator()
+        qc_transpiled = qiskit.compiler.transpiler.transpile(qc_meas, sim, optimization_level=3)
+
+
+        shots=1024
+        result = sim.run(qc_transpiled, shots=shots).result()
+        raw_counts = result.get_counts()
+
+        # 1) Keep only c0=0 shots
+        filtered_counts = {}
+        for full_bitstr, cnt in raw_counts.items():
+            if full_bitstr[0] == '0':  # only c0=0
+                filtered_counts[full_bitstr] = filtered_counts.get(full_bitstr, 0) + cnt
+
+        # 2) Build sorted lists for plotting
+        sorted_keys = sorted(filtered_counts.keys())
+        sorted_vals = [filtered_counts[k] for k in sorted_keys]
+
+        xtick_labels = []
+        for full_bitstr in sorted_keys:
+            # leading_bit is always '0' here
+            leading_bit = full_bitstr[0]
+
+            # raw_suffix = e.g. "11000" which is [c_feat4,c_feat3,c_feat2,c_feat1,c_feat0]
+            raw_suffix = full_bitstr[-feature_length:]
+
+            # reverse it so that index 0→qubit2, …, index4→qubit6
+            true_bits = raw_suffix[::-1]
+
+            # Hamming distance between true_bits and user_feature
+            hd = sum(b1 != b2 for b1, b2 in zip(true_bits, user_feature))
+
+            if true_bits in bitstring_to_name:
+                person = bitstring_to_name[true_bits]
+                label = f"{person} ({true_bits} {hd})"
+            else:
+                label = f"No_name ({true_bits} {hd})"
+
+            xtick_labels.append(label)
+
+        # 1) Compute total count
+        total = sum(sorted_vals)
+
+        # 2) Convert each count into a percentage
+        sorted_vals_pct = [v / total * 100 for v in sorted_vals]
+
+        # 3) Plot using those percentages
+        plt.figure(figsize=(8, 4))
+        plt.bar(sorted_keys, sorted_vals_pct)
+        plt.title(
+            f"Recommendation for user vector: {user_feature}  –  "
+            f"{grover_iterations} Grover iterations (post‐selected on c0=0)"
+        )
+        plt.xlabel("Measured bitstrings")
+        plt.ylabel("Recommendation prob. (%)")
+        plt.xticks(ticks=sorted_keys, labels=xtick_labels, rotation=45)
+        plt.tight_layout()
+
+        plt.savefig(f"images/qrs/recommendation_plot_grover_{grover_iterations}.png", dpi=300, bbox_inches="tight")
+        plt.show()
 
         print(f"size_check = {len(feature_mat)} x {len(feature_mat[0])}")
 
 
         # Decompose to CX, rzrxrz, id   -   Need opt = 3 for SU(2) rotation merging
-        decomposed_qc = decomposer.decompose_qc_to_bricks_qiskit(qrs_circuit, opt=3,
-                                                                 routing_method='sabre',
-                                                                 layout_method='default')
+        # decomposed_qc = decomposer.decompose_qc_to_bricks_qiskit(qrs_circuit, opt=3,
+        #                                                          routing_method='sabre',
+        #                                                          layout_method='default')
+        #
+        # # Optiise instruction matrix with dependency graph
+        # qc_mat, cx_mat = decomposer.instructions_to_matrix_dag(decomposed_qc)
+        # qc_mat_aligned = decomposer.align_bricks(cx_mat, qc_mat)
+        #
+        # bw_depths_aligned.append(len(qc_mat_aligned[0]))
+        # bw_depths_input.append(len(qc_mat[0]))
+        # print(f"feature mat: {id_fm}, aligned depth: {len(qc_mat_aligned[0])}, input depth: {len(qc_mat[0])}")
 
-        # Optiise instruction matrix with dependency graph
-        qc_mat, cx_mat = decomposer.instructions_to_matrix_dag(decomposed_qc)
-        qc_mat_aligned = decomposer.align_bricks(cx_mat, qc_mat)
-
-        bw_depths_aligned.append(len(qc_mat_aligned[0]))
-        bw_depths_input.append(len(qc_mat[0]))
-        print(f"feature mat: {id_fm}, aligned depth: {len(qc_mat_aligned[0])}, input depth: {len(qc_mat[0])}")
-
-    visualiser.plot_qrs_bw_scaling(bw_depths_input, bw_depths_aligned)
+    # visualiser.plot_qrs_bw_scaling(bw_depths_input, bw_depths_aligned)
 
     # Saved experimental data:
 

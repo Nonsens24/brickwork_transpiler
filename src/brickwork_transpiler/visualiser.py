@@ -102,7 +102,7 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
-def plot_brickwork_graph_from_pattern(
+def plot_brickwork_graph_from_pattern22(
         bw_pattern,
         show_angles: bool = True,
         node_size: float = 1200,  # increased
@@ -227,125 +227,506 @@ def plot_brickwork_graph_from_pattern(
     fig.savefig(f"images/graphs/{title}.png", format="png", dpi=300, bbox_inches="tight")
 
 
-# def plot_brickwork_graph_from_pattern(
-#         bw_pattern,
-#         show_angles: bool = True,
-#         node_size: float = 600,
-#         node_color: str = 'skyblue',
-#         edge_color: str = 'gray',
-#         font_size: int = 8,
-#         figsize: tuple = None,
-#         cell_size: float = 0.5,
-#         node_spacing: float = 1.2,     # ← new: how many “cell_sizes” between nodes
-#         margin: float = 0.5,
-#         title: str = "Brickwork Graph",
-#         use_node_colours: bool = False,
-#         node_colours: dict = None
-#     ):
-#     if node_colours is None:
-#         node_colours = {}
-#
-#     # 1. Build graph
-#     nodes, edges = bw_pattern.get_graph()
-#     G = nx.Graph()
-#     G.add_nodes_from(nodes)
-#     G.add_edges_from(edges)
-#
-#     # 2. Angles
-#     angles = bw_pattern.get_angles() if show_angles else {}
-#
-#     # 3. Grid dims
-#     rows = [r for (r, _) in nodes]
-#     cols = [c for (_, c) in nodes]
-#     n_rows, n_cols = max(rows) + 1, max(cols) + 1
-#
-#     # 4. Figure & layout
-#     legend_height = 0.5   # inches for the legend row
-#     if figsize is None:
-#         # total spacing per “cell” in inches
-#         spacing = cell_size * node_spacing
-#         total_width  = spacing * (n_cols + 2*margin)
-#         total_height = spacing * (n_rows + 2*margin) + legend_height
-#         figsize = (total_width, total_height)
-#
-#     fig = plt.figure(figsize=figsize)
-#     gs = fig.add_gridspec(
-#         2, 1,
-#         height_ratios=[n_rows*cell_size*node_spacing, legend_height],
-#         hspace=0.0
-#     )
-#     ax        = fig.add_subplot(gs[0, 0])
-#     legend_ax = fig.add_subplot(gs[1, 0])
-#     legend_ax.axis('off')
-#
-#     # 5. Compute positions with uniform spacing
-#     pos = {
-#         (r, c): (c * node_spacing, r * node_spacing)
-#         for (r, c) in nodes
-#     }
-#
-#     # 6. Draw edges
-#     nx.draw_networkx_edges(G, pos, ax=ax, edge_color=edge_color)
-#
-#     # 7. Draw nodes
-#     colours = (
-#         [node_colours.get(node, node_color) for node in G.nodes()]
-#         if use_node_colours else
-#         node_color
-#     )
-#     nx.draw_networkx_nodes(
-#         G, pos, ax=ax,
-#         node_size=node_size,
-#         node_color=colours
-#     )
-#
-#     # 8. Draw labels
-#     labels = {}
-#     for node in nodes:
-#         r, c = node
-#         if show_angles and node in angles:
-#             θ = angles[node]
-#             labels[node] = f"({r},{c})\n{θ:.2f}π"
-#         else:
-#             labels[node] = f"({r},{c})"
-#     nx.draw_networkx_labels(
-#         G, pos,
-#         labels=labels,
-#         font_size=font_size,
-#         ax=ax
-#     )
-#
-#     # 9. Final tweaks on main axes
-#     ax.set_aspect('equal')
-#     ax.invert_yaxis()
-#     ax.set_xlim(-margin * node_spacing,
-#                 (n_cols - 1 + margin) * node_spacing)
-#     ax.set_ylim((n_rows - 1 + margin) * node_spacing,
-#                 -margin * node_spacing)
-#     ax.set_title(title)
-#     ax.axis('off')
-#
-#     # 10. Legend below
-#     if use_node_colours:
-#         handles = [
-#             mpatches.Patch(color='lightcoral',  label='CX gate - ⊕ top'),
-#             mpatches.Patch(color='lightsalmon', label='CX gate - ⊕ bot'),   # ● ctrl / ⊕ targ
-#             mpatches.Patch(color='lightblue',   label='Identity'),
-#             mpatches.Patch(color='lightgreen',  label='Euler rotation'),
-#             mpatches.Patch(color='skyblue',     label='Output qubits'),
-#         ]
-#         legend_ax.legend(
-#             handles=handles,
-#             title="Gate types",
-#             loc='center',
-#             ncol=4,
-#             frameon=True
-#         )
-#
-#     plt.show()
-#     #Save vector graphics img
-#     fig.savefig(f"images/graphs/{title}.pdf", format="pdf", bbox_inches="tight")
-#     fig.savefig(f"images/graphs/{title}.png", format="png", dpi=300, bbox_inches="tight")
+def plot_brickwork_graph_from_pattern(
+        bw_pattern,
+        show_angles: bool = True,
+        node_size: float = 1200,
+        node_color: str = 'skyblue',
+        edge_color: str = 'gray',
+        font_size: int = 9,
+        figsize: tuple = None,
+        cell_size: float = 0.7,
+        node_spacing: float = 1.8,
+        margin: float = 1.2,
+        title: str = "Brickwork Graph",
+        use_node_colours: bool = False,
+        node_colours: dict = None
+    ):
+    if node_colours is None:
+        node_colours = {}
+
+    nodes, edges = bw_pattern.get_graph()
+    G = nx.Graph()
+    G.add_nodes_from(nodes)
+    G.add_edges_from(edges)
+
+    angles = bw_pattern.get_angles() if show_angles else {}
+
+    rows = [r for (r, _) in nodes]
+    cols = [c for (_, c) in nodes]
+    n_rows, n_cols = max(rows) + 1, max(cols) + 1
+
+    legend_height = 0.8
+    if figsize is None:
+        spacing = cell_size * node_spacing
+        total_width = spacing * (n_cols + 2 * margin)
+        total_height = spacing * (n_rows + 2 * margin) + legend_height
+        figsize = (total_width, total_height)
+
+    fig = plt.figure(figsize=figsize, dpi=200)
+    gs = fig.add_gridspec(
+        2, 1,
+        height_ratios=[n_rows * cell_size * node_spacing, legend_height],
+        hspace=0.1
+    )
+    ax = fig.add_subplot(gs[0, 0])
+    legend_ax = fig.add_subplot(gs[1, 0])
+    legend_ax.axis('off')
+
+    pos = {
+        (r, c): (c * node_spacing, r * node_spacing)
+        for (r, c) in nodes
+    }
+
+    nx.draw_networkx_edges(G, pos, ax=ax, edge_color=edge_color, width=2.0)
+
+    colours = [node_colours.get(node, node_color) for node in G.nodes()] if use_node_colours else node_color
+    nx.draw_networkx_nodes(
+        G, pos, ax=ax,
+        node_size=node_size,
+        node_color=colours,
+        edgecolors='black', linewidths=1.0
+    )
+
+    labels = {node: f"({r},{c})\n{angles[node]:.2f}π" if show_angles and node in angles else f"({r},{c})" for node, (r, c) in zip(nodes, nodes)}
+
+    nx.draw_networkx_labels(
+        G, pos, labels=labels,
+        font_size=font_size,
+        font_family='DejaVu Sans',
+        ax=ax,
+        font_weight='medium'
+    )
+
+    ax.set_aspect('equal')
+    ax.invert_yaxis()
+    ax.set_xlim(-margin * node_spacing, (n_cols - 1 + margin) * node_spacing)
+    ax.set_ylim((n_rows - 1 + margin) * node_spacing, -margin * node_spacing)
+    ax.set_title(title, fontsize=16, fontweight='bold')
+    ax.axis('off')
+
+    if use_node_colours:
+        handles = [
+            mpatches.Patch(color='lightcoral', label='CX gate - ⊕ top'),
+            mpatches.Patch(color='lightsalmon', label='CX gate - ⊕ bot'),
+            mpatches.Patch(color='lightblue', label='Identity'),
+            mpatches.Patch(color='lightgreen', label='Euler rotation'),
+            mpatches.Patch(color='skyblue', label='Output qubits'),
+        ]
+        legend_ax.legend(
+            handles=handles,
+            title="Gate types",
+            loc='center',
+            ncol=3,
+            frameon=False,
+            fontsize=11,
+            title_fontsize=12
+        )
+
+    plt.tight_layout()
+    plt.show()
+
+    fig.savefig(f"images/graphs/{title}.pdf", format="pdf", bbox_inches="tight")
+    fig.savefig(f"images/graphs/{title}.png", format="png", dpi=300, bbox_inches="tight")
+
+
+def plot_brickwork_graph_from_pattern33(
+        bw_pattern,
+        show_angles: bool = True,
+        node_size: float = 2500,
+        node_color: str = 'skyblue',
+        edge_color: str = 'dimgray',
+        font_size: int = 10,
+        figsize: tuple = None,
+        cell_size: float = 1.0,
+        node_spacing: float = 2.5,
+        margin: float = 1.5,
+        title: str = "Brickwork Graph",
+        use_node_colours: bool = False,
+        node_colours: dict = None
+    ):
+    if node_colours is None:
+        node_colours = {}
+
+    nodes, edges = bw_pattern.get_graph()
+    G = nx.Graph()
+    G.add_nodes_from(nodes)
+    G.add_edges_from(edges)
+
+    angles = bw_pattern.get_angles() if show_angles else {}
+
+    rows = [r for (r, _) in nodes]
+    cols = [c for (_, c) in nodes]
+    n_rows, n_cols = max(rows) + 1, max(cols) + 1
+
+    legend_height = 1.0
+    if figsize is None:
+        spacing = cell_size * node_spacing
+        total_width = spacing * (n_cols + 2 * margin)
+        total_height = spacing * (n_rows + 2 * margin) + legend_height
+        figsize = (total_width, total_height)
+
+    fig = plt.figure(figsize=figsize, dpi=200)
+    gs = fig.add_gridspec(
+        2, 1,
+        height_ratios=[n_rows * cell_size * node_spacing, legend_height],
+        hspace=0.15
+    )
+    ax = fig.add_subplot(gs[0, 0])
+    legend_ax = fig.add_subplot(gs[1, 0])
+    legend_ax.axis('off')
+
+    pos = {
+        (r, c): (c * node_spacing, r * node_spacing)
+        for (r, c) in nodes
+    }
+
+    nx.draw_networkx_edges(G, pos, ax=ax, edge_color=edge_color, width=4.0)
+
+    colours = [node_colours.get(node, node_color) for node in G.nodes()] if use_node_colours else node_color
+    nx.draw_networkx_nodes(
+        G, pos, ax=ax,
+        node_size=node_size,
+        node_color=colours,
+        edgecolors='black', linewidths=2.0
+    )
+
+    labels = {node: f"({r},{c})\n{angles[node]:.2f}π" if show_angles and node in angles else f"({r},{c})" for node, (r, c) in zip(nodes, nodes)}
+
+    nx.draw_networkx_labels(
+        G, pos, labels=labels,
+        font_size=font_size,
+        font_family='DejaVu Sans',
+        ax=ax,
+        font_weight='medium'
+    )
+
+    ax.set_aspect('equal')
+    ax.invert_yaxis()
+    ax.set_xlim(-margin * node_spacing, (n_cols - 1 + margin) * node_spacing)
+    ax.set_ylim((n_rows - 1 + margin) * node_spacing, -margin * node_spacing)
+    ax.set_title(title, fontsize=18, fontweight='bold')
+    ax.axis('off')
+
+    if use_node_colours:
+        handles = [
+            mpatches.Patch(color='lightcoral', label='CX gate - ⊕ top'),
+            mpatches.Patch(color='lightsalmon', label='CX gate - ⊕ bot'),
+            mpatches.Patch(color='lightblue', label='Identity'),
+            mpatches.Patch(color='lightgreen', label='Euler rotation'),
+            mpatches.Patch(color='skyblue', label='Output qubits'),
+        ]
+        legend_ax.legend(
+            handles=handles,
+            title="Gate types",
+            loc='center',
+            ncol=3,
+            frameon=False,
+            fontsize=12,
+            title_fontsize=13
+        )
+
+    plt.tight_layout()
+    plt.show()
+
+    fig.savefig(f"images/graphs/{title}.pdf", format="pdf", bbox_inches="tight")
+    fig.savefig(f"images/graphs/{title}.png", format="png", dpi=300, bbox_inches="tight")
+
+from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+import matplotlib.image as mpimg
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+import networkx as nx
+
+def plot_brickwork_graph_locked2(
+        bw_pattern,
+        node_image_path: str='images/lock_delta_nobg_2.png',
+        edge_color: str = 'gray',
+        figsize: tuple = None,
+        cell_size: float = 0.7,
+        node_spacing: float = 1.8,
+        margin: float = 1.2,
+        title: str = "UBQC structure"
+    ):
+    # Get the graph
+    nodes, edges = bw_pattern.get_graph()
+    G = nx.Graph()
+    G.add_nodes_from(nodes)
+    G.add_edges_from(edges)
+
+    # Grid size
+    rows = [r for (r, _) in nodes]
+    cols = [c for (_, c) in nodes]
+    n_rows, n_cols = max(rows) + 1, max(cols) + 1
+
+    # Figure size
+    legend_height = 0.8
+    if figsize is None:
+        spacing = cell_size * node_spacing
+        total_width = spacing * (n_cols + 2 * margin)
+        total_height = spacing * (n_rows + 2 * margin) + legend_height
+        figsize = (total_width, total_height)
+
+    # Create figure
+    fig = plt.figure(figsize=figsize, dpi=200)
+    gs = fig.add_gridspec(
+        2, 1,
+        height_ratios=[n_rows * cell_size * node_spacing, legend_height],
+        hspace=0.1
+    )
+    ax = fig.add_subplot(gs[0, 0])
+    legend_ax = fig.add_subplot(gs[1, 0])
+    legend_ax.axis('off')
+
+    # Compute positions
+    pos = {
+        (r, c): (c * node_spacing, r * node_spacing)
+        for (r, c) in nodes
+    }
+
+    # Draw edges
+    nx.draw_networkx_edges(G, pos, ax=ax, edge_color=edge_color, width=2.0)
+
+    # Load the image
+    img = mpimg.imread(node_image_path)
+    imagebox = OffsetImage(img, zoom=0.09)  # adjust zoom as needed
+
+    # Define vertical offset (example: 20% of node spacing)
+    y_offset = (-0.1* node_spacing)  # you can fine-tune this factor
+
+    # Add image with vertical shift
+    for node, (x, y) in pos.items():
+        ab = AnnotationBbox(imagebox, (x, y + y_offset), frameon=False)
+        ax.add_artist(ab)
+
+    # Final plot settings
+    ax.set_aspect('equal')
+    ax.invert_yaxis()
+    ax.set_xlim(-margin * node_spacing, (n_cols - 1 + margin) * node_spacing)
+    ax.set_ylim((n_rows - 1 + margin) * node_spacing, -margin * node_spacing)
+    ax.set_title(title, fontsize=16, fontweight='bold')
+    ax.axis('off')
+
+    plt.tight_layout()
+    plt.show()
+
+    # Save the figure
+    fig.savefig(f"images/graphs/{title}.pdf", format="pdf", bbox_inches="tight")
+    fig.savefig(f"images/graphs/{title}.png", format="png", dpi=300, bbox_inches="tight")
+
+
+def plot_brickwork_graph_from_pattern_old_style(
+        bw_pattern,
+        show_angles: bool = True,
+        node_size: float = 600,
+        node_color: str = 'skyblue',
+        edge_color: str = 'gray',
+        font_size: int = 8,
+        figsize: tuple = None,
+        cell_size: float = 0.5,
+        node_spacing: float = 1.2,     # ← new: how many “cell_sizes” between nodes
+        margin: float = 0.5,
+        title: str = "Brickwork Graph",
+        use_node_colours: bool = False,
+        node_colours: dict = None
+    ):
+    if node_colours is None:
+        node_colours = {}
+
+    # 1. Build graph
+    nodes, edges = bw_pattern.get_graph()
+    G = nx.Graph()
+    G.add_nodes_from(nodes)
+    G.add_edges_from(edges)
+
+    # 2. Angles
+    angles = bw_pattern.get_angles() if show_angles else {}
+
+    # 3. Grid dims
+    rows = [r for (r, _) in nodes]
+    cols = [c for (_, c) in nodes]
+    n_rows, n_cols = max(rows) + 1, max(cols) + 1
+
+    # 4. Figure & layout
+    legend_height = 0.5   # inches for the legend row
+    if figsize is None:
+        # total spacing per “cell” in inches
+        spacing = cell_size * node_spacing
+        total_width  = spacing * (n_cols + 2*margin)
+        total_height = spacing * (n_rows + 2*margin) + legend_height
+        figsize = (total_width, total_height)
+
+    fig = plt.figure(figsize=figsize)
+    gs = fig.add_gridspec(
+        2, 1,
+        height_ratios=[n_rows*cell_size*node_spacing, legend_height],
+        hspace=0.0
+    )
+    ax        = fig.add_subplot(gs[0, 0])
+    legend_ax = fig.add_subplot(gs[1, 0])
+    legend_ax.axis('off')
+
+    # 5. Compute positions with uniform spacing
+    pos = {
+        (r, c): (c * node_spacing, r * node_spacing)
+        for (r, c) in nodes
+    }
+
+    # 6. Draw edges
+    nx.draw_networkx_edges(G, pos, ax=ax, edge_color=edge_color)
+
+    # 7. Draw nodes
+    colours = (
+        [node_colours.get(node, node_color) for node in G.nodes()]
+        if use_node_colours else
+        node_color
+    )
+    nx.draw_networkx_nodes(
+        G, pos, ax=ax,
+        node_size=node_size,
+        node_color=colours
+    )
+
+    # 8. Draw labels
+    labels = {}
+    for node in nodes:
+        r, c = node
+        if show_angles and node in angles:
+            θ = angles[node]
+            labels[node] = f"({r},{c})\n{θ:.2f}π"
+        else:
+            labels[node] = f"({r},{c})"
+    nx.draw_networkx_labels(
+        G, pos,
+        labels=labels,
+        font_size=font_size,
+        ax=ax
+    )
+
+    # 9. Final tweaks on main axes
+    ax.set_aspect('equal')
+    ax.invert_yaxis()
+    ax.set_xlim(-margin * node_spacing,
+                (n_cols - 1 + margin) * node_spacing)
+    ax.set_ylim((n_rows - 1 + margin) * node_spacing,
+                -margin * node_spacing)
+    ax.set_title(title)
+    ax.axis('off')
+
+    # 10. Legend below
+    if use_node_colours:
+        handles = [
+            mpatches.Patch(color='lightcoral',  label='CX gate - ⊕ top'),
+            mpatches.Patch(color='lightsalmon', label='CX gate - ⊕ bot'),   # ● ctrl / ⊕ targ
+            mpatches.Patch(color='lightblue',   label='Identity'),
+            mpatches.Patch(color='lightgreen',  label='Euler rotation'),
+            mpatches.Patch(color='skyblue',     label='Output qubits'),
+        ]
+        legend_ax.legend(
+            handles=handles,
+            title="Gate types",
+            loc='center',
+            ncol=4,
+            frameon=True
+        )
+
+    plt.show()
+    #Save vector graphics img
+    fig.savefig(f"images/graphs/{title}_old_style.pdf", format="pdf", bbox_inches="tight")
+    fig.savefig(f"images/graphs/{title}_old_style.png", format="png", dpi=300, bbox_inches="tight")
+
+
+import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
+from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+import networkx as nx
+
+def plot_brickwork_graph_locked(
+        bw_pattern,
+        node_image_path: str = 'images/lock_delta_nobg_2.png',
+        edge_color: str = 'gray',
+        figsize: tuple = None,
+        cell_size: float = 0.7,
+        node_spacing: float = 1.8,
+        margin: float = 1.2,
+        title: str = "UBQC structure"
+    ):
+    # Get the graph
+    nodes, edges = bw_pattern.get_graph()
+    G = nx.Graph()
+    G.add_nodes_from(nodes)
+    G.add_edges_from(edges)
+
+    # Grid size
+    rows = [r for (r, _) in nodes]
+    cols = [c for (_, c) in nodes]
+    n_rows, n_cols = max(rows) + 1, max(cols) + 1
+
+    # Figure size
+    legend_height = 0.8
+    if figsize is None:
+        spacing = cell_size * node_spacing
+        total_width = spacing * (n_cols + 2 * margin)
+        total_height = spacing * (n_rows + 2 * margin) + legend_height
+        figsize = (total_width, total_height)
+
+    # Create figure
+    fig = plt.figure(figsize=figsize, dpi=200)
+    gs = fig.add_gridspec(
+        2, 1,
+        height_ratios=[n_rows * cell_size * node_spacing, legend_height],
+        hspace=0.1
+    )
+    ax = fig.add_subplot(gs[0, 0])
+    legend_ax = fig.add_subplot(gs[1, 0])
+    legend_ax.axis('off')
+
+    # Compute positions
+    pos = {
+        (r, c): (c * node_spacing, r * node_spacing)
+        for (r, c) in nodes
+    }
+
+    # Draw edges
+    nx.draw_networkx_edges(G, pos, ax=ax, edge_color=edge_color, width=2.0)
+
+    # Load the image
+    img = mpimg.imread(node_image_path)
+    imagebox = OffsetImage(img, zoom=0.09)  # adjust zoom as needed
+
+    # Define vertical offset
+    y_offset = (-0.1 * node_spacing)  # adjust if needed
+
+    # Add image with vertical shift
+    for node, (x, y) in pos.items():
+        ab = AnnotationBbox(imagebox, (x, y + y_offset), frameon=False)
+        ax.add_artist(ab)
+
+    # Final plot settings
+    ax.set_aspect('equal')
+    ax.invert_yaxis()
+    ax.set_xlim(-margin * node_spacing, (n_cols - 1 + margin) * node_spacing)
+    ax.set_ylim((n_rows - 1 + margin) * node_spacing, -margin * node_spacing)
+    ax.set_title(title, fontsize=16, fontweight='bold')
+    ax.axis('off')
+
+    plt.rcParams['mathtext.fontset'] = 'cm'  # Use Computer Modern
+    plt.rcParams['mathtext.rm'] = 'serif'  # Use serif font for normal text
+
+    # Add LaTeX equation to the legend
+    equation = r"$\delta_{x,y} = \phi'_{x,y} + \theta_{x,y} + \pi r_{x,y}$"
+    legend_ax.text(
+        0.5, 1, equation,
+        fontsize=25,  # <-- constant size for readability
+        ha='center', va='center'
+    )
+
+    plt.tight_layout()
+    plt.show()
+
+    # Save the figure
+    fig.savefig(f"images/graphs/{title}.pdf", format="pdf", bbox_inches="tight")
+    fig.savefig(f"images/graphs/{title}.png", format="png", dpi=300, bbox_inches="tight")
 
 # plot_graphix_pattern_scalar_index.py
 

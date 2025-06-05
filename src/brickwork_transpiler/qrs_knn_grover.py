@@ -44,7 +44,7 @@ def qrs(n_items, feature_mat, user_vector, plot=False, grover_iterations=1):
     # Build and draw the circuit
     if plot:
         qrs_amplified.draw(output='mpl',
-                           fold=30,
+                           fold=40,
                            )
         plt.savefig(f"images/qrs/recommendation_circ{grover_iterations}.png", dpi=300, bbox_inches="tight")
         plt.show()

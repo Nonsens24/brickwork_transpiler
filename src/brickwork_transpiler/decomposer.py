@@ -10,7 +10,7 @@ from src.brickwork_transpiler import visualiser
 
 
 def decompose_qc_to_bricks_qiskit(qc: QuantumCircuit, opt=3, draw=False,
-                                  routing_method: str = 'default',
+                                  routing_method: str = 'basic',
                                   layout_method: str ='trivial'):
     #
     # # print("Decomposing Quantum circuit to generator set...", end=" ")
@@ -29,10 +29,15 @@ def decompose_qc_to_bricks_qiskit(qc: QuantumCircuit, opt=3, draw=False,
     print(qc)
 
     # 2. Define the coupling map for your device/simulator:
-    if qc.num_qubits > 1:
-        coupling = CouplingMap([[i, i+1] for i in range(qc.num_qubits -1)]) # -1 so the amount of qubits remains right
-    else:
-        coupling = CouplingMap([[0, 0]])
+    edges = []
+    for i in range(qc.num_qubits - 1):
+        edges.append([i, i + 1])  # allow i → i+1
+        edges.append([i + 1, i])  # allow i+1 → i
+    coupling = CouplingMap(edges)
+    # if qc.num_qubits > 1:
+    #     coupling = CouplingMap([[i, i+1] for i in range(qc.num_qubits -1)]) # -1 so the amount of qubits remains right
+    # else:
+    #     coupling = CouplingMap([[0, 0]])
 
     # pm = PassManager()
     # # 1) Unroll everything down to rz, rx, cx

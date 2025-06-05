@@ -5,9 +5,7 @@ from src.brickwork_transpiler import decomposer, graph_builder, pattern_converte
 def transpile(qc: QuantumCircuit, input_vector=None, routing_method=None, layout_method=None):
 
     # Decompose to CX, rzrxrz, id   -   Need opt = 3 for SU(2) rotation merging
-    decomposed_qc = decomposer.decompose_qc_to_bricks_qiskit(qc, opt=3,
-                                                                routing_method='stochastic',
-                                                                layout_method='trivial')
+    decomposed_qc = decomposer.decompose_qc_to_bricks_qiskit(qc, opt=3, routing_method=routing_method, layout_method=layout_method)
 
     print(decomposed_qc.draw())
 
