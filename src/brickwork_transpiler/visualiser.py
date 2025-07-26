@@ -230,7 +230,7 @@ def plot_brickwork_graph_from_pattern22(
 def plot_brickwork_graph_from_pattern(
         bw_pattern,
         show_angles: bool = True,
-        node_size: float = 1200,
+        node_size: float = 1500,
         node_color: str = 'skyblue',
         edge_color: str = 'gray',
         font_size: int = 9,
@@ -278,17 +278,20 @@ def plot_brickwork_graph_from_pattern(
         for (r, c) in nodes
     }
 
-    nx.draw_networkx_edges(G, pos, ax=ax, edge_color=edge_color, width=2.0)
+    nx.draw_networkx_edges(G, pos, ax=ax, edge_color=edge_color, width=3.0)
 
     colours = [node_colours.get(node, node_color) for node in G.nodes()] if use_node_colours else node_color
     nx.draw_networkx_nodes(
         G, pos, ax=ax,
         node_size=node_size,
         node_color=colours,
-        edgecolors='black', linewidths=1.0
+        edgecolors='black', linewidths=2.0
     )
 
-    labels = {node: f"({r},{c})\n{angles[node]:.2f}π" if show_angles and node in angles else f"({r},{c})" for node, (r, c) in zip(nodes, nodes)}
+    if show_angles:
+        labels = {node: f"({r},{c})\n{angles[node]:.2f}π" if show_angles and node in angles else f"({r},{c})" for node, (r, c) in zip(nodes, nodes)}
+    else:
+        labels = {}
 
     nx.draw_networkx_labels(
         G, pos, labels=labels,
@@ -323,7 +326,7 @@ def plot_brickwork_graph_from_pattern(
             title_fontsize=12
         )
 
-    plt.tight_layout()
+    # plt.tight_layout()
     plt.show()
 
     fig.savefig(f"images/graphs/{title}.pdf", format="pdf", bbox_inches="tight")
@@ -644,6 +647,7 @@ import networkx as nx
 def plot_brickwork_graph_locked(
         bw_pattern,
         node_image_path: str = 'images/lock_delta_nobg_2.png',
+        use_locks: bool = True,
         edge_color: str = 'gray',
         figsize: tuple = None,
         cell_size: float = 0.7,
@@ -688,19 +692,52 @@ def plot_brickwork_graph_locked(
     }
 
     # Draw edges
-    nx.draw_networkx_edges(G, pos, ax=ax, edge_color=edge_color, width=2.0)
+    nx.draw_networkx_edges(G, pos, ax=ax, edge_color=edge_color, width=3.0)
 
-    # Load the image
-    img = mpimg.imread(node_image_path)
-    imagebox = OffsetImage(img, zoom=0.09)  # adjust zoom as needed
+    plt.rcParams['mathtext.fontset'] = 'cm'  # Use Computer Modern
+    plt.rcParams['mathtext.rm'] = 'serif'  # Use serif font for normal text
 
-    # Define vertical offset
-    y_offset = (-0.1 * node_spacing)  # adjust if needed
+    if use_locks:
+        # Load the image
+        img = mpimg.imread(node_image_path)
+        imagebox = OffsetImage(img, zoom=0.09)  # adjust zoom as needed
 
-    # Add image with vertical shift
-    for node, (x, y) in pos.items():
-        ab = AnnotationBbox(imagebox, (x, y + y_offset), frameon=False)
-        ax.add_artist(ab)
+        # Define vertical offset
+        y_offset = (-0.1 * node_spacing)  # adjust if needed
+
+        # Add image with vertical shift
+        for node, (x, y) in pos.items():
+            ab = AnnotationBbox(imagebox, (x, y + y_offset), frameon=False)
+            ax.add_artist(ab)
+
+    else:
+
+        pos = {
+            (r, c): (c * node_spacing, r * node_spacing)
+            for (r, c) in nodes
+        }
+
+        nx.draw_networkx_edges(G, pos, ax=ax, edge_color=edge_color, width=4.0)
+
+
+        nx.draw_networkx_nodes(
+            G, pos, ax=ax,
+            node_size=1500,
+            node_color='#e9e9f9',
+            edgecolors='black', linewidths=2.0
+        )
+
+        # labels = {node: rf"$\delta$" for node, (r, c) in zip(nodes, nodes)}
+        # labels = {}
+        labels = {node: rf"$\theta_{{{node[0]},{node[1]}}}$" for node in nodes}
+        nx.draw_networkx_labels(
+            G, pos, labels=labels,
+            font_size=20,
+            font_family='serif',
+            ax=ax,
+            font_weight='medium'
+        )
+
 
     # Final plot settings
     ax.set_aspect('equal')
@@ -710,23 +747,22 @@ def plot_brickwork_graph_locked(
     ax.set_title(title, fontsize=16, fontweight='bold')
     ax.axis('off')
 
-    plt.rcParams['mathtext.fontset'] = 'cm'  # Use Computer Modern
-    plt.rcParams['mathtext.rm'] = 'serif'  # Use serif font for normal text
-
     # Add LaTeX equation to the legend
-    equation = r"$\delta_{x,y} = \phi'_{x,y} + \theta_{x,y} + \pi r_{x,y}$"
+    equation = (r"$\{|+_{\delta_{x,y}}\rangle, |-_{\delta_{x,y}}\rangle\},$" r"$\quad$" 
+                r"$\delta_{x,y} = \phi'_{x,y} + \theta_{x,y} + \pi r_{x,y}$")
     legend_ax.text(
         0.5, 1, equation,
         fontsize=25,  # <-- constant size for readability
-        ha='center', va='center'
+        ha='center', va='center',
+    bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.5')
     )
 
-    plt.tight_layout()
+    # plt.tight_layout()
     plt.show()
 
     # Save the figure
-    fig.savefig(f"images/graphs/{title}.pdf", format="pdf", bbox_inches="tight")
-    fig.savefig(f"images/graphs/{title}.png", format="png", dpi=300, bbox_inches="tight")
+    fig.savefig(f"images/graphs/{title}_enc.pdf", format="pdf", bbox_inches="tight")
+    fig.savefig(f"images/graphs/{title}_enc.png", format="png", dpi=300, bbox_inches="tight")
 
 # plot_graphix_pattern_scalar_index.py
 
@@ -735,20 +771,19 @@ def plot_brickwork_graph_locked(
 def plot_graphix_noise_graph(
         pattern,
         show_angles: bool = True,
-        node_size: float = 600,
+        node_size: float = 1500,
         edge_color: str = 'gray',
-        font_size: int = 8,
+        font_size: int = 9,
         figsize: tuple = None,
-        cell_size: float = 0.5,
-        node_spacing: float = 1.2,
-        margin: float = 0.5,
-        title: str = "Pauli Noise Graph",
+        cell_size: float = 0.7,
+        node_spacing: float = 1.8,
+        margin: float = 1.2,
+        title: str = "Shaded Noise Graph",
         cmap_name: str = 'viridis',  # dark-blue to dark-red continuous spectrum
         vmin: float = None,
         vmax: float = None,
         show_colorbar: bool = True,
         save: bool = False,
-        filename_prefix: str = "pattern_graph"
 ):
     """
     Plot a Graphix Pattern object, using measurement angles to color-code nodes as a continuous heatmap.
@@ -806,13 +841,16 @@ def plot_graphix_noise_graph(
     ax = fig.add_subplot(gs[0, 0])
     cax = fig.add_subplot(gs[1, 0]) if show_colorbar else None
 
-    # Compute positions
+    unique_layers = sorted(set(node_layer.values()))
+    layer_to_idx = {layer: i for i, layer in enumerate(unique_layers)}
+
     pos = {}
-    for layer in range(depth + 2):
-        layer_nodes = sorted([n for n, l in node_layer.items() if l == layer])
-        for idx, n in enumerate(layer_nodes):
-            pos[n] = (layer * node_spacing * cell_size,
-                       idx * node_spacing * cell_size)
+    for layer in unique_layers:
+        nodes_in_layer = sorted(n for n, l in node_layer.items() if l == layer)
+        for idx, n in enumerate(nodes_in_layer):
+            x = layer_to_idx[layer] * node_spacing * cell_size
+            y = idx * node_spacing * cell_size
+            pos[n] = (x, y)
 
     # Draw edges and nodes
     nx.draw_networkx_edges(G, pos, ax=ax, edge_color=edge_color)
@@ -829,13 +867,29 @@ def plot_graphix_noise_graph(
             labels[n] = f"{n}\n{angles[n]:.2f}π"
         else:
             labels[n] = str(n)
-    nx.draw_networkx_labels(G, pos, labels, font_size=font_size, ax=ax)
+    # nx.draw_networkx_labels(G, pos, labels, font_size=font_size, ax=ax)
+
+    from matplotlib.colors import rgb_to_hsv
+
+    # Assign dynamic font colors based on background brightness
+    font_colors = []
+    for color in node_colors:
+        r, g, b, _ = color
+        luminance = 0.299 * r + 0.587 * g + 0.114 * b
+        font_colors.append('white' if luminance < 0.5 else 'black')
+
+    # Draw labels with adjusted font color
+    for idx, (n, label) in enumerate(labels.items()):
+        ax.text(pos[n][0], pos[n][1], label,
+                fontsize=font_size,
+                ha='center', va='center',
+                color=font_colors[idx])
 
     # Axis tweaks
     ax.set_aspect('equal')
     ax.invert_yaxis()
     ax.set_xlim(-margin * node_spacing * cell_size,
-                (depth + margin + 1) * node_spacing * cell_size)
+                (depth + margin) * node_spacing * cell_size)
     ax.set_ylim(
         (max_width - 1 + margin) * node_spacing * cell_size,
         -margin * node_spacing * cell_size
@@ -847,19 +901,32 @@ def plot_graphix_noise_graph(
     if show_colorbar and cax:
         sm = cm.ScalarMappable(norm=norm, cmap=cmap)
         sm.set_array(values)
-        cbar = plt.colorbar(sm, cax=cax, orientation='horizontal')
+        cbar = plt.colorbar(
+            sm,
+            cax=cax,
+            orientation='horizontal',
+
+            # alternatively:
+        )
         cbar.set_label('Measurement angle noise', labelpad=8)
         # Show only start and end
         cbar.set_ticks([vmin_val, vmax_val])
         cbar.set_ticklabels([f"{vmin_val:.2f}π", f"{vmax_val:.2f}π"])
         # Ensure axis line is visible
+
+        # --- shrink the colour‑bar’s width to a % and keep it centred ----
+        box = cax.get_position()  # current [x0, y0, width, height] in figure‑coords
+        new_width = box.width * 0.80  # % of the present length
+        dx = (box.width - new_width) / 2  # equal margin left & right
+        cax.set_position([box.x0 + dx, box.y0, new_width, box.height])
+
         cbar.ax.xaxis.set_ticks_position('bottom')
         cbar.ax.xaxis.set_label_position('bottom')
 
     # Save if requested
     if save:
-        fig.savefig("Pauli_noise_graph.pdf", bbox_inches='tight')
-        fig.savefig("Pauli_noise_graph.png", dpi=300, bbox_inches='tight')
+        fig.savefig("noise_graph.pdf", bbox_inches='tight')
+        fig.savefig("noise_graph.png", dpi=300, bbox_inches='tight')
 
     plt.show()
 

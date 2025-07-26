@@ -1,17 +1,42 @@
-from graphix.channels import depolarising_channel, dephasing_channel, KrausChannel
-from src.brickwork_transpiler import pattern_converter
-from libs.gospel.gospel.brickwork_state_transpiler import generate_random_pauli_pattern
+import numpy as np
+from copy import deepcopy
+from graphix.channels import depolarising_channel, two_qubit_depolarising_channel
+from graphix.pattern import Pattern
+from graphix.command import M, E
 
+class DepolarisingInjector:
+    def __init__(self, single_prob: float, two_prob: float):
+        self.single_prob = single_prob
+        self.two_prob = two_prob
+        self.single_chan = depolarising_channel(prob=single_prob)
+        self.two_chan = two_qubit_depolarising_channel(prob=two_prob)
 
-def to_noisy_pattern(bw_pattern, p_depol, p_dephase, seed=None):
+    def inject(self, pattern: Pattern) -> Pattern:
+        noisy_pattern = deepcopy(pattern)
+        new_seq = []
 
-    # Build channels
-    kc1 = depolarising_channel(p_depol)
-    kc2 = dephasing_channel(p_dephase)
-    # Inject after each input node
-    for q in bw_pattern.input_nodes:
-        bw_pattern.add(KrausChannel(kc1.kraus_ops, [q]))
-        bw_pattern.add(KrausChannel(kc2.kraus_ops, [q]))
+        for cmd in noisy_pattern._Pattern__seq:
+            if isinstance(cmd, M):
+                # Depolarising noise on measurement angles (simple model)
+                if np.random.rand() < self.single_prob:
+                    # With depolarizing noise, measurement angle randomly flips (X,Y-plane).
+                    noisy_angle = cmd.angle + np.random.choice([0, 1])
+                    # print("CMD ANGLE", cmd.angle)
+                else:
+                    noisy_angle = cmd.angle
+                new_seq.append(M(cmd.node, cmd.plane, noisy_angle,
+                                 cmd.s_domain, cmd.t_domain))
 
-    return bw_pattern
+            elif isinstance(cmd, E):
+                # Depolarizing noise for entanglement probabilistically removes edges
+                if np.random.rand() >= self.two_prob:
+                    new_seq.append(cmd)
+                # else edge is dropped due to depolarizing noise
+
+            else:
+                new_seq.append(cmd)
+
+        noisy_pattern._Pattern__seq = new_seq
+        return noisy_pattern
+
 

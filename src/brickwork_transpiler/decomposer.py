@@ -1,8 +1,6 @@
 from matplotlib import pyplot as plt
 from qiskit import QuantumCircuit, transpile
 from qiskit.circuit import Instruction
-from qiskit.converters import circuit_to_dag
-from qiskit.dagcircuit import DAGOpNode
 from qiskit.transpiler import CouplingMap
 from qiskit.visualization import dag_drawer
 
@@ -30,10 +28,12 @@ def decompose_qc_to_bricks_qiskit(qc: QuantumCircuit, opt=3, draw=False,
 
     # 2. Define the coupling map for your device/simulator:
     edges = []
-    for i in range(qc.num_qubits - 1):
-        edges.append([i, i + 1])  # allow i → i+1
-        edges.append([i + 1, i])  # allow i+1 → i
-    coupling = CouplingMap(edges)
+    coupling = None
+    if qc.num_qubits != 1:
+        for i in range(qc.num_qubits - 1):
+            edges.append([i, i + 1])  # allow i → i+1
+            edges.append([i + 1, i])  # allow i+1 → i
+        coupling = CouplingMap(edges)
     # if qc.num_qubits > 1:
     #     coupling = CouplingMap([[i, i+1] for i in range(qc.num_qubits -1)]) # -1 so the amount of qubits remains right
     # else:
@@ -70,7 +70,7 @@ def decompose_qc_to_bricks_qiskit(qc: QuantumCircuit, opt=3, draw=False,
     qc_mapped.draw(output='mpl',
                        fold=40,
                        )
-    plt.savefig(f"images/qft3_example_poster_after_decomposition.png", dpi=300, bbox_inches="tight")
+    plt.savefig(f"images/Circuits/circuit_dag_ex_decomposed.png", dpi=300, bbox_inches="tight")
     plt.show()
 
     if draw:
@@ -187,6 +187,7 @@ def group_with_dag_atomic_mixed(qc: QuantumCircuit):
       Repeat until every operation is scheduled.
     """
     dag = circuit_to_dag(qc)
+    dag.draw(filename='images/DAGs/thesis_dag.png')  # 'mpl' uses matplotlib to save as PNG
     op_nodes = list(dag.topological_op_nodes())
     total = len(op_nodes)
     scheduled = set()

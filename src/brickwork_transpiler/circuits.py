@@ -30,6 +30,69 @@ from qiskit.quantum_info import Statevector
 # qc.rz(np.pi / 4, 4)
 # qc.cx(4, 3)
 
+def h_and_cx_circ():
+    input_vector = Statevector.from_label('++')
+
+    qc = QuantumCircuit(2)
+
+    qc.h(0)
+    qc.cx(0, 1)
+
+    return qc, input_vector
+
+def cx_and_h_circ():
+    input_vector = Statevector.from_label('++')
+
+    qc = QuantumCircuit(2)
+
+    qc.cx(0, 1)
+    qc.h(1)
+
+    return qc, input_vector
+
+
+def thesis_single():
+    input_vector = Statevector.from_label('+')
+
+    qc = QuantumCircuit(1)
+
+    qc.h(0)
+    qc.rx(np.pi/3, 0)
+    qc.t(0)
+
+    return qc, input_vector
+
+def thesis_cx_ctrl_top():
+
+    input_vector = Statevector.from_label('++')
+
+    qc = QuantumCircuit(2)
+
+    qc.cx(0, 1)
+
+    return qc, input_vector
+
+
+def thesis_cx_ctrl_bot():
+    input_vector = Statevector.from_label('++')
+
+    qc = QuantumCircuit(2)
+
+    qc.cx(1, 0)
+
+    return qc, input_vector
+
+def thesis_cx_swap():
+
+    input_vector = Statevector.from_label('+++')
+
+    qc = QuantumCircuit(3)
+
+    qc.cx(0, 2)
+
+    return qc, input_vector
+
+
 def shift_bug2():
     input_vector = Statevector.from_label('+++++')
 
@@ -230,6 +293,48 @@ def test_circ():
 
     return qc, input_vector
 
+def cover_circ():
+    input_vector = Statevector.from_label('+++++++++++++++++++++')
+
+    qc = QuantumCircuit(21)
+    qc.h(2)
+    qc.cx(0,2)
+    qc.h(0)
+
+
+    qc.h(4)
+    qc.cx(3,5)
+    qc.h(6)
+
+    qc.h(8)
+    qc.cx(6,7)
+    qc.h(6)
+
+    qc.h(7)
+    qc.rx(np.pi / 3, 7)
+    qc.cx(7, 8)
+    qc.h(8)
+    qc.rz(np.pi / 2, 9)
+
+    qc.rx(-np.pi / 3, 10)
+    qc.rz(np.pi / 3, 11)
+    qc.h(11)
+    qc.rz(np.pi / 2, 10)
+
+    qc.h(14)
+    qc.cx(11,14)
+    qc.h(11)
+
+    qc.h(15)
+    qc.cx(16,15)
+    qc.h(16)
+
+    qc.h(20)
+    qc.cx(17,20)
+    qc.h(17)
+
+    return qc, input_vector
+
 
 def test_small_cx():
     input_vector = Statevector.from_label('++++')
@@ -309,6 +414,34 @@ def presentation_circ():
     qc.rz(np.pi / 4, 4)
     qc.cx(3, 4)
     qc.h(4)
+    qc.rz(np.pi / 2, 3)
+
+    return qc, input_vector
+
+def noisy_circuit_rotation():
+    input_vector = Statevector.from_label('+')
+
+    qc = QuantumCircuit(1)
+    qc.h(0)
+    # qc.h(1)
+
+    return qc, input_vector
+
+def dag_example_circ():
+    input_vector = Statevector.from_label('+++++')
+
+    qc = QuantumCircuit(5)
+    qc.h(0)
+    qc.rx(np.pi / 3, 0)
+    qc.cx(0, 1)
+    qc.h(1)
+    qc.cx(1, 0)
+    qc.cx(3, 2)
+
+    qc.rx(-np.pi / 3, 3)
+    qc.rz(np.pi / 4, 4)
+    qc.cx(3, 4)
+
     qc.rz(np.pi / 2, 3)
 
     return qc, input_vector
