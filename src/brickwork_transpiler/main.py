@@ -143,19 +143,126 @@ def main():
                 qc.x(q)
         return qc
 
+    def multi_pattern_oracle(feature_qubits, patterns, flag_qubit, total_qubits):
+        qc = QuantumCircuit(total_qubits)
+        for pat in patterns:
+            # 1) X‑mask zero‑bits so that control=1 for matches
+            for q, bit in zip(feature_qubits, pat):
+                if bit == 0:
+                    qc.x(q)
+            # 2) multi‑controlled X onto the flag
+            qc.mcx(feature_qubits, flag_qubit)
+            # 3) uncompute the X‑mask
+            for q, bit in zip(feature_qubits, pat):
+                if bit == 0:
+                    qc.x(q)
+        return qc
+
     oracle = feature_oracle(feature_qubits, user_feature, flag_qubit, qrs_circ.num_qubits)
 
-    # --- IS GOOD STATE (post-selection): returns True for matches ---
-    def is_good_state(bitstring):
-        # Qiskit: rightmost is qubit 0; bitstring[-1-q] is qubit q
-        feat = ''.join(bitstring[-1 - q] for q in sorted(feature_qubits))
-        return feat == ''.join(map(str, user_feature))
 
-    # --- Amplification Problem ---
+    # --- ORACLE: Flag flips if feature_qubits match user_feature ---
+    def feature_oracle(feature_qubits, user_feature, flag_qubit, total_qubits):
+        qc = QuantumCircuit(total_qubits)
+        for q, bit in zip(feature_qubits, user_feature):
+            if bit == 0:
+                qc.x(q)
+        qc.mcx(feature_qubits, flag_qubit)
+        for q, bit in zip(feature_qubits, user_feature):
+            if bit == 0:
+                qc.x(q)
+        return qc
+
+
+
+    from matplotlib import pyplot as plt
+    import numpy as np
+    from qiskit import QuantumCircuit, QuantumRegister
+    from qiskit.circuit.library import MCXGate
+
+    # ORACLE: Flag flips if feature_qubits match user_feature subset (ignores 'X')
+    def feature_oracle_subset(feature_qubits, user_feature, flag_qubit, total_qubits):
+        qc = QuantumCircuit(total_qubits)
+        active_controls = []
+        for q, bit in zip(feature_qubits, user_feature):
+            if bit == 'X':
+                continue
+            if bit == 0:
+                qc.x(q)
+            active_controls.append(q)
+
+        qc.mcx(active_controls, flag_qubit)
+
+        for q, bit in zip(feature_qubits, user_feature):
+            if bit == 'X':
+                continue
+            if bit == 0:
+                qc.x(q)
+
+        return qc
+
+    # # IS GOOD STATE (post-selection): returns True for matches (ignores 'X')
+    # def is_good_state(bitstring, feature_qubits, user_feature):
+    #     # Qiskit: rightmost is qubit 0; bitstring[-1-q] is qubit q
+    #     feat = ''.join(bitstring[-1 - q] for q in sorted(feature_qubits))
+    #     for f_bit, u_bit in zip(feat, user_feature):
+    #         if u_bit == 'X':
+    #             continue
+    #         if f_bit != str(u_bit):
+    #             return False
+    #     return True
+
+    # Suppose you want to amplify two feature‑vectors:
+    patterns = [
+        [0, 0, 0, 0, 0, 0],  # Distance 0
+        [0, 0, 0, 0, 0, 1],  # Distance 1
+    ]
+
+    feature_subset = [0, 0, 0, 'X', 0, 1]
+    oracle_subset = feature_oracle_subset(feature_qubits, feature_subset, flag_qubit, qrs_circ.num_qubits)
+
+    # multi_pattern_oracle_impl = multi_pattern_oracle(
+    #     feature_qubits=feature_qubits,
+    #     patterns=patterns,
+    #     flag_qubit=flag_qubit,
+    #     total_qubits=qrs_circ.num_qubits
+    # )
+
+    # def is_good_state(bitstring):
+    #     # extract only the feature bits in the usual way
+    #     feat = ''.join(bitstring[-1 - q] for q in sorted(feature_qubits))
+    #     return feat in {''.join(map(str, p)) for p in patterns}
+    #
+    # problem = AmplificationProblem(
+    #     oracle=oracle,
+    #     state_preparation=qrs_circ,
+    #     is_good_state=is_good_state
+    # )
+
+    # --- IS GOOD STATE (post-selection): returns True for matches --- Single amp version
+    # def is_good_state(bitstring):
+    #     # Qiskit: rightmost is qubit 0; bitstring[-1-q] is qubit q
+    #     feat = ''.join(bitstring[-1 - q] for q in sorted(feature_qubits))
+    #     return feat == ''.join(map(str, user_feature))
+
+    # Wrapper to match the required signature of Grover's AmplificationProblem
+    def create_is_good_state(feature_qubits, user_feature):
+        def is_good_state(bitstring):
+            feat = ''.join(bitstring[-1 - q] for q in sorted(feature_qubits))
+            for f_bit, u_bit in zip(feat, user_feature):
+                if u_bit == 'X':
+                    continue
+                if f_bit != str(u_bit):
+                    return False
+            return True
+
+        return is_good_state
+
+    # Usage when defining your AmplificationProblem:
     problem = AmplificationProblem(
-        oracle=oracle,
+        oracle=oracle_subset,
         state_preparation=qrs_circ,
-        is_good_state=is_good_state
+        is_good_state=create_is_good_state(feature_qubits, user_feature)
     )
 
     # --- RUN GROVER ---

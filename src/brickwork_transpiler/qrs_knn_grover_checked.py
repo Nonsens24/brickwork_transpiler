@@ -146,7 +146,7 @@ def knn(
 
     qc.h(c0)
 
-    #  Uncompute QKNN
+    #  Uncompute QKNN -- for single pattern amp
     for i in range(l):
         qc.cx(user_qubits[(l - 1) - i], feature_qubits[i])
 
