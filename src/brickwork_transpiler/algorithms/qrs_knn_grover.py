@@ -112,6 +112,31 @@ def initialise_database(qc: QuantumCircuit,
     return qc
 
 
+# def knn(
+#     qc: QuantumCircuit,
+#     feature_qubits: list[int],
+#     user_qubits:    list[int]
+# ) -> QuantumCircuit:
+#     """
+#     In-place QkNN Hamming-distance & phase-sum:
+#       - feature_qubits[i] holds the i-th database feature bit
+#       - user_qubits[i]    holds the i-th user-vector bit
+#     After this, the ancilla 'c0' carries amplitudes ∝ cos(π/(2l)·d).
+#     """
+#     l = len(feature_qubits)
+#     if l != len(user_qubits):
+#         raise ValueError("feature_qubits and user_qubits must have the same length")
+#
+#     # 1) Add single ancilla c0 for the phase-sum
+#     c0 = QuantumRegister(1, name="c0")
+#     qc.add_register(c0)
+#
+#     qc.h(c0)  # put c0 into |+> = (|0>+|1>)/√2
+#
+#
+#     return qc
+
+
 def knn(
     qc: QuantumCircuit,
     feature_qubits: list[int],
@@ -219,12 +244,13 @@ def amplify_recommendations(qc: QuantumCircuit,
 
     grover_opt = Grover(sampler=sampler, iterations=optimal_iterations)
     if file_writer:
+        file_writer.set("L", L)
+        file_writer.set("g", g)
         file_writer.set("num_iterations", optimal_iterations)
         print(f"num of iterations: {optimal_iterations}")
 
     circuit = grover_opt.construct_circuit(problem)#.decompose(reps=2) # for non-unitary rectangle amplification
 
-    print(circuit)
     return circuit
 
     if plot_circ_grover:

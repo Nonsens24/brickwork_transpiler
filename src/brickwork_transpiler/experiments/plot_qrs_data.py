@@ -275,6 +275,7 @@ def plot_qrs_with_db_scaling_from_files(name_of_plot="default.png"):
     # }
 
     plot_exps = ["No db -- one match", "No db -- no match", "No db -- subset match", "No db -- one match duplicates"]
+    # plot_exps = ["No db -- no match", "No db -- subset match", "No db -- one match duplicates"]
     data = {}
 
     # Read all data
@@ -288,6 +289,8 @@ def plot_qrs_with_db_scaling_from_files(name_of_plot="default.png"):
             "transpiled_depth": df['transpiled_depth'].to_numpy(),
             "num_gates_original": df['num_gates_original'].to_numpy(),
             "num_gates_transpiled": df['num_gates_transpiled'].to_numpy(),
+            "L": df['L'].to_numpy(),
+            "g": df['g'].to_numpy(),
         }
 
     max_len = max(len(d['orig_depth']) for d in data.values())
@@ -314,14 +317,18 @@ def plot_qrs_with_db_scaling_from_files(name_of_plot="default.png"):
     }
 
     # Set this constant to scale the nlogn line
-    scaling_const = 1  # <-- CHANGE THIS VALUE as needed
+    scaling_const = 3000  # <-- CHANGE THIS VALUE as needed
 
     all_yvals = []
     nlogn_orig_dict = {}
     for exp, exp_data in data.items():
         n_gates_orig = exp_data["num_gates_original"]
+        _L = exp_data["L"]
+        _g = exp_data["g"]
         # Multiply by scaling constant here
-        nlogn_orig = scaling_const * 396 * n_gates_orig * np.log(n_gates_orig) + 137 * n_gates_orig
+        # nlogn_orig = scaling_const * 396 * n_gates_orig * np.log(n_gates_orig) + np.sqrt(_L/_g)
+        # nlogn_orig = scaling_const * 396 * np.log2(n_gates_orig)**2 + np.log2(n_gates_orig) * 400* np.sqrt(_L / _g)
+        nlogn_orig = scaling_const * np.sqrt(_L)*np.log(_L)
         nlogn_orig_dict[exp] = nlogn_orig
         all_yvals.extend(exp_data["orig_depth"])
         all_yvals.extend(exp_data["decomposed_depth"])

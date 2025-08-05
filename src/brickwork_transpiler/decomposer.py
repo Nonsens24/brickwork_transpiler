@@ -118,32 +118,32 @@ from qiskit.transpiler import CouplingMap
 # from pytket.extensions.qiskit import qiskit_to_tk, tk_to_qiskit
 # from pytket.passes import DecomposeBoxes, ZXOptimizer
 
+# #
+# def _linearise_mcx(qc: QuantumCircuit) -> QuantumCircuit:
+#     """Rewrite every >2-controlled X using MCXRecursive (linear CX)."""
+#     out = QuantumCircuit(*qc.qregs, *qc.cregs, name=qc.name)
 #
-def _linearise_mcx(qc: QuantumCircuit) -> QuantumCircuit:
-    """Rewrite every >2-controlled X using MCXRecursive (linear CX)."""
-    out = QuantumCircuit(*qc.qregs, *qc.cregs, name=qc.name)
-
-    # ensure a clean ancilla register exists and remember its first qubit
-    if not any(r.name == "anc" for r in qc.qregs):
-        anc_reg = QuantumRegister(1, "anc")
-        out.add_register(anc_reg)
-    else:
-        anc_reg = next(r for r in qc.qregs if r.name == "anc")
-
-    anc_qubit = anc_reg[0]
-
-    for inst, qargs, cargs in qc.data:
-        if isinstance(inst, MCXGate) and inst.num_ctrl_qubits > 2:
-            k = inst.num_ctrl_qubits
-            mcx_lin = MCXRecursive(k)
-
-            if k >= 5:            # docs: recursion needs 1 ancilla iff k > 4
-                out.append(mcx_lin, qargs + [anc_qubit], cargs)  # k+2 qubits
-            else:
-                out.append(mcx_lin, qargs, cargs)                # k+1 qubits
-        else:
-            out.append(inst, qargs, cargs)
-    return out
+#     # ensure a clean ancilla register exists and remember its first qubit
+#     if not any(r.name == "anc" for r in qc.qregs):
+#         anc_reg = QuantumRegister(1, "anc")
+#         out.add_register(anc_reg)
+#     else:
+#         anc_reg = next(r for r in qc.qregs if r.name == "anc")
+#
+#     anc_qubit = anc_reg[0]
+#
+#     for inst, qargs, cargs in qc.data:
+#         if isinstance(inst, MCXGate) and inst.num_ctrl_qubits > 2:
+#             k = inst.num_ctrl_qubits
+#             mcx_lin = MCXRecursive(k)
+#
+#             if k >= 5:            # docs: recursion needs 1 ancilla iff k > 4
+#                 out.append(mcx_lin, qargs + [anc_qubit], cargs)  # k+2 qubits
+#             else:
+#                 out.append(mcx_lin, qargs, cargs)                # k+1 qubits
+#         else:
+#             out.append(inst, qargs, cargs)
+#     return out
 
 from qiskit.circuit.library import MCU1Gate, MCPhaseGate
 
@@ -272,50 +272,79 @@ from qiskit.circuit.library import MCU1Gate, MCPhaseGate
 #     ops = qc.count_ops()
 #     print(f"[{label}] depth={qc.depth():5d}  CX={ops.get('cx',0):6d}  RZ={ops.get('rz',0):6d}  RX={ops.get('rx',0):6d}  total1q={sum(v for k,v in ops.items() if k in ['rz','rx']):6d}")
 
-from qiskit.circuit import QuantumCircuit, QuantumRegister
-from qiskit.circuit.library.standard_gates import MCXRecursive, MCU1Gate, MCPhaseGate
+from qiskit.circuit.library import MCXRecursive, MCPhaseGate
+from math import pi
+from qiskit import QuantumCircuit, AncillaRegister, transpile
+from qiskit.circuit.library import (
+    MCXRecursive,
+    MCXGate,
+    MCPhaseGate,
+    PhaseGate,          # single-qubit phase
+)
+from qiskit.transpiler import CouplingMap
+from qiskit.transpiler.passes.synthesis import HLSConfig
 
-def decompose_linear_mcu1(qc: QuantumCircuit, ancilla=None) -> QuantumCircuit:
-    """Decompose all MCU1/MCPhase gates in qc linearly using MCXRecursive and an ancilla."""
+
+# -------------------------------------------------------------------
+# 1) strip “Q” composite wrappers but keep MCX / MCU1 in place
+# -------------------------------------------------------------------
+def selective_decompose(qc, keep=('mcx', 'mcu1', 'mcphase')):
+    out = QuantumCircuit(*qc.qregs, *qc.cregs, name=qc.name)
+    for inst, q, c in qc.data:
+        if inst.name.lower() in keep:
+            out.append(inst, q, c)
+        elif inst.definition:
+            out.compose(
+                selective_decompose(inst.definition, keep), qubits=q, inplace=True
+            )
+        else:
+            out.append(inst, q, c)
+    return out
+
+from math import pi
+from qiskit import QuantumCircuit, AncillaRegister
+from qiskit.circuit.library import MCXRecursive, MCXGate, PhaseGate
+
+def linearise_multi_ctrl(qc: QuantumCircuit) -> QuantumCircuit:
+    """Replace MCX (>2-ctrl) and MCU1/MCPhase (>1-ctrl) with linear (1-anc) circuits."""
+    # ▸ ensure ≥2 ancillas exist in qc
+    if not any(r.name == 'anc' for r in qc.qregs):
+        qc.add_register(AncillaRegister(2, 'anc'))
+    anc_reg = next(r for r in qc.qregs if r.name.startswith('anc'))
+    phase_anc, scratch_anc = anc_reg[:2]
+
     out = QuantumCircuit(*qc.qregs, *qc.cregs, name=qc.name)
 
-    # Find or allocate ancilla register if needed (for ≥5 controls)
-    if ancilla is None and not any(reg.name == "anc" for reg in qc.qregs):
-        ancilla = QuantumRegister(1, "anc")
-        out.add_register(ancilla)
-    elif ancilla is None:
-        ancilla = next(reg for reg in qc.qregs if reg.name == "anc")
+    for inst, q, c in qc.data:
+        # ---------- MCX (>2 controls) ----------
+        if isinstance(inst, MCXGate) and inst.num_ctrl_qubits > 2:
+            k = inst.num_ctrl_qubits
+            extra = [scratch_anc] if k >= 5 else []
+            out.append(MCXRecursive(k), q + extra + [phase_anc], c)
 
-    for inst, qargs, cargs in qc.data:
-        # Accept both MCU1 and MCPhase
-        if (isinstance(inst, (MCU1Gate, MCPhaseGate)) and inst.num_ctrl_qubits > 2):
-            lam = float(inst.params[0])
-            ctrl_qubits = qargs[:inst.num_ctrl_qubits]
-            target = qargs[inst.num_ctrl_qubits]
-            n_ctrl = len(ctrl_qubits)
+        # ---------- MCU1  /  MCPhase (>1 control) ----------
+        elif inst.name.lower() in ('mcu1', 'mcphase') and len(q) > 2:
+            theta  = float(inst.params[0]) % (2 * pi)
+            ctrls, target = q[:-1], q[-1]
+            k = len(ctrls)
 
-            # Use MCXRecursive (linear CNOTs) with ancilla if ≥5 controls
-            if n_ctrl >= 5:
-                # Apply MCX with controls, target=ancilla
-                out.append(MCXRecursive(n_ctrl), ctrl_qubits + [ancilla[0]])
-                # Phase on ancilla
-                out.rz(lam, ancilla[0])
-                # Uncompute MCX
-                out.append(MCXRecursive(n_ctrl), ctrl_qubits + [ancilla[0]])
-                # Use a CX to kickback to target
-                out.cx(ancilla[0], target)
-                out.cx(ancilla[0], target)
-            else:
-                # For ≤4 controls, MCXRecursive does not require ancilla
-                out.append(MCXRecursive(n_ctrl), ctrl_qubits + [target])
-                out.rz(lam, target)
-                out.append(MCXRecursive(n_ctrl), ctrl_qubits + [target])
+            extra = [scratch_anc] if k >= 5 else []
+            out.append(MCXRecursive(k), ctrls + extra + [phase_anc])
+            out.append(PhaseGate(theta).control(1), [phase_anc, target])
+            out.append(MCXRecursive(k), ctrls + extra + [phase_anc])
+
+        # ---------- everything else ----------
         else:
-            out.append(inst, qargs, cargs)
+            out.append(inst, q, c)
+
     return out
 
 
 
+
+# -------------------------------------------------------------------
+# 3) wrapper you call from your code
+# -------------------------------------------------------------------
 def decompose_qc_to_bricks_qiskit(
         qc: QuantumCircuit,
         opt: int = 3,
@@ -324,13 +353,14 @@ def decompose_qc_to_bricks_qiskit(
         layout_method: str = "trivial",
         file_writer=None,
 ):
+    print("before:", qc.count_ops())  # {'mcphase': 1}
 
+    qc_dec = selective_decompose(qc)
+    qc_lin = linearise_multi_ctrl(qc_dec)
+    print("after :", qc_lin.count_ops())  # ≈ 188 cx, 189 rz
 
-    qc_decomposed_mcu = decompose_linear_mcu1(qc)
-    qc_lin = _linearise_mcx(qc_decomposed_mcu)
-
-    print("decomp reps")
-    print(qc_lin.decompose(reps=5).count_ops())
+    # only MCX needs a plug-in now (Qiskit 0.46.3 already has it)
+    hls_cfg = HLSConfig()#mcx={'synthesis_method': 'recursion'})
 
     # simple line-coupling (swap for backend.target if you have one)
     basis = ["rz", "rx", "cx", "id"]
@@ -339,15 +369,175 @@ def decompose_qc_to_bricks_qiskit(
         + [[i + 1, i] for i in range(qc_lin.num_qubits - 1)]
     ) if qc_lin.num_qubits > 1 else None)
 
-    print("Decomposing...")
-    qc_mapped = transpile(
+    print("Transpiling...")
+    qc_final = transpile(
         qc_lin,
         basis_gates=basis,
         coupling_map=coupling,
         layout_method=layout_method,
         routing_method=routing_method,
+        hls_config=hls_cfg,
         optimization_level=opt,
     )
+
+    if draw:
+        print(qc_final.draw())
+
+    print("post-HLS :", qc_final.count_ops())
+
+    if file_writer:
+        file_writer.set("decomposed_depth",     qc_final.depth())
+        file_writer.set("num_gates_transpiled", sum(qc_final.count_ops().values()))
+        file_writer.set("num_gates_original",   sum(qc.decompose(reps=2).count_ops().values()))
+
+
+    return qc_final
+
+
+
+
+# def _linearise_multi_control_gates(qc: QuantumCircuit) -> QuantumCircuit:
+#     """Rewrite every multi-controlled X and MCU1 gates using linear decompositions."""
+#     out = QuantumCircuit(*qc.qregs, *qc.cregs, name=qc.name)
+#
+#     # Ensure ancilla register exists
+#     if not any(r.name == "anc" for r in qc.qregs):
+#         anc_reg = QuantumRegister(1, "anc")
+#         out.add_register(anc_reg)
+#     else:
+#         anc_reg = next(r for r in qc.qregs if r.name == "anc")
+#     anc_qubit = anc_reg[0]
+#
+#     for inst, qargs, cargs in qc.data:
+#         gate_name = inst.name.lower()
+#
+#         if gate_name == 'mcx' and inst.num_ctrl_qubits > 2:
+#             k = inst.num_ctrl_qubits
+#             mcx_lin = MCXRecursive(k)
+#             if k >= 5:
+#                 out.append(mcx_lin, qargs + [anc_qubit], cargs)
+#             else:
+#                 out.append(mcx_lin, qargs, cargs)
+#
+#         elif gate_name in ('mcu1', 'mcphase') and inst.num_ctrl_qubits >= 2:
+#             linear_mcu1 = MCPhaseGate(inst.params[0], inst.num_ctrl_qubits)
+#
+#             # Exactly (num_ctrl_qubits + 1) qubits required
+#             # Thus, ancilla is NOT always needed explicitly here (MCPhaseGate manages ancilla internally).
+#             # Just provide original qargs, the transpiler will handle ancilla if configured.
+#             out.append(linear_mcu1, qargs, cargs)
+#
+#         else:
+#             out.append(inst, qargs, cargs)
+#
+#     return out
+#
+#
+#
+# from qiskit.circuit.library import MCPhaseGate, MCXGate
+#
+# def selective_decompose(qc, gate_names_to_preserve=('mcphase', 'mcu1', 'mcx')):
+#     """
+#     Decomposes composite gates selectively, preserving MCPhaseGate and MCXGate.
+#     """
+#     decomposed_qc = QuantumCircuit(*qc.qregs, *qc.cregs, name=qc.name)
+#
+#     for inst, qargs, cargs in qc.data:
+#         gate_name = inst.name.lower()
+#         if gate_name in gate_names_to_preserve:
+#             # preserve these gates
+#             decomposed_qc.append(inst, qargs, cargs)
+#         elif inst.definition is not None:
+#             # Decompose recursively if composite and not in preserve list
+#             inner_decomposed = selective_decompose(inst.definition, gate_names_to_preserve)
+#             decomposed_qc.compose(inner_decomposed, qubits=qargs, inplace=True)
+#
+#         else:
+#             decomposed_qc.append(inst, qargs, cargs)
+#
+#     return decomposed_qc
+#
+#
+#
+# def decompose_qc_to_bricks_qiskit(
+#         qc: QuantumCircuit,
+#         opt: int = 3,
+#         draw: bool = False,
+#         routing_method: str = "basic",
+#         layout_method: str = "trivial",
+#         file_writer=None,
+# ):
+#
+#     qc_sel = selective_decompose(qc)
+#
+#     from qiskit import QuantumRegister, AncillaRegister, QuantumCircuit
+#
+#     # Create your working registers explicitly
+#     qreg_main = QuantumRegister(qc_sel.num_qubits, 'q')
+#     ancilla_reg = AncillaRegister(1, 'anc')
+#
+#     # Create a new QuantumCircuit explicitly with the ancilla last
+#     qc_with_anc = QuantumCircuit(qreg_main, ancilla_reg, qc_sel.cregs[0])
+#
+#     # Append your original (selectively decomposed) circuit explicitly onto this circuit
+#     qc_with_anc.compose(qc_sel, qubits=qreg_main[:], inplace=True)
+#
+#     qc_lin = _linearise_multi_control_gates(qc_with_anc)
+#
+#     from qiskit.transpiler import CouplingMap
+#
+#     basis = ["rz", "rx", "cx"]
+#
+#     # Explicit fully connected coupling (guarantees ancilla availability)
+#     num_qubits = qc_lin.num_qubits
+#     coupling = CouplingMap.from_full(num_qubits)
+#
+#     hls_cfg = HLSConfig(
+#         mcp={'synthesis_method': 'recursion'},
+#         mcx={'synthesis_method': 'recursion'}
+#     )
+#
+#     qc_mapped = transpile(
+#         qc_lin,
+#         basis_gates=basis,
+#         coupling_map=coupling,
+#         hls_config=hls_cfg,
+#         optimization_level=3,
+#         initial_layout=list(range(num_qubits)),  # explicit initial layout includes ancilla last
+#     )
+#
+#     print("post-HLS : ", qc_mapped.count_ops())
+
+    # from qiskit.circuit.library import MCPhaseGate  # replacement for MCU1Gate
+    # from qiskit.transpiler.passes.synthesis import HLSConfig  # correct import
+    #
+    # hls_cfg = HLSConfig(
+    #     mcp={'synthesis_method': 'recursion'},  # Efficient linear method for MCPhaseGate
+    #     mcx={'synthesis_method': 'recursion'}  # Keep MCX also linear
+    # )
+    #
+    # qc_lin = _linearise_multi_control_gates(qc_sel)
+    # print("After lin decomposition:", qc_sel.count_ops())
+    #
+    # # simple line-coupling (swap for backend.target if you have one)
+    # basis = ["rz", "rx", "cx", "id"]
+    # coupling = (CouplingMap(
+    #     [[i, i + 1] for i in range(qc_lin.num_qubits - 1)]
+    #     + [[i + 1, i] for i in range(qc_lin.num_qubits - 1)]
+    # ) if qc_lin.num_qubits > 1 else None)
+    #
+    # print("Transpiling...")
+    # qc_mapped = transpile(
+    #     qc_lin,
+    #     basis_gates=basis,
+    #     coupling_map=coupling,
+    #     layout_method=layout_method,
+    #     routing_method=routing_method,
+    #     hls_config=hls_cfg,
+    #     optimization_level=opt,
+    # )
+    #
+    # print("post-HLS : ", qc_mapped.count_ops())
 
     if draw:
         print(qc_mapped.draw())

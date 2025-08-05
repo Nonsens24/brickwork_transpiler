@@ -1,7 +1,7 @@
 import numpy as np
 from matplotlib import pyplot as plt
 
-from src.brickwork_transpiler import brickwork_transpiler
+from src.brickwork_transpiler import brickwork_transpiler, circuits
 from src.brickwork_transpiler.algorithms import qrs_knn_grover
 
 import src.brickwork_transpiler.utils
@@ -294,7 +294,7 @@ def get_writer(file_name: str, file_path: str="src/brickwork_transpiler/experime
 
 
     header = ["num_iterations", "decomposed_depth", "transpiled_depth", "original_depth", "num_gates_original",
-              "num_gates_transpiled"]
+              "num_gates_transpiled", "L", "g"]
 
     return src.brickwork_transpiler.utils.BufferedCSVWriter(file_path + file_name, header)
 
@@ -318,7 +318,7 @@ def experiment_qrs_no_db_one_matching_element():
         num_db_feature_qubits = len(feature_mat[0])
         feature_qubits = list(range(num_id_qubits, num_id_qubits + num_db_feature_qubits))
 
-        # --- BUILD CIRCUIT ---
+        # # --- BUILD CIRCUIT ---
         qrs_circ = qrs_knn_grover.qrs(
             n_items=n_items,
             feature_mat=feature_mat,
@@ -330,9 +330,8 @@ def experiment_qrs_no_db_one_matching_element():
             grover_iterations=grover_iterations,  # None lets Qiskit calculate the optimal amount
             file_writer = writer
         )
-        print(f"gate count: {qrs_circ.decompose(reps=3).count_ops()}")
-
-
+        # qrs_circ = circuits.mcu1_circuit()
+        print(f"gate count: {qrs_circ.decompose(reps=4).count_ops()}")
 
         print("Transpiling...")
         instr_mat = brickwork_transpiler.transpile(qrs_circ, routing_method='sabre', layout_method='sabre',

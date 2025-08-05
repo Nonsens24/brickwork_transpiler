@@ -1,5 +1,6 @@
 import numpy as np
 from qiskit import QuantumCircuit
+from qiskit.circuit.library import PhaseGate
 from qiskit.quantum_info import Statevector
 
 
@@ -29,6 +30,25 @@ from qiskit.quantum_info import Statevector
 # qc.rx(np.pi / 4, 4)
 # qc.rz(np.pi / 4, 4)
 # qc.cx(4, 3)
+
+def mcu1_circuit():
+    input_vector = Statevector.from_label('++')
+
+    qc = QuantumCircuit(3, name="MCU1 demo")
+    theta = np.pi / 2  # choose the phase you want
+
+    mcu1 = PhaseGate(theta).control(num_ctrl_qubits=2)  # build the 2-controlled U1
+    qc.append(mcu1, [0, 1, 2])
+
+    theta = np.pi / 3  # choose the phase you want
+
+    mcu1 = PhaseGate(theta).control(num_ctrl_qubits=2)  # build the 2-controlled U1
+    qc.append(mcu1, [0, 1, 2])
+
+    print(qc.count_ops())
+
+    return qc
+
 
 def h_and_cx_circ():
     input_vector = Statevector.from_label('++')

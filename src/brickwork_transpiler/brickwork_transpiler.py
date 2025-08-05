@@ -5,8 +5,8 @@ from src.brickwork_transpiler import decomposer, graph_builder, pattern_converte
 def transpile(qc: QuantumCircuit, input_vector=None, routing_method=None, layout_method=None, return_mat: bool = False, file_writer=None):
 
     # Decompose to CX, rzrxrz, id   -   Need opt = 3 for SU(2) rotation merging
-    decomposed_qc = decomposer.decompose_qc_to_bricks_qiskit(qc)#, opt=3, routing_method=routing_method,
-                                                             # layout_method=layout_method, file_writer=file_writer)
+    decomposed_qc = decomposer.decompose_qc_to_bricks_qiskit(qc, opt=3, routing_method=routing_method,
+                                                              layout_method=layout_method, file_writer=file_writer)
 
 
     # Optiise instruction matrix with dependency graph

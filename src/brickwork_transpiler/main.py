@@ -86,6 +86,9 @@ def main():
     # import qiskit.circuit.library.standard_gates as sg
     # print(dir(sg))
 
+    qrs_no_db_transpilation.experiment_qrs_no_db_no_matching_element()
+    qrs_no_db_transpilation.experiment_qrs_no_db_subset_grover()
+    qrs_no_db_transpilation.experiment_qrs_no_db_one_match_duplicates()
     qrs_no_db_transpilation.experiment_qrs_no_db_one_matching_element()
     # print("Full -- one match")
     # qrs_full_transpilation.experiment_qrs_full_one_matching_element()
@@ -102,7 +105,7 @@ def main():
     # qrs_no_db_transpilation.experiment_qrs_no_db_one_match_duplicates()
 
     # plot_qrs_full.plot_grover_database_scaling()
-    plot_qrs_data.plot_qrs_with_db_scaling_from_files(name_of_plot="thesis_exact_bound_scale_no_db_bugged2")
+    plot_qrs_data.plot_qrs_with_db_scaling_from_files(name_of_plot="thesis_exact_bound_scale_no_db_bugged4")
 
 
     # # --- Find the flag qubit index robustly ---
