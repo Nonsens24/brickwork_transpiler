@@ -2,9 +2,12 @@ import linear_solvers
 import numpy as np
 from qiskit import Aer, QuantumCircuit
 from qiskit.utils import QuantumInstance
-# import /Users/rexfleur/Documents/TUDelft/Master_CESE/Thesis/Code/linear_solvers.HHL
 import linear_solvers.hhl
 from qiskit.circuit.library import QFT  # used internally by HHL
+
+# git clone https://github.com/anedumla/quantum_linear_solvers.git
+# cd quantum_linear_solvers
+# pip install .
 
 
 def generate_example_hhl_QC() -> QuantumCircuit:

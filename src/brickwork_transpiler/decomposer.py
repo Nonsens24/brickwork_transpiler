@@ -2,81 +2,363 @@ from matplotlib import pyplot as plt
 from qiskit import QuantumCircuit, transpile
 from qiskit.circuit import Instruction
 from qiskit.transpiler import CouplingMap
+from qiskit.transpiler.passes.synthesis import HLSConfig
 from qiskit.visualization import dag_drawer
 
+
 from src.brickwork_transpiler import visualiser
+#
+#
+# def decompose_qc_to_bricks_qiskit(qc: QuantumCircuit, opt=3, draw=False,
+#                                   routing_method: str = 'basic',
+#                                   layout_method: str ='trivial',
+#                                   file_writer=None):
+#     #
+#     # # print("Decomposing Quantum circuit to generator set...", end=" ")
+#     #
+#     # basis = ['rz', 'rx', 'cx', 'id']  # include 'id' for explicit barriers/timing
+#     # qc_basis = transpile(qc, basis_gates=basis, optimization_level=opt)
+#     #
+#     # if draw:
+#     #     print(qc_basis.draw())
+#     #
+#     # # print("Done")
+#
+#     # 1. Define your basis
+#     basis = ['rz', 'rx', 'cx', 'id']
+#
+#     # print(qc)
+#
+#     # 2. Define the coupling map for your device/simulator:
+#     edges = []
+#     coupling = None
+#     if qc.num_qubits != 1:
+#         for i in range(qc.num_qubits - 1):
+#             edges.append([i, i + 1])  # allow i → i+1
+#             edges.append([i + 1, i])  # allow i+1 → i
+#         coupling = CouplingMap(edges)
+#     # if qc.num_qubits > 1:
+#     #     coupling = CouplingMap([[i, i+1] for i in range(qc.num_qubits -1)]) # -1 so the amount of qubits remains right
+#     # else:
+#     #     coupling = CouplingMap([[0, 0]])
+#
+#     # pm = PassManager()
+#     # # 1) Unroll everything down to rz, rx, cx
+#     # pm.append(UnrollCustomDefinitions(basis))
+#     # # 2) Collect every 1-qubit run and decompose to RZ–RX–RZ
+#     # pm.append(OneQubitEulerDecomposition(basis=basis))
+#
+# # | Layout Method    | Strategy                                               |
+# # | ---------------- | ------------------------------------------------------ |
+# # | `trivial`        | 1-to-1 mapping                                         |
+# # | `dense`          | Densest‐subgraph heuristic                             |
+# # | `noise_adaptive` | Minimize error rates (readout & 2-qubit)               |
+# # | `sabre`          | Sabre seed + forwards/backwards swap refinement        |
+# # | `default`        | VF2 perfect + Sabre fallback (or `trivial` at level 0) |
+#
+#
+#     # 3. Transpile with routing
+#     # Lookahead routing: evaluates cost-to-go windows to insert SWAPs globally
+#     # Sabre: runs routing forward and backward to refine qubit movements in both directions
+#     # Stochastic routing: randomizes swap choices to explore bidirectional traffic patterns
+#     qc_mapped = transpile(
+#         qc,
+#         basis_gates=basis,
+#         coupling_map=coupling,
+#         layout_method=layout_method,  # keep initial virtual→physical mapping
+#         routing_method= routing_method, #'stochastic', #'sabre', #'lookahead', #'basic',  # use the simple SWAP-insertion pass
+#         optimization_level=opt
+#     )
+#
+#     # qc_mapped.draw(output='mpl',
+#     #                    fold=40,
+#     #                    )
+#     # # plt.savefig(f"images/Circuits/circuit_dag_ex_decomposed.png", dpi=300, bbox_inches="tight")
+#     # plt.show()
+#
+#     if draw:
+#         print(qc_mapped.draw())
+#
+#
+#
+#     if file_writer:
+#         print("decomp written")
+#         file_writer.set("decomposed_depth", qc_mapped.depth())
+#         file_writer.set("num_gates_transpiled", sum(qc_mapped.count_ops().values()))
+#         file_writer.set("num_gates_original", sum(qc.count_ops().values()))
+#
+#
+#     return qc_mapped
+
+from qiskit import QuantumCircuit, QuantumRegister, transpile
+from qiskit.transpiler import CouplingMap
+
+# ── Linear-CX MCX decomposition for Qiskit-Terra 0.45.0 ──────────────
+from qiskit import QuantumCircuit, QuantumRegister, transpile
+from qiskit.transpiler import CouplingMap                      # still here in 0.45
+from qiskit.transpiler.passes.synthesis import HLSConfig       # path in 0.45.x
+# ^— MCXRecursion is the one-ancilla Barenco–Iten algorithm (≤ 16 k−24 CX)
+#     The helper lives in mcxtools sub-module in 0.45.0.
+# ────────────────────────────────────────────────────────────────
+#  decompose_qc_to_bricks_qiskit  –  linear-CX MCX for any Terra
+#  * works on your current Qiskit-Terra 0.45.0
+#  * no HLS plugin names → no 'method not found' errors
+#  * adds exactly ONE clean ancilla and uses MCXRecursive
+# ────────────────────────────────────────────────────────────────
+# -------------------------------------------------------------
+#  Linear-CX MCX transpilation helper (Qiskit-Terra 0.45.x)
+# -------------------------------------------------------------
+from qiskit import QuantumCircuit, QuantumRegister, transpile
+from qiskit.circuit.library import MCXRecursive             # built-in linear gate
+from qiskit.circuit.library.standard_gates import MCXGate
+from qiskit.transpiler import CouplingMap
+
+from qiskit import transpile
+from qiskit.transpiler import CouplingMap
+# from pytket.extensions.qiskit import qiskit_to_tk, tk_to_qiskit
+# from pytket.passes import DecomposeBoxes, ZXOptimizer
+
+#
+def _linearise_mcx(qc: QuantumCircuit) -> QuantumCircuit:
+    """Rewrite every >2-controlled X using MCXRecursive (linear CX)."""
+    out = QuantumCircuit(*qc.qregs, *qc.cregs, name=qc.name)
+
+    # ensure a clean ancilla register exists and remember its first qubit
+    if not any(r.name == "anc" for r in qc.qregs):
+        anc_reg = QuantumRegister(1, "anc")
+        out.add_register(anc_reg)
+    else:
+        anc_reg = next(r for r in qc.qregs if r.name == "anc")
+
+    anc_qubit = anc_reg[0]
+
+    for inst, qargs, cargs in qc.data:
+        if isinstance(inst, MCXGate) and inst.num_ctrl_qubits > 2:
+            k = inst.num_ctrl_qubits
+            mcx_lin = MCXRecursive(k)
+
+            if k >= 5:            # docs: recursion needs 1 ancilla iff k > 4
+                out.append(mcx_lin, qargs + [anc_qubit], cargs)  # k+2 qubits
+            else:
+                out.append(mcx_lin, qargs, cargs)                # k+1 qubits
+        else:
+            out.append(inst, qargs, cargs)
+    return out
+
+from qiskit.circuit.library import MCU1Gate, MCPhaseGate
 
 
-def decompose_qc_to_bricks_qiskit(qc: QuantumCircuit, opt=3, draw=False,
-                                  routing_method: str = 'basic',
-                                  layout_method: str ='trivial'):
-    #
-    # # print("Decomposing Quantum circuit to generator set...", end=" ")
-    #
-    # basis = ['rz', 'rx', 'cx', 'id']  # include 'id' for explicit barriers/timing
-    # qc_basis = transpile(qc, basis_gates=basis, optimization_level=opt)
-    #
-    # if draw:
-    #     print(qc_basis.draw())
-    #
-    # # print("Done")
-
-    # 1. Define your basis
-    basis = ['rz', 'rx', 'cx', 'id']
-
-    print(qc)
-
-    # 2. Define the coupling map for your device/simulator:
-    edges = []
-    coupling = None
-    if qc.num_qubits != 1:
-        for i in range(qc.num_qubits - 1):
-            edges.append([i, i + 1])  # allow i → i+1
-            edges.append([i + 1, i])  # allow i+1 → i
-        coupling = CouplingMap(edges)
-    # if qc.num_qubits > 1:
-    #     coupling = CouplingMap([[i, i+1] for i in range(qc.num_qubits -1)]) # -1 so the amount of qubits remains right
-    # else:
-    #     coupling = CouplingMap([[0, 0]])
-
-    # pm = PassManager()
-    # # 1) Unroll everything down to rz, rx, cx
-    # pm.append(UnrollCustomDefinitions(basis))
-    # # 2) Collect every 1-qubit run and decompose to RZ–RX–RZ
-    # pm.append(OneQubitEulerDecomposition(basis=basis))
-
-# | Layout Method    | Strategy                                               |
-# | ---------------- | ------------------------------------------------------ |
-# | `trivial`        | 1-to-1 mapping                                         |
-# | `dense`          | Densest‐subgraph heuristic                             |
-# | `noise_adaptive` | Minimize error rates (readout & 2-qubit)               |
-# | `sabre`          | Sabre seed + forwards/backwards swap refinement        |
-# | `default`        | VF2 perfect + Sabre fallback (or `trivial` at level 0) |
+# from qiskit.circuit import QuantumCircuit, QuantumRegister
+# from qiskit.circuit.library import MCXGate
+#
+# def linearise_mcx(qc: QuantumCircuit) -> QuantumCircuit:
+#     out = QuantumCircuit(*qc.qregs, *qc.cregs, name=qc.name)
+#     if not any(r.name == "anc" for r in qc.qregs):
+#         out.add_register(QuantumRegister(1, "anc"))
+#     anc = next(r for r in out.qregs if r.name == "anc")[0]
+#
+#     for inst, qargs, cargs in qc.data:
+#         if isinstance(inst, MCXGate) and inst.num_ctrl_qubits > 2:
+#             k = inst.num_ctrl_qubits
+#             ctrls, tgt = qargs[:-1], qargs[-1]
+#             ancilla_qubits = [anc] if k > 4 else None
+#             out.mcx(ctrls, tgt, ancilla_qubits=ancilla_qubits, mode="recursion")
+#         else:
+#             out.append(inst, qargs, cargs)
+#     return out
 
 
-    # 3. Transpile with routing
-    # Lookahead routing: evaluates cost-to-go windows to insert SWAPs globally
-    # Sabre: runs routing forward and backward to refine qubit movements in both directions
-    # Stochastic routing: randomizes swap choices to explore bidirectional traffic patterns
+# def linearise_mcu1_explicit(qc: QuantumCircuit) -> QuantumCircuit:
+#     out = QuantumCircuit(*qc.qregs, *qc.cregs, name=qc.name)
+#     if not any(r.name == "anc" for r in qc.qregs):
+#         out.add_register(QuantumRegister(1, "anc"))
+#     anc = next(r for r in out.qregs if r.name == "anc")[0]
+#
+#     for inst, qargs, cargs in qc.data:
+#         is_mcu1 = isinstance(inst, MCU1Gate) and inst.num_ctrl_qubits > 0
+#         is_mcphase = isinstance(inst, MCPhaseGate) and inst.num_ctrl_qubits > 0
+#         if is_mcu1 or is_mcphase:
+#             theta = float(inst.params[0])
+#             controls, target = qargs[:-1], qargs[-1]
+#             all_ctrls = list(controls) + [target]
+#             # compute conjunction into ancilla
+#             if len(all_ctrls) == 1:
+#                 out.rz(theta, target)
+#             else:
+#                 # build AND chain: V-chain style
+#                 out.ccx(all_ctrls[0], all_ctrls[1], anc)
+#                 for q in all_ctrls[2:]:
+#                     out.ccx(q, anc, anc)
+#                 # apply phase
+#                 out.rz(theta, anc)
+#                 # uncompute
+#                 for q in reversed(all_ctrls[2:]):
+#                     out.ccx(q, anc, anc)
+#                 out.ccx(all_ctrls[0], all_ctrls[1], anc)
+#         else:
+#             out.append(inst, qargs, cargs)
+#     return out
+#
+#
+# from qiskit.transpiler import PassManager, CouplingMap
+# from qiskit.transpiler.passes import (
+#     Unroll3qOrMore, BasisTranslator,
+#     TrivialLayout, ApplyLayout,
+#     SabreSwap, GateDirection,
+#     CXCancellation, Optimize1qGatesDecomposition,
+# )
+# from qiskit.circuit.equivalence_library import SessionEquivalenceLibrary
+#
+# def decompose_cp_to_rz_cx(qc: QuantumCircuit) -> QuantumCircuit:
+#     out = QuantumCircuit(*qc.qregs, *qc.cregs, name=qc.name)
+#     for inst, qargs, cargs in qc.data:
+#         if inst.name == "cp":
+#             lam = float(inst.params[0])
+#             ctrl, tgt = qargs[0], qargs[1]
+#             out.rz(lam / 2, tgt)
+#             out.cx(ctrl, tgt)
+#             out.rz(-lam / 2, tgt)
+#             out.cx(ctrl, tgt)
+#         else:
+#             out.append(inst, qargs, cargs)
+#     return out
+#
+#
+# def preserving_passmanager(n_qubits: int, seed: int = 11) -> PassManager:
+#     cmap = CouplingMap.from_line(n_qubits)
+#     return PassManager([
+#         Unroll3qOrMore(),
+#         BasisTranslator(SessionEquivalenceLibrary, ["rz", "rx", "cx", "id"]),
+#         TrivialLayout(cmap), ApplyLayout(),
+#         SabreSwap(cmap, heuristic="decay", seed=seed),
+#         GateDirection(coupling_map=cmap),
+#         CXCancellation(),
+#         Optimize1qGatesDecomposition(["rz", "rx", "cx", "id"]),
+#     ])
+#
+#
+# def decompose_qc_to_bricks_qiskit(
+#         qc: QuantumCircuit,
+#         draw: bool = False,
+#         file_writer=None,
+#         seed: int = 11,
+# ):
+#     # 1. Linear MCX
+#     qc_lin = _linearise_mcx(qc)
+#     # 2. Linear MCU1 / phase
+#     qc_lin = linearise_mcu1(qc_lin)
+#
+#
+#     # Diagnostic before mapping
+#     print("Logical ops:", qc_lin.decompose(reps=2).count_ops())
+#
+#     # 4. Map without undoing linearisation
+#     pm = preserving_passmanager(qc_lin.num_qubits, seed=seed)
+#     qc_mapped = pm.run(qc_lin)
+#
+#     if draw:
+#         print(qc_mapped.draw())
+#
+#     if file_writer:
+#         file_writer.set("decomposed_depth",     qc_mapped.depth())
+#         file_writer.set("num_gates_transpiled", sum(qc_mapped.count_ops().values()))
+#         file_writer.set("num_gates_original",   sum(qc.count_ops().values()))
+#
+#     print("Final ops:", qc_mapped.count_ops())
+#     return qc_mapped
+#
+#
+# def print_logical_stats(qc, label="logical"):
+#     ops = qc.count_ops()
+#     print(f"[{label}] depth={qc.depth():5d}  CX={ops.get('cx',0):6d}  RZ={ops.get('rz',0):6d}  RX={ops.get('rx',0):6d}  total1q={sum(v for k,v in ops.items() if k in ['rz','rx']):6d}")
+
+from qiskit.circuit import QuantumCircuit, QuantumRegister
+from qiskit.circuit.library.standard_gates import MCXRecursive, MCU1Gate, MCPhaseGate
+
+def decompose_linear_mcu1(qc: QuantumCircuit, ancilla=None) -> QuantumCircuit:
+    """Decompose all MCU1/MCPhase gates in qc linearly using MCXRecursive and an ancilla."""
+    out = QuantumCircuit(*qc.qregs, *qc.cregs, name=qc.name)
+
+    # Find or allocate ancilla register if needed (for ≥5 controls)
+    if ancilla is None and not any(reg.name == "anc" for reg in qc.qregs):
+        ancilla = QuantumRegister(1, "anc")
+        out.add_register(ancilla)
+    elif ancilla is None:
+        ancilla = next(reg for reg in qc.qregs if reg.name == "anc")
+
+    for inst, qargs, cargs in qc.data:
+        # Accept both MCU1 and MCPhase
+        if (isinstance(inst, (MCU1Gate, MCPhaseGate)) and inst.num_ctrl_qubits > 2):
+            lam = float(inst.params[0])
+            ctrl_qubits = qargs[:inst.num_ctrl_qubits]
+            target = qargs[inst.num_ctrl_qubits]
+            n_ctrl = len(ctrl_qubits)
+
+            # Use MCXRecursive (linear CNOTs) with ancilla if ≥5 controls
+            if n_ctrl >= 5:
+                # Apply MCX with controls, target=ancilla
+                out.append(MCXRecursive(n_ctrl), ctrl_qubits + [ancilla[0]])
+                # Phase on ancilla
+                out.rz(lam, ancilla[0])
+                # Uncompute MCX
+                out.append(MCXRecursive(n_ctrl), ctrl_qubits + [ancilla[0]])
+                # Use a CX to kickback to target
+                out.cx(ancilla[0], target)
+                out.cx(ancilla[0], target)
+            else:
+                # For ≤4 controls, MCXRecursive does not require ancilla
+                out.append(MCXRecursive(n_ctrl), ctrl_qubits + [target])
+                out.rz(lam, target)
+                out.append(MCXRecursive(n_ctrl), ctrl_qubits + [target])
+        else:
+            out.append(inst, qargs, cargs)
+    return out
+
+
+
+def decompose_qc_to_bricks_qiskit(
+        qc: QuantumCircuit,
+        opt: int = 3,
+        draw: bool = False,
+        routing_method: str = "basic",
+        layout_method: str = "trivial",
+        file_writer=None,
+):
+
+
+    qc_decomposed_mcu = decompose_linear_mcu1(qc)
+    qc_lin = _linearise_mcx(qc_decomposed_mcu)
+
+    print("decomp reps")
+    print(qc_lin.decompose(reps=5).count_ops())
+
+    # simple line-coupling (swap for backend.target if you have one)
+    basis = ["rz", "rx", "cx", "id"]
+    coupling = (CouplingMap(
+        [[i, i + 1] for i in range(qc_lin.num_qubits - 1)]
+        + [[i + 1, i] for i in range(qc_lin.num_qubits - 1)]
+    ) if qc_lin.num_qubits > 1 else None)
+
+    print("Decomposing...")
     qc_mapped = transpile(
-        qc,
+        qc_lin,
         basis_gates=basis,
         coupling_map=coupling,
-        layout_method=layout_method,  # keep initial virtual→physical mapping
-        routing_method= routing_method, #'stochastic', #'sabre', #'lookahead', #'basic',  # use the simple SWAP-insertion pass
-        optimization_level=opt
+        layout_method=layout_method,
+        routing_method=routing_method,
+        optimization_level=opt,
     )
-
-    qc_mapped.draw(output='mpl',
-                       fold=40,
-                       )
-    plt.savefig(f"images/Circuits/circuit_dag_ex_decomposed.png", dpi=300, bbox_inches="tight")
-    plt.show()
 
     if draw:
         print(qc_mapped.draw())
 
+    if file_writer:
+        file_writer.set("decomposed_depth",     qc_mapped.depth())
+        file_writer.set("num_gates_transpiled", sum(qc_mapped.count_ops().values()))
+        file_writer.set("num_gates_original",   sum(qc.count_ops().values()))
+
     return qc_mapped
+
 
 
 def group_with_dag_atomic_rotations_layers(qc: QuantumCircuit):
@@ -176,89 +458,257 @@ from qiskit.converters import circuit_to_dag
 from qiskit import QuantumCircuit
 from qiskit.dagcircuit import DAGOpNode
 
+from qiskit import QuantumCircuit
+from qiskit.converters import circuit_to_dag
+from qiskit.dagcircuit import DAGOpNode
+
+# def group_with_dag_atomic_mixed_ready(qc: QuantumCircuit):
+#     """
+#     DAG + saturated single‐phase scheduling, with a dynamic ready set for efficiency.
+#     """
+#     dag = circuit_to_dag(qc)
+#     op_nodes = list(dag.topological_op_nodes())
+#     total = len(op_nodes)
+#     scheduled = set()
+#     columns = []
+#
+#     # Map from each node to its unscheduled predecessor count
+#     unscheduled_predecessors = {node: 0 for node in op_nodes}
+#     successors = {node: [] for node in op_nodes}
+#     for node in op_nodes:
+#         preds = [p for p in dag.predecessors(node) if isinstance(p, DAGOpNode)]
+#         unscheduled_predecessors[node] = len(preds)
+#         for p in preds:
+#             successors[p].append(node)
+#
+#     # Initially ready nodes (no unscheduled predecessors)
+#     ready_rot = {node for node in op_nodes if unscheduled_predecessors[node] == 0 and node.op.name in ('rz', 'rx')}
+#     ready_cx = {node for node in op_nodes if unscheduled_predecessors[node] == 0 and node.op.name == 'cx'}
+#
+#     while len(scheduled) < total:
+#         col_nodes = []
+#         busy_qubits = set()
+#         rot_layer = []
+#
+#         # --- 1) Drain all ready rotations (rz, rx) ---
+#         # All ready rz/rx can be scheduled in this layer, regardless of qubit conflicts
+#         rot_layer = list(ready_rot)
+#         col_nodes.extend(rot_layer)
+#
+#         # No busy_qubits update needed here for rotations
+#         busy_qubits.update(q._index for node in rot_layer for q in node.qargs)
+#
+#         # --- 2) Greedily pack ready CXs that do not touch busy qubits ---
+#         cx_to_add = set()
+#         for node in ready_cx:
+#             qs = [q._index for q in node.qargs]
+#             if not any(q in busy_qubits for q in qs):
+#                 col_nodes.append(node)
+#                 cx_to_add.add(node)
+#                 busy_qubits.update(qs)
+#
+#         # If nothing could be scheduled, something is wrong
+#         if not col_nodes:
+#             raise RuntimeError("Stalled scheduling: circular dependency detected.")
+#
+#         # Mark as scheduled
+#         scheduled.update(col_nodes)
+#         columns.append([
+#             (node.op, node.qargs, node.cargs)
+#             for node in col_nodes
+#         ])
+#
+#         # Update the ready sets for next iteration
+#         # Remove scheduled nodes
+#         ready_rot.difference_update(rot_layer)
+#         ready_cx.difference_update(cx_to_add)
+#
+#         # For each scheduled node, update its successors' unscheduled count
+#         for node in col_nodes:
+#             for succ in successors[node]:
+#                 unscheduled_predecessors[succ] -= 1
+#                 if unscheduled_predecessors[succ] == 0:
+#                     if succ.op.name in ('rz', 'rx'):
+#                         ready_rot.add(succ)
+#                     elif succ.op.name == 'cx':
+#                         ready_cx.add(succ)
+#                     # Extend here for other gate types if needed
+#
+#     return columns
+
+from collections import defaultdict
+import heapq
+from qiskit.converters import circuit_to_dag
+from qiskit.dagcircuit.dagnode import DAGOpNode
+from qiskit.circuit import QuantumCircuit
+
+
 def group_with_dag_atomic_mixed(qc: QuantumCircuit):
     """
-    DAG + saturated single‐phase scheduling:
-      1) In each column, drain *all* ready rotations (rz, rx)—
-         merging entire chains of them (e.g. rz→rx→rz) into one layer,
-         with no busy‐qubit checks among these rotations.
-      2) Then greedily pack ready CXs that don’t touch any qubit
-         already used by those rotations or by each other.
-      Repeat until every operation is scheduled.
+    Faster but behaviour‑identical version of the ‘DAG + saturated single‑phase
+    scheduling’ algorithm.  Complexity: Θ(V + E) instead of Θ(V·d).
+
+    See original docstring for semantics (unchanged).
     """
     dag = circuit_to_dag(qc)
-    dag.draw(filename='images/DAGs/thesis_dag.png')  # 'mpl' uses matplotlib to save as PNG
     op_nodes = list(dag.topological_op_nodes())
-    total = len(op_nodes)
+    idx = {node: i for i, node in enumerate(op_nodes)}          # stable order key
+
+    # --- build static dependency graph ---------------------------------------
+    indeg = {}                          # remaining unscheduled predecessors
+    succs = defaultdict(list)           # forward adjacency
+    for n in op_nodes:
+        preds = [p for p in dag.predecessors(n) if isinstance(p, DAGOpNode)]
+        indeg[n] = len(preds)
+        for p in preds:
+            succs[p].append(n)
+
+    # --- two priority queues keep the ready set partitioned by gate type -----
+    ready_rot, ready_cx = [], []        # (topo_index, node)
+
+    def push_ready(node):
+        """Put node into the correct ready‑queue, preserving topo order."""
+        h = ready_rot if node.op.name in ('rz', 'rx') else ready_cx
+        heapq.heappush(h, (idx[node], node))
+
+    for n in op_nodes:                  # initial ready set
+        if indeg[n] == 0:
+            push_ready(n)
+
     scheduled = set()
     columns = []
 
-    while len(scheduled) < total:
-        col_nodes = []
-        busy_qubits = set()
+    while ready_rot or ready_cx:        # until every op scheduled
+        col_nodes, busy = [], set()
 
-        # --- 1) Drain *all* ready rotations into rot_layer ---
-        rot_layer = []
-        while True:
-            added = False
-            for node in op_nodes:
-                if node in scheduled or node in rot_layer:
-                    continue
-                if node.op.name not in ('rz', 'rx'):
-                    continue
-                # only consider op‐node predecessors
-                preds = [p for p in dag.predecessors(node)
-                         if isinstance(p, DAGOpNode)]
-                # allow preds to be either already scheduled or in rot_layer
-                if any((p not in scheduled and p not in rot_layer) for p in preds):
-                    continue
-                # this rotation is ready — absorb into this rotation‐chain
-                rot_layer.append(node)
-                added = True
-            if not added: # All nodes were added
-                break
+        # -------- 1) drain all ready rotations *recursively* ---------------
+        while ready_rot:
+            _, node = heapq.heappop(ready_rot)
+            col_nodes.append(node)
+            scheduled.add(node)
 
-        # add all those rotations at once (no busy_qubits update here)
-        if rot_layer:
-            col_nodes.extend(rot_layer)
+            for suc in succs[node]:
+                indeg[suc] -= 1
+                if indeg[suc] == 0:
+                    push_ready(suc)
 
-        # --- 2) Greedily pack CXs respecting busy_qubits ---
-        # mark any qubits used by these rotations as busy for CXs
-        busy_qubits.update(q._index for node in rot_layer for q in node.qargs)
+        # mark their qubits busy for the CX‑packing phase
+        busy.update(q._index for n in col_nodes for q in n.qargs)
 
-        added = True
-        while added:
-            added = False
-            for node in op_nodes:
-                if node in scheduled or node in col_nodes:
-                    continue
-                if node.op.name != 'cx':
-                    continue
-                # dep check
-                preds = [p for p in dag.predecessors(node)
-                         if isinstance(p, DAGOpNode)]
-                if any(p not in scheduled for p in preds):
-                    continue
-                # conflict check
-                qs = [q._index for q in node.qargs]
-                if any(q in busy_qubits for q in qs):
-                    continue
-                # can schedule this CX
-                col_nodes.append(node)
-                busy_qubits.update(qs)
-                added = True
+        # -------- 2) greedily pack compatible ready CXs ---------------------
+        tmp = []
+        while ready_cx:
+            _, node = heapq.heappop(ready_cx)
+            qidx = [q._index for q in node.qargs]
+            if any(q in busy for q in qidx):        # conflict → next column
+                tmp.append((idx[node], node))
+                continue
 
-        if not col_nodes:
+            # schedule this CX
+            col_nodes.append(node)
+            busy.update(qidx)
+            scheduled.add(node)
+
+            for suc in succs[node]:
+                indeg[suc] -= 1
+                if indeg[suc] == 0:
+                    push_ready(suc)
+
+        # left‑over CXs still ready but blocked by busy qubits
+        for item in tmp:
+            heapq.heappush(ready_cx, item)
+
+        if not col_nodes:                              # should never happen
             raise RuntimeError("Stalled scheduling: circular dependency detected.")
 
-        # record this mixed column
-        columns.append([
-            (node.op, node.qargs, node.cargs)
-            for node in col_nodes
-        ])
-        scheduled.update(col_nodes)
+        columns.append([(n.op, n.qargs, n.cargs) for n in col_nodes])
 
     return columns
+
+
+# def group_with_dag_atomic_mixed(qc: QuantumCircuit):
+#     """
+#     DAG + saturated single‐phase scheduling:
+#       1) In each column, drain *all* ready rotations (rz, rx)—
+#          merging entire chains of them (e.g. rz→rx→rz) into one layer,
+#          with no busy‐qubit checks among these rotations.
+#       2) Then greedily pack ready CXs that don’t touch any qubit
+#          already used by those rotations or by each other.
+#       Repeat until every operation is scheduled.
+#     """
+#     dag = circuit_to_dag(qc)
+#     # dag.draw(filename='images/DAGs/thesis_dag.png')  # 'mpl' uses matplotlib to save as PNG
+#     op_nodes = list(dag.topological_op_nodes())
+#     total = len(op_nodes)
+#     scheduled = set()
+#     columns = []
+#
+#     while len(scheduled) < total:
+#         col_nodes = []
+#         busy_qubits = set()
+#
+#         # --- 1) Drain *all* ready rotations into rot_layer ---
+#         rot_layer = []
+#         while True:
+#             added = False
+#             for node in op_nodes:
+#                 if node in scheduled or node in rot_layer:
+#                     continue
+#                 if node.op.name not in ('rz', 'rx'):
+#                     continue
+#                 # only consider op‐node predecessors
+#                 preds = [p for p in dag.predecessors(node)
+#                          if isinstance(p, DAGOpNode)]
+#                 # allow preds to be either already scheduled or in rot_layer
+#                 if any((p not in scheduled and p not in rot_layer) for p in preds):
+#                     continue
+#                 # this rotation is ready — absorb into this rotation‐chain
+#                 rot_layer.append(node)
+#                 added = True
+#             if not added: # All nodes were added
+#                 break
+#
+#         # add all those rotations at once (no busy_qubits update here)
+#         if rot_layer:
+#             col_nodes.extend(rot_layer)
+#
+#         # --- 2) Greedily pack CXs respecting busy_qubits ---
+#         # mark any qubits used by these rotations as busy for CXs
+#         busy_qubits.update(q._index for node in rot_layer for q in node.qargs)
+#
+#         added = True
+#         while added:
+#             added = False
+#             for node in op_nodes:
+#                 if node in scheduled or node in col_nodes:
+#                     continue
+#                 if node.op.name != 'cx':
+#                     continue
+#                 # dep check
+#                 preds = [p for p in dag.predecessors(node)
+#                          if isinstance(p, DAGOpNode)]
+#                 if any(p not in scheduled for p in preds):
+#                     continue
+#                 # conflict check
+#                 qs = [q._index for q in node.qargs]
+#                 if any(q in busy_qubits for q in qs):
+#                     continue
+#                 # can schedule this CX
+#                 col_nodes.append(node)
+#                 busy_qubits.update(qs)
+#                 added = True
+#
+#         if not col_nodes:
+#             raise RuntimeError("Stalled scheduling: circular dependency detected.")
+#
+#         # record this mixed column
+#         columns.append([
+#             (node.op, node.qargs, node.cargs)
+#             for node in col_nodes
+#         ])
+#         scheduled.update(col_nodes)
+#
+#     return columns
 
 
 def instructions_to_matrix_dag(qc: QuantumCircuit):
@@ -388,35 +838,26 @@ def instructions_to_matrix_dag(qc: QuantumCircuit):
 #     return cx_matrix
 
 
-import copy
-from typing import List, Dict
 
 import copy
 from typing import List, Dict
+from qiskit.circuit.instruction import Instruction
 
-
-import copy
-from typing import List, Dict
-
-
+#
 # def align_cx_matrix(cx_matrix: List[List[List[Instruction]]]) -> List[List[List[Instruction]]]:
 #     """
-#     Shift each CX‐brick (two rows with same cx#) rightwards so that:
-#       1. top_row_index % 2 == column_index % 2 (parity alignment)
-#       2. if originally separated by at least one empty column, preserve that spacing
+#     Shift each CX “brick” so that
+#       1. top_row % 2 == column % 2  (parity)
+#       2. for any prior brick sharing a qubit row, there's at least one empty column
+#          (or preserve original gap, if it was larger).
 #
-#     Returns a new aligned cx_matrix without modifying the original.
+#     Returns a new matrix; does not mutate the input.
 #     """
-#     # Deep copy to preserve original
 #     original = copy.deepcopy(cx_matrix)
 #     n_rows = len(original)
-#     if n_rows == 0:
-#         return original
+#     n_cols = max((len(r) for r in original), default=0)
 #
-#     # Determine maximum columns in the original matrix
-#     n_cols = max(len(row) for row in original)
-#
-#     # Collect information about each CX‐brick (group)
+#     # Gather each brick’s rows and original column
 #     group_info: Dict[str, Dict] = {}
 #     for r in range(n_rows):
 #         for c in range(n_cols):
@@ -428,225 +869,330 @@ from typing import List, Dict
 #                     info["rows"].add(r)
 #                     info["orig_col"] = min(info["orig_col"], c)
 #
-#     # Build a list of bricks sorted by their original column
+#     # Build and sort bricks by orig_col
 #     bricks = []
 #     for gid, info in group_info.items():
-#         top_row = min(info["rows"])
 #         bricks.append({
 #             "gid": gid,
 #             "rows": sorted(info["rows"]),
 #             "orig_col": info["orig_col"],
-#             "top": top_row
+#             "top": min(info["rows"])
 #         })
 #     bricks.sort(key=lambda b: b["orig_col"])
 #
-#     # Compute original spacings between consecutive bricks
-#     for i in range(len(bricks)):
-#         if i == 0:
-#             bricks[i]["orig_spacing"] = 0
-#         else:
-#             prev_col = bricks[i-1]["orig_col"]
-#             curr_col = bricks[i]["orig_col"]
-#             bricks[i]["orig_spacing"] = curr_col - prev_col
-#
-#     # Prepare an empty aligned matrix
+#     # Prepare the output grid
 #     aligned: List[List[List[Instruction]]] = [[] for _ in range(n_rows)]
+#     placed_cols: Dict[str, int] = {}
 #
-#     last_placed_col = -999
-#     for i, brick in enumerate(bricks):
-#         desired_col = brick["orig_col"]
-#         # Parity constraint
-#         if brick["top"] % 2 != desired_col % 2:
-#             desired_col += 1
-#         # Spacing constraint
-#         spacing = brick.get("orig_spacing", 0)
-#         if spacing > 1 and last_placed_col >= 0:
-#             spacing_req = spacing
+#     for brick in bricks:
+#         gid      = brick["gid"]
+#         rows     = brick["rows"]
+#         ocol     = brick["orig_col"]
+#         top_row  = brick["top"]
+#
+#         # 1) Parity‐aligned base column
+#         if (ocol % 2) == (top_row % 2):
+#             base_col = ocol
 #         else:
-#             spacing_req = 0
-#         if spacing_req > 0:
-#             place_col = max(desired_col, last_placed_col + spacing_req)
-#         else:
-#             place_col = desired_col
+#             base_col = ocol + 1
 #
-#         # Extend rows
-#         for row in aligned:
-#             while len(row) <= place_col:
-#                 row.append([])
+#         # 2) Compute the floor from spacing constraints against every overlapping brick
+#         floor = 0
+#         for prev in bricks:
+#             pg = prev["gid"]
+#             if pg not in placed_cols:
+#                 continue
+#             # only consider if they share at least one qubit
+#             if set(prev["rows"]) & set(rows):
+#                 orig_gap = ocol - prev["orig_col"]
+#                 # at least one empty column, or preserve if originally larger
+#                 needed = placed_cols[pg] + max(1, orig_gap)
+#                 floor = max(floor, needed)
 #
-#         # Move CX instructions
-#         for r in brick["rows"]:
-#             instrs = [instr for instr in original[r][brick["orig_col"]]
-#                       if instr.name.startswith(f"cx{brick['gid']}")]
-#             aligned[r][place_col] = instrs
+#         # 3) Final placement is the minimal ≥ both base_col and floor that satisfies parity
+#         place = max(base_col, floor)
+#         if place % 2 != top_row % 2:
+#             place += 1
 #
-#         last_placed_col = place_col
+#         # grow output rows as needed
+#         for r in aligned:
+#             while len(r) <= place:
+#                 r.append([])
 #
+#         # copy exactly those CX‐instructions from the original column
+#         for r in rows:
+#             instrs = [
+#                 instr for instr in original[r][ocol]
+#                 if instr.name.startswith(f"cx{gid}")
+#             ]
+#             aligned[r][place] = instrs
+#
+#         placed_cols[gid] = place
+#
+#     # visualiser.print_matrix(aligned)
 #     return aligned
 
 from typing import List, Dict
-import copy
+from qiskit.circuit.instruction import Instruction
 
-def align_cx_matrix(cx_matrix: List[List[List[Instruction]]]) -> List[List[List[Instruction]]]:
+# helper type
+Matrix = List[List[List[Instruction]]]
+
+
+def align_cx_matrix(cx_matrix: Matrix) -> Matrix:
     """
-    Shift each CX “brick” so that
-      1. top_row % 2 == column % 2  (parity)
-      2. for any prior brick sharing a qubit row, there's at least one empty column
-         (or preserve original gap, if it was larger).
+    Behaviour‑preserving rewrite of the original algorithm.
 
-    Returns a new matrix; does not mutate the input.
+    Complexity improvement
+    ----------------------
+    * old: Θ(B²) because every brick scanned every earlier brick
+    * new: Θ(B · r)  (r ≤ 2) using per‑row aggregates
     """
-    original = copy.deepcopy(cx_matrix)
-    n_rows = len(original)
-    n_cols = max((len(r) for r in original), default=0)
 
-    # Gather each brick’s rows and original column
+    # -------------------------------------------------------------------------
+    # 1.  Collect bricks (same as before, but without the expensive deepcopy)
+    # -------------------------------------------------------------------------
+    n_rows = len(cx_matrix)
+    n_cols = max((len(r) for r in cx_matrix), default=0)
+
     group_info: Dict[str, Dict] = {}
     for r in range(n_rows):
         for c in range(n_cols):
-            cell = original[r][c] if c < len(original[r]) else []
-            for instr in cell:
+            for instr in (cx_matrix[r][c] if c < len(cx_matrix[r]) else []):
                 if instr.name.startswith("cx"):
                     gid = instr.name[2:-1]
                     info = group_info.setdefault(gid, {"rows": set(), "orig_col": c})
                     info["rows"].add(r)
                     info["orig_col"] = min(info["orig_col"], c)
 
-    # Build and sort bricks by orig_col
-    bricks = []
-    for gid, info in group_info.items():
-        bricks.append({
+    bricks = [
+        {
             "gid": gid,
             "rows": sorted(info["rows"]),
             "orig_col": info["orig_col"],
-            "top": min(info["rows"])
-        })
-    bricks.sort(key=lambda b: b["orig_col"])
+            "top": min(info["rows"]),
+        }
+        for gid, info in group_info.items()
+    ]
+    bricks.sort(key=lambda b: b["orig_col"])        # stable original order
 
-    # Prepare the output grid
-    aligned: List[List[List[Instruction]]] = [[] for _ in range(n_rows)]
-    placed_cols: Dict[str, int] = {}
+    # -------------------------------------------------------------------------
+    # 2.  Fast placement using per‑row aggregates
+    # -------------------------------------------------------------------------
+    aligned: Matrix = [[] for _ in range(n_rows)]
+
+    row_max_delta: Dict[int, int] = {}              # row → max(placed - orig)
+    row_same_orig: Dict[int, Dict[int, int]] = {}   # row → {orig_col: placed}
+
+    placed_cols: Dict[str, int] = {}                # gid → placed column
 
     for brick in bricks:
-        gid      = brick["gid"]
-        rows     = brick["rows"]
-        ocol     = brick["orig_col"]
-        top_row  = brick["top"]
+        gid, rows, ocol, top_row = (
+            brick["gid"],
+            brick["rows"],
+            brick["orig_col"],
+            brick["top"],
+        )
 
-        # 1) Parity‐aligned base column
-        if (ocol % 2) == (top_row % 2):
-            base_col = ocol
-        else:
-            base_col = ocol + 1
+        # --- 1) parity‑aligned base column -----------------------------------
+        base_col = ocol if (ocol % 2) == (top_row % 2) else ocol + 1
 
-        # 2) Compute the floor from spacing constraints against every overlapping brick
+        # --- 2) spacing floor from *aggregates* ------------------------------
         floor = 0
-        for prev in bricks:
-            pg = prev["gid"]
-            if pg not in placed_cols:
-                continue
-            # only consider if they share at least one qubit
-            if set(prev["rows"]) & set(rows):
-                orig_gap = ocol - prev["orig_col"]
-                # at least one empty column, or preserve if originally larger
-                needed = placed_cols[pg] + max(1, orig_gap)
-                floor = max(floor, needed)
+        for r in rows:
+            # prior bricks on this row             needed = (placed - orig) + ocol
+            if r in row_max_delta:
+                floor = max(floor, row_max_delta[r] + ocol)
 
-        # 3) Final placement is the minimal ≥ both base_col and floor that satisfies parity
+            # special case: previous brick at *same* original column
+            if (same := row_same_orig.get(r, {}).get(ocol)) is not None:
+                floor = max(floor, same + 1)
+
+        # --- 3) minimal ≥ both base_col and floor, keeping parity ------------
         place = max(base_col, floor)
         if place % 2 != top_row % 2:
             place += 1
 
-        # grow output rows as needed
+        # --- 4) ensure output grid wide enough --------------------------------
         for r in aligned:
             while len(r) <= place:
                 r.append([])
 
-        # copy exactly those CX‐instructions from the original column
+        # --- 5) copy exactly the CXs that belong to this brick ----------------
         for r in rows:
             instrs = [
-                instr for instr in original[r][ocol]
+                instr
+                for instr in cx_matrix[r][ocol]
                 if instr.name.startswith(f"cx{gid}")
             ]
             aligned[r][place] = instrs
 
+            # update per‑row aggregates
+            delta = place - ocol
+            row_max_delta[r] = max(row_max_delta.get(r, -1), delta)
+            row_same_orig.setdefault(r, {})[ocol] = place
+
         placed_cols[gid] = place
 
-    visualiser.print_matrix(aligned)
     return aligned
 
+from typing import List, Dict
+from qiskit.circuit.instruction import Instruction
 
 
-from typing import List
+Matrix = List[List[List[Instruction]]]           # alias for readability
+
 
 def insert_rotations_adjecant_to_cx(
-    aligned_cx: List[List[List[Instruction]]],
-    original:   List[List[List[Instruction]]]
-) -> List[List[List[Instruction]]]:
+    aligned_cx: Matrix,
+    original:   Matrix,
+) -> Matrix:
     """
-    aligned_cx: CX-only matrix after align_cx_matrix
-    original:   full matrix (CX + rotations)
-    Returns new matrix where each rotation-list from original[i][j]:
-      - if original[i][j-1] has a CX → insert after that CX
-      - elif original[i][j+1] has a CX → insert in the group *before* that CX
-      - else → insert into column 0
+    Behaviour‑preserving, asymptotically faster version.
+
+    For every rotation list in `original[i][j]`
+      – if `original[i][j‑1]` contains a CX, insert *after* that CX
+      – elif `original[i][j+1]` contains a CX, insert *before* that CX
+      – else insert into column 0.
+
+    Complexity: Θ(R · C) instead of Θ(R · C · W)
+    (R = rows, C = max columns in `original`, W = final width of output)
     """
-    # deep-copy so we can append
-    new_mat = [
-        [list(cell) for cell in row]
-        for row in aligned_cx
-    ]
+    # ------------------------------------------------------------------
+    # 0) Deep‑copy aligned CX matrix so we can mutate it
+    # ------------------------------------------------------------------
+    new_mat: Matrix = [[list(cell) for cell in row] for row in aligned_cx]
+
     n_rows = len(new_mat)
     if n_rows == 0:
         return new_mat
 
-    # normalize width
-    width = max(len(r) for r in new_mat)
-    for r in new_mat:
-        if len(r) < width:
-            r.extend([[]] * (width - len(r)))
+    width = max(len(r) for r in new_mat)           # current uniform width
 
+    # ------------------------------------------------------------------
+    # 1) Per‑row dict:  CX‑instruction.name  →  column index in new_mat
+    # ------------------------------------------------------------------
+    cx_col: List[Dict[str, int]] = []
+    for row in new_mat:
+        lookup: Dict[str, int] = {}
+        for c, cell in enumerate(row):
+            for ins in cell:                       # only CXs matter
+                if ins.name.startswith("cx") and ins.name not in lookup:
+                    lookup[ins.name] = c           # first (leftmost) column
+        cx_col.append(lookup)
+
+    # ------------------------------------------------------------------
+    # 2) Walk `original`, deposit rotations using O(1) look‑ups
+    # ------------------------------------------------------------------
     for i in range(n_rows):
         row_orig = original[i]
+        lookup   = cx_col[i]
+
         for j, cell in enumerate(row_orig):
-            rots = [ins for ins in cell if not ins.name.startswith('cx')]
+            # extract rotations once
+            rots = [ins for ins in cell if not ins.name.startswith("cx")]
             if not rots:
                 continue
 
             dest = 0
-            group_instr = None
-
-            # 1) LEFT neighbor → after-CX
+            # ---- rule 1: look at left neighbour ----------------------
             if j > 0:
-                left_cx = [ins for ins in row_orig[j-1] if ins.name.startswith('cx')]
-                if left_cx:
-                    group_instr = left_cx[0]
-                    # find its column in aligned_cx
-                    for c, aligned_cell in enumerate(new_mat[i]):
-                        if any(ins.name == group_instr.name for ins in aligned_cell):
-                            dest = c + 1
-                            break
+                for ins in row_orig[j - 1]:
+                    if ins.name.startswith("cx"):
+                        dest = lookup[ins.name] + 1
+                        break
 
-            # 2) RIGHT neighbor → before-CX (now one left of CX)
-            if group_instr is None and j+1 < len(row_orig):
-                right_cx = [ins for ins in row_orig[j+1] if ins.name.startswith('cx')]
-                if right_cx:
-                    group_instr = right_cx[0]
-                    for c, aligned_cell in enumerate(new_mat[i]):
-                        if any(ins.name == group_instr.name for ins in aligned_cell):
-                            dest = max(c - 1, 0)
-                            break
+            # ---- rule 2: otherwise look at right neighbour ----------
+            if dest == 0 and j + 1 < len(row_orig):
+                for ins in row_orig[j + 1]:
+                    if ins.name.startswith("cx"):
+                        dest = max(lookup[ins.name] - 1, 0)
+                        break
 
-            # 3) ensure room
-            if dest >= len(new_mat[i]):
-                extra = dest - len(new_mat[i]) + 1
+            # ---- rule 3: enlarge grid if necessary ------------------
+            if dest >= width:
+                extra = dest - width + 1
                 for r in new_mat:
                     r.extend([[]] * extra)
+                width += extra            # keep invariant
 
-            # append in order
+            # ---- final: append rotations in order -------------------
             new_mat[i][dest].extend(rots)
 
     return new_mat
+
+
+
+from typing import List
+#
+# def insert_rotations_adjecant_to_cx(
+#     aligned_cx: List[List[List[Instruction]]],
+#     original:   List[List[List[Instruction]]]
+# ) -> List[List[List[Instruction]]]:
+#     """
+#     aligned_cx: CX-only matrix after align_cx_matrix
+#     original:   full matrix (CX + rotations)
+#     Returns new matrix where each rotation-list from original[i][j]:
+#       - if original[i][j-1] has a CX → insert after that CX
+#       - elif original[i][j+1] has a CX → insert in the group *before* that CX
+#       - else → insert into column 0
+#     """
+#     # deep-copy so we can append
+#     new_mat = [
+#         [list(cell) for cell in row]
+#         for row in aligned_cx
+#     ]
+#     n_rows = len(new_mat)
+#     if n_rows == 0:
+#         return new_mat
+#
+#     # normalize width
+#     width = max(len(r) for r in new_mat)
+#     for r in new_mat:
+#         if len(r) < width:
+#             r.extend([[]] * (width - len(r)))
+#
+#     for i in range(n_rows):
+#         row_orig = original[i]
+#         for j, cell in enumerate(row_orig):
+#             rots = [ins for ins in cell if not ins.name.startswith('cx')]
+#             if not rots:
+#                 continue
+#
+#             dest = 0
+#             group_instr = None
+#
+#             # 1) LEFT neighbor → after-CX
+#             if j > 0:
+#                 left_cx = [ins for ins in row_orig[j-1] if ins.name.startswith('cx')]
+#                 if left_cx:
+#                     group_instr = left_cx[0]
+#                     # find its column in aligned_cx
+#                     for c, aligned_cell in enumerate(new_mat[i]):
+#                         if any(ins.name == group_instr.name for ins in aligned_cell):
+#                             dest = c + 1
+#                             break
+#
+#             # 2) RIGHT neighbor → before-CX (now one left of CX)
+#             if group_instr is None and j+1 < len(row_orig):
+#                 right_cx = [ins for ins in row_orig[j+1] if ins.name.startswith('cx')]
+#                 if right_cx:
+#                     group_instr = right_cx[0]
+#                     for c, aligned_cell in enumerate(new_mat[i]):
+#                         if any(ins.name == group_instr.name for ins in aligned_cell):
+#                             dest = max(c - 1, 0)
+#                             break
+#
+#             # 3) ensure room
+#             if dest >= len(new_mat[i]):
+#                 extra = dest - len(new_mat[i]) + 1
+#                 for r in new_mat:
+#                     r.extend([[]] * extra)
+#
+#             # append in order
+#             new_mat[i][dest].extend(rots)
+#
+#     return new_mat
 
 
 

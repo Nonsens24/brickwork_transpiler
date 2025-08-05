@@ -17,7 +17,7 @@ def reorder_via_transpose(psi: np.ndarray) -> np.ndarray:
 
     # 2) infer n and sanity-check
     n = int(np.log2(dim))
-    if 2**n != dim:
+    if 2 ** n != dim:
         raise ValueError(f"Length {dim} is not a power of 2; cannot infer n")
 
     # 3) build an array of all indices [0,1,...,2**n-1]
@@ -39,17 +39,16 @@ def reorder_via_transpose_n(psi: np.ndarray) -> np.ndarray:
     """
     psi = np.ascontiguousarray(psi)
     dim = psi.size
-    n   = int(np.log2(dim))
-    if 2**n != dim:
+    n = int(np.log2(dim))
+    if 2 ** n != dim:
         raise ValueError(f"Length {dim} is not a power of 2")
 
     # view as an n-way tensor, each dim=2
-    psi_tensor = psi.reshape((2,)*n)
+    psi_tensor = psi.reshape((2,) * n)
     # reverse the axes
     psi_t = psi_tensor.transpose(list(reversed(range(n))))
     # flatten back
     return psi_t.reshape(dim)
-
 
 
 def assert_equal_up_to_global_phase(state1, state2, tol=1e-6):
@@ -80,14 +79,15 @@ def assert_equal_up_to_global_phase(state1, state2, tol=1e-6):
     inner_product = np.vdot(state1, state2)
     magnitude = np.abs(inner_product)
 
-    if not np.isclose(magnitude, 1.0, atol=tol, rtol=0.0): # added rtol for border checking
+    if not np.isclose(magnitude, 1.0, atol=tol, rtol=0.0):  # added rtol for border checking
         raise AssertionError(
             f"States are not equal up to global phase.\n"
             f"Inner product: {inner_product}\n"
             f"Absolute value: {magnitude:.6f} (should be close to 1)"
         )
 
-    else: return True
+    else:
+        return True
 
 
 def permute_qubits(circ: QuantumCircuit, perm: list[int]) -> QuantumCircuit:
@@ -100,11 +100,11 @@ def permute_qubits(circ: QuantumCircuit, perm: list[int]) -> QuantumCircuit:
         old: new_circ.qubits[perm[idx]]
         for idx, old in enumerate(circ.qubits)
     }
-    clbit_map = { old: new for old,new in zip(circ.clbits, new_circ.clbits) }
+    clbit_map = {old: new for old, new in zip(circ.clbits, new_circ.clbits)}
 
     for instr, qargs, cargs in circ.data:
         new_qargs = [old_to_new[q] for q in qargs]
-        new_cargs = [clbit_map[c]  for c in cargs]
+        new_cargs = [clbit_map[c] for c in cargs]
         new_circ.append(instr, new_qargs, new_cargs)
 
     return new_circ
@@ -174,7 +174,8 @@ def get_qiskit_permutation(bw_pattern):
     return perm
 
 
-def calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vector):    # TODO: One param when merged to computation_graph obj
+def calculate_ref_state_from_qiskit_circuit(bw_pattern, qc,
+                                            input_vector):  # TODO: One param when merged to computation_graph obj
     if bw_pattern is None:
         raise AssertionError("bw_pattern is None")
 
@@ -222,8 +223,8 @@ def feature_to_generator(feature_mat):
         # get binary expansion of i: bits[k]
         bits = [(i >> k) & 1 for k in range(q)]
         # compute G·bits mod2
-        f_lin = [ sum(G[j][k] * bits[k] for k in range(q)) & 1
-                  for j in range(l) ]
+        f_lin = [sum(G[j][k] * bits[k] for k in range(q)) & 1
+                 for j in range(l)]
         if f_lin != feature_mat[i]:
             raise ValueError(f"feature_mat is not linear: "
                              f"mismatch at i={i}: "
@@ -249,7 +250,7 @@ def feature_to_affine_generator(feature_mat):
         raise ValueError("All rows must have length l")
 
     # check power-of-two
-    if N & (N-1) != 0:
+    if N & (N - 1) != 0:
         raise ValueError(f"N={N} not a power of 2")
     q = N.bit_length() - 1
 
@@ -335,10 +336,10 @@ def time_complexity_knn_grover(q: int, l: int, c: int) -> dict[str, int]:
     5. All counts here assume a standard universal gate set (Hadamard, single‐qubit Z/X, and CNOT).
     """
 
-    N = 2**q
+    N = 2 ** q
 
     # 1) Database creation cost: 2^l (Hadamards for user feature) + N*(N−1)/2 (permutations for |ψ_ff⟩)
-    database_creation = 2**l + (N * (N - 1)) // 2
+    database_creation = 2 ** l + (N * (N - 1)) // 2
 
     # 2) k-NN Hamming-distance and summing: exactly 3*l + 2 gates
     kNN_distance = 3 * l + 2
@@ -350,7 +351,33 @@ def time_complexity_knn_grover(q: int, l: int, c: int) -> dict[str, int]:
 
     return {
         "Database_creation": database_creation,
-        "kNN_distance":     kNN_distance,
-        "Grover_amplify":   grover_amplify,
-        "Total":            total,
+        "kNN_distance": kNN_distance,
+        "Grover_amplify": grover_amplify,
+        "Total": total,
     }
+
+
+import csv
+import os
+
+
+class BufferedCSVWriter:
+    def __init__(self, filename, headers):
+        self.filename = filename
+        self.headers = headers
+        self.row = {}  # Current row buffer
+        # Write header if file doesn't exist
+        if not os.path.exists(filename):
+            with open(filename, mode='w', newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=headers)
+                writer.writeheader()
+
+    def set(self, key, value):
+        self.row[key] = value
+
+    def flush(self):
+        # Write current row (can be partial), then clear buffer
+        with open(self.filename, mode='a', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=self.headers, restval="")
+            writer.writerow(self.row)
+        self.row = {}

@@ -1,13 +1,16 @@
 from matplotlib import pyplot as plt
-import numpy as np
 from qiskit import QuantumCircuit, QuantumRegister
 from qiskit.circuit.library import MCXGate
+from qiskit_algorithms import AmplificationProblem, Grover
+import numpy as np
+from qiskit_aer.primitives import Sampler as AerSampler
 
 # This implementation follows the quantum recommendation system as presented by Sawerwain and Wroblewski (2019)
 # Link: https://sciendo.com/article/10.2478/amcs-2019-0011
 
 
-def qrs(n_items, feature_mat, user_vector, plot=False, grover_iterations=1):
+def qrs(n_items, feature_mat, user_vector, feature_subset, g, plot_circ=False, plot_histogram=False,
+        grover_iterations=None, file_writer=None):
 
     num_id_qubits = int(np.log2(n_items))
     num_db_feature_qubits = len(feature_mat[0])
@@ -30,11 +33,11 @@ def qrs(n_items, feature_mat, user_vector, plot=False, grover_iterations=1):
     qc = QuantumCircuit(total_qubits)
     # qc = QuantumCircuit(total_qubits, num_db_feature_qubits)
 
-    print("Start database initialisation...")
-    qrs_init = initialise_database(qc, id_qubits, feature_qubits, user_qubits, user_vector, feature_mat)
+    # print("Running database initialisation...")
+    # qrs_init = initialise_database(qc, id_qubits, feature_qubits, user_qubits, user_vector, feature_mat)
 
-    print("Start KNN...")
-    qrs_knn = knn(qrs_init, feature_qubits, user_qubits)
+    # print("Running Q-KNN...")
+    qrs_knn = knn(qc, feature_qubits, user_qubits)
 
     qA = qc.qregs[-1][0] if qc.qregs and qc.qregs[-1].name == 'qA' else None
     if qA is None:
@@ -43,22 +46,22 @@ def qrs(n_items, feature_mat, user_vector, plot=False, grover_iterations=1):
         qA = grov[0]
     qc.x(qA); qc.h(qA)
 
-    print("Start Grover...")
-    # qrs_amplified = grover(qrs_knn, feature_qubits, user_vector, iterations=grover_iterations)
-    # grover_amplify_feature(qrs_knn, feature_qubits, user_vector)
-
-    # qc.h(qA)
-    # qc.x(qA)  # return ancilla to |0⟩
+    # print("Running Grover...")
+    qrs_amplified = amplify_recommendations(qrs_knn, feature_qubits, user_qubits, user_vector, len(feature_mat), g,
+                                            feature_subset, plot=plot_histogram, iterations=grover_iterations,
+                                            file_writer=file_writer)
 
     # Build and draw the circuit
-    if plot:
-        qrs_knn.draw(output='mpl',
+    if plot_circ:
+        print("Plotting circuit...")
+        qrs_amplified.decompose(reps=3)
+        qrs_amplified.draw(output='mpl',
                            fold=40,
-                           )
-        plt.savefig(f"images/qrs/recommendation_circ{grover_iterations}.png", dpi=300, bbox_inches="tight")
+                           style="iqp")
+        plt.savefig(f"images/qrs/recommendation_circ_grover_iters{grover_iterations}.png", dpi=300, bbox_inches="tight")
         plt.show()
 
-    return qrs_knn
+    return qrs_amplified
 
 
 def initialise_database(qc: QuantumCircuit,
@@ -104,6 +107,7 @@ def initialise_database(qc: QuantumCircuit,
     for idx, bit in enumerate(user_vector):
         if bit == 1:
             qc.x(user_qubits[idx])
+
 
     return qc
 
@@ -153,77 +157,191 @@ def knn(
     return qc
 
 
-# Amplifies amplitudes of recommendations of interest using grover's algorithm
-# See Grover (1996) link: https://dl.acm.org/doi/10.1145/237814.237866
-def grover(qc, feature_qubits, user_vector, iterations=2):
-    """Amplify the exact‑match row."""
+
+def amplify_recommendations(qc: QuantumCircuit,
+                            feature_qubits: list[int],
+                            user_qubits: list[int],
+                            user_feature: [],
+                            L: int,
+                            g,
+                            feature_subset: [[]],
+                            shots: int = 2048,
+                            plot: bool = False,
+                            plot_circ_grover: bool = False,
+                            iterations=None,
+                            file_writer=None
+                            ) -> QuantumCircuit:
 
 
+    # --- FLAG QUBIT: detection by register name ---
+    flag_reg = [reg for reg in qc.qregs if reg.name == "c0"]
+    assert len(flag_reg) == 1, "Flag register 'c0' not found or ambiguous!"
+    flag_qubit = qc.find_bit(flag_reg[0][0]).index  # The only qubit in c0
 
-    target_bits = user_vector
+    oracle_subset = multi_subset_oracle(feature_qubits, feature_subset, flag_qubit, qc.num_qubits)
 
-    for _ in range(iterations):
-        # ---------- oracle: flip phase if feature == user_vector ----
-        for i, bit in enumerate(target_bits):
-            if bit == 0:  # flip the 0‑bits
-                qc.x(feature_qubits[i])
+    # Usage when defining your AmplificationProblem:
+    problem = AmplificationProblem(
+        oracle=oracle_subset,
+        state_preparation=qc,
+        is_good_state=create_is_good_state(feature_qubits, user_feature)
+    )
 
-        qc.mcx(feature_qubits, qA)
+    # Optimal iterations Grover Nielsen, Chuang (2010)
+    # N = 2 ** len(feature_qubits)
+    # M = 2 ** feature_subset[0].count('X')
+    # optimal_iterations = int(np.floor(np.pi / 4 * np.sqrt(N / M)))
 
-        for i, bit in enumerate(target_bits):
+    # Guessing the optimal number g of iterations according to Sawerwain and Wroblewski (2019)
+    # count_X = lambda pattern: sum(1 for x in pattern if x == 'X')
+    # g = 2**count_X(feature_subset)
+
+    optimal_iterations = iterations
+
+    if g is None:
+        optimal_iterations = 0
+        iterations = None
+
+    if iterations is None and optimal_iterations != 0:
+        # g = 1 # Perfect example case
+        optimal_iterations = int(np.floor(np.pi / 4 * np.sqrt(L / g)))
+
+    # --- RUN GROVER ---
+    sampler = AerSampler(run_options={"shots": shots})
+    grover = Grover(sampler=sampler, iterations=optimal_iterations)
+
+    # print("Simulating circuit...")
+    # result = grover.amplify(problem)
+    # iterations_used = result.iterations[0] # For set pre-calculated iterations the list has 1 item
+    #
+    # if len(result.iterations) > 1:
+    #     raise ValueError("Iterations list contained more than one value")
+
+    grover_opt = Grover(sampler=sampler, iterations=optimal_iterations)
+    if file_writer:
+        file_writer.set("num_iterations", optimal_iterations)
+        print(f"num of iterations: {optimal_iterations}")
+
+    circuit = grover_opt.construct_circuit(problem)#.decompose(reps=2) # for non-unitary rectangle amplification
+
+    print(circuit)
+    return circuit
+
+    if plot_circ_grover:
+        print("Plotting amplification circuit...")
+        circuit.draw(output='mpl',
+                           fold=40,
+                           style="iqp")
+        plt.savefig(f"images/qrs/amp_part_recommendation_circ_iters{iterations_used}.png", dpi=300, bbox_inches="tight")
+        plt.show()
+
+    # Get the raw list of histograms (one dict per executed circuit)
+    raw_list = result.circuit_results
+
+    # Turn it into a single plain dict of counts
+    if not raw_list:
+        raise ValueError("No circuit results found in GroverResult")
+    elif len(raw_list) == 1 and isinstance(raw_list[0], dict):
+        counts = raw_list[0]  # the one histogram you want
+    else:
+        # If there are multiple runs, merge their histograms
+        counts = {}
+        for entry in raw_list:
+            if not isinstance(entry, dict):
+                continue
+            for bitstr, c in entry.items():
+                counts[bitstr] = counts.get(bitstr, 0) + c
+
+
+    filtered = {}
+    for bitstring, shots in counts.items():
+        # 1) pull out the flag qubit value:
+        flag_bit = bitstring[-1 - flag_qubit]
+        if flag_bit != '0':
+            continue
+
+        # 2) extract only the feature bits, in MSB→LSB order:
+        feat_bits = ''.join(
+            bitstring[-1 - q]
+            for q in sorted(feature_qubits)
+        )
+
+        # 3) tally
+        filtered[feat_bits] = filtered.get(feat_bits, 0) + shots
+
+    # filtered now has just the post-selected counts.
+    # --- PLOT ---
+    if plot:
+        if filtered:
+            sorted_bits = sorted(filtered)
+            sorted_counts = [filtered[b] for b in sorted_bits]
+            total = sum(sorted_counts)
+            user_bits = ''.join(map(str, user_feature))
+            xticks = []
+            for b in sorted_bits:
+                hd = sum(c != u for c, u in zip(b, user_bits))
+                xticks.append(f"{b} (HD={hd})")
+            probs = [100 * v / total for v in sorted_counts]
+            plt.figure(figsize=(10, 5))
+            plt.bar(range(len(probs)), probs)
+            plt.xticks(range(len(probs)), xticks, rotation=45, ha='right')
+            plt.title(f"Grover x{iterations_used} | User: {user_feature}")
+            plt.ylabel("Probability (%)")
+            plt.tight_layout()
+            plt.savefig(f"images/plots/qrs_single_match_iter{iterations_used}.png", dpi=300,
+                        bbox_inches="tight")
+            plt.show()
+        else:
+            print("No 'good' states detected in the results.")
+
+
+    return circuit
+
+
+# Wrapper to match the required signature of Grover's AmplificationProblem
+def create_is_good_state(feature_qubits, user_feature):
+    def is_good_state(bitstring):
+        feat = ''.join(bitstring[-1 - q] for q in sorted(feature_qubits))
+        for f_bit, u_bit in zip(feat, user_feature):
+            if u_bit == 'X':
+                continue
+            if f_bit != str(u_bit):
+                return False
+        return True
+
+    return is_good_state
+
+
+def multi_subset_oracle(feature_qubits, subsets, flag_qubit, total_qubits):
+
+    oracle = QuantumCircuit(total_qubits)
+    for subset in subsets:
+        sub_oracle = QuantumCircuit(total_qubits)
+        active_controls = []
+        for q, bit in zip(feature_qubits, subset):
+            if bit == 'X':
+                continue
             if bit == 0:
-                qc.x(feature_qubits[i])
+                sub_oracle.x(q)
+            active_controls.append(q)
 
-        # ---------- diffusion on the same register -----------------
-        qc.h(feature_qubits)
-        qc.x(feature_qubits)
+        # Pick the correct control gate
+        if len(active_controls) == 0:
+            # All 'X': just flip the flag_qubit
+            sub_oracle.x(flag_qubit)
+        elif len(active_controls) == 1:
+            # Only one control: use cx
+            sub_oracle.cx(active_controls[0], flag_qubit)
+        else:
+            # Standard: multiple controls
+            sub_oracle.mcx(active_controls, flag_qubit)
 
-        qc.h(feature_qubits[-1])
-        qc.mcx(feature_qubits[:-1], feature_qubits[-1])
-        qc.h(feature_qubits[-1])
+        # Undo the Xs
+        for q, bit in zip(feature_qubits, subset):
+            if bit == 'X':
+                continue
+            if bit == 0:
+                sub_oracle.x(q)
+        oracle.compose(sub_oracle, inplace=True)
 
-        qc.x(feature_qubits)
-        qc.h(feature_qubits)
-
-
-    return qc
-
-from qiskit import QuantumCircuit
-
-def grover_amplify_feature(qc, feature_qubits, user_feature):
-    """
-    Appends a Grover oracle and diffuser to qc, amplifying |user_feature> on feature_qubits.
-    Modifies qc in-place.
-    """
-    n = len(feature_qubits)
-    # --- ORACLE: Flip phase of target feature state
-    # Map |user_feature> -> |1..1>
-    for i, bit in enumerate(user_feature):
-        if bit == 0:
-            qc.x(feature_qubits[i])
-    # Multi-controlled Z (use MCX with ancilla method: flip last qubit's phase)
-    qc.h(feature_qubits[-1])
-    if n == 1:
-        qc.z(feature_qubits[0])
-    else:
-        qc.mcx(feature_qubits[:-1], feature_qubits[-1])
-    qc.h(feature_qubits[-1])
-    # Uncompute mapping
-    for i, bit in enumerate(user_feature):
-        if bit == 0:
-            qc.x(feature_qubits[i])
-
-    # --- DIFFUSER: Inversion about mean on feature_qubits
-    for qb in feature_qubits:
-        qc.h(qb)
-        qc.x(qb)
-    qc.h(feature_qubits[-1])
-    if n == 1:
-        qc.z(feature_qubits[0])
-    else:
-        qc.mcx(feature_qubits[:-1], feature_qubits[-1])
-    qc.h(feature_qubits[-1])
-    for qb in feature_qubits:
-        qc.x(qb)
-        qc.h(qb)
-
+    return oracle

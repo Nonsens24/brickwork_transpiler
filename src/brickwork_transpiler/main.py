@@ -1,4 +1,8 @@
-import qiskit.compiler.transpiler
+import numpy as np
+# import qiskit.compiler.transpiler
+from matplotlib import pyplot as plt
+# from tensorflow.python.keras.utils.layer_utils import print_summary
+
 # from graphix.rng import ensure_rng
 # from graphix.states import BasicStates
 # from numba.core.cgutils import sizeof
@@ -15,199 +19,91 @@ import qiskit.compiler.transpiler
 #     generate_random_kraus_pattern,
 # )
 import visualiser
-from libs.gospel.gospel.brickwork_state_transpiler.brickwork_state_transpiler import transpile
+# from libs.gospel.gospel.brickwork_state_transpiler.brickwork_state_transpiler import transpile
 from src.brickwork_transpiler import brickwork_transpiler
 from src.brickwork_transpiler.algorithms import qrs_knn_grover
+from src.brickwork_transpiler.algorithms.hhl import generate_example_hhl_QC
 from src.brickwork_transpiler.bfk_encoder import bfk_encoder
+from src.brickwork_transpiler.experiments import qrs_full_transpilation, plot_qrs_data, qrs_no_db_transpilation
 from src.brickwork_transpiler.noise import DepolarisingInjector
 # from src.brickwork_transpiler.noise import to_noisy_pattern
 import src.brickwork_transpiler.circuits as circuits
 
-from qiskit import transpile
+from qiskit import transpile, ClassicalRegister, QuantumRegister
 from qiskit_aer import AerSimulator
 from qiskit import QuantumCircuit
 
 
-def feature_oracle(feature_qubits, user_feature, total_qubits):
-    n = len(feature_qubits)
-    oracle = QuantumCircuit(total_qubits)
-    for i, bit in enumerate(user_feature):
-        if bit == 0:
-            oracle.x(feature_qubits[i])
-    oracle.h(feature_qubits[-1])
-    if n == 1:
-        oracle.z(feature_qubits[0])
-    else:
-        oracle.mcx(feature_qubits[:-1], feature_qubits[-1])
-    oracle.h(feature_qubits[-1])
-    for i, bit in enumerate(user_feature):
-        if bit == 0:
-            oracle.x(feature_qubits[i])
-    return oracle
-
-# ... after generating qrs_circ ...
-
-
 def main():
-    from qiskit import Aer
-    from qiskit.utils import QuantumInstance
-    # from qiskit.algorithms import AmplificationProblem, Grover
-    from qiskit_algorithms import AmplificationProblem, Grover
-    import numpy as np
-    from qiskit_aer.primitives import Sampler as AerSampler
-
-    # --- DATA ---
-    feature_mat = [
-        [1, 0, 1, 1, 1, 1],
-        [0, 1, 0, 1, 0, 0],
-        [0, 0, 1, 1, 1, 0],
-        [0, 0, 0, 1, 0, 1],
-        [0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0],
-        [1, 1, 1, 1, 1, 1],
-        [1, 1, 0, 0, 1, 0],
-    ]
-    user_feature = [0, 0, 0, 0, 0, 1]
-    grover_iterations = None  # None for optimal, or set a specific int
-
-    n_items = len(feature_mat)
-    num_id_qubits = int(np.log2(n_items))
-    num_db_feature_qubits = len(feature_mat[0])
-    feature_qubits = list(range(num_id_qubits, num_id_qubits + num_db_feature_qubits))
-
-    # --- BUILD CIRCUIT ---
-    qrs_circ = qrs_knn_grover.qrs(
-        n_items=n_items,
-        feature_mat=feature_mat,
-        user_vector=user_feature,
-        plot=False,
-        grover_iterations=None  # None lets Qiskit calculate the optimal amount
-    )
-
-    # --- FLAG QUBIT: Robust detection by register name ---
-    flag_reg = [reg for reg in qrs_circ.qregs if reg.name == "c0"]
-    assert len(flag_reg) == 1, "Flag register 'c0' not found or ambiguous!"
-    flag_qubit = qrs_circ.find_bit(flag_reg[0][0]).index  # The only qubit in c0
 
 
-    from matplotlib import pyplot as plt
-    from qiskit import QuantumCircuit
 
-    # ORACLE: Flag flips if feature_qubits match user_feature subset (ignores 'X')
-    def feature_oracle_subset(feature_qubits, user_feature, flag_qubit, total_qubits):
-        qc = QuantumCircuit(total_qubits)
-        active_controls = []
-        for q, bit in zip(feature_qubits, user_feature):
-            if bit == 'X':
-                continue
-            if bit == 0:
-                qc.x(q)
-            active_controls.append(q)
+    # Plot HHL
+    # hhl_circ = hhl.generate_example_hhl_QC()
+    # qc, _ = circuits.h_and_cx_circ()
+    #
+    # print(qc)
+    # qc.draw(output='mpl',
+    #                    fold=30,
+    #                    )
+    # plt.show()
+    # # | Layout Method    | Strategy                                               |
+    # # | ---------------- | ------------------------------------------------------ |
+    # # | `trivial`        | 1-to-1 mapping                                         |
+    # # | `dense`          | Densest‐subgraph heuristic                             |
+    # # | `noise_adaptive` | Minimize error rates (readout & 2-qubit)               |
+    # # | `sabre`          | Sabre seed + forwards/backwards swap refinement        |
+    # # | `default`        | VF2 perfect + Sabre fallback (or `trivial` at level 0) |
+    # # Routing: 'stochastic', #'sabre', #'lookahead', #'basic',
+    #
+    # print("Transpiling HHL circuit...")
+    # bw_pattern, col_map = brickwork_transpiler.transpile(qc, routing_method='sabre', layout_method='trivial')
+    #
+    # visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+    #                                              show_angles=True,
+    #                                              node_colours=col_map,
+    #                                              use_node_colours=True,
+    #                                              title="Brickwork graph: H + CX")
+    #
+    # return 0
 
-        qc.mcx(active_controls, flag_qubit)
+    #Test HHL
 
-        for q, bit in zip(feature_qubits, user_feature):
-            if bit == 'X':
-                continue
-            if bit == 0:
-                qc.x(q)
+    from qiskit import transpiler
 
-        return qc
+    # hhl = generate_example_hhl_QC()
+    # # Decompose as much as possible (optional)
+    # hhl = hhl.decompose()  # You may skip this; see below
+    #
+    # # Transpile to elementary gates (adjust basis_gates as needed)
+    # basis_gates = ['cx', 'u3', 'u2', 'u1', 'rz', 'ry', 'rx', 'id', 'x', 'y', 'z', 'h', 's', 'sdg', 't', 'tdg', 'swap',
+    #                'measure', "mcx", "cp", "cz"]
+    # hhl_basis = transpile(hhl, basis_gates=basis_gates, optimization_level=0)
+    #
+    # # Now print the gate types
+    # print("HHL gate counts:", hhl_basis.count_ops())
+    # print("Total gates:", sum(hhl_basis.count_ops().values()))
+    # import qiskit.circuit.library.standard_gates as sg
+    # print(dir(sg))
 
+    qrs_no_db_transpilation.experiment_qrs_no_db_one_matching_element()
+    # print("Full -- one match")
+    # qrs_full_transpilation.experiment_qrs_full_one_matching_element()
+    # print("Full -- no match")
+    # qrs_full_transpilation.experiment_qrs_full_no_matching_element()
+    # print("Full -- subset match")
+    # qrs_full_transpilation.experiment_qrs_full_subset_grover()
+    # print("Full -- one match duplicates")
+    # qrs_full_transpilation.experiment_qrs_full_one_match_duplicates()
 
-    feature_subset = ['X', 0, 0, 'X', 0, 'X']
-    oracle_subset = feature_oracle_subset(feature_qubits, feature_subset, flag_qubit, qrs_circ.num_qubits)
+    # qrs_no_db_transpilation.experiment_qrs_no_db_one_matching_element()
+    # qrs_no_db_transpilation.experiment_qrs_no_db_no_matching_element()
+    # qrs_no_db_transpilation.experiment_qrs_no_db_subset_grover()
+    # qrs_no_db_transpilation.experiment_qrs_no_db_one_match_duplicates()
 
+    # plot_qrs_full.plot_grover_database_scaling()
+    plot_qrs_data.plot_qrs_with_db_scaling_from_files(name_of_plot="thesis_exact_bound_scale_no_db_bugged2")
 
-    # Wrapper to match the required signature of Grover's AmplificationProblem
-    def create_is_good_state(feature_qubits, user_feature):
-        def is_good_state(bitstring):
-            feat = ''.join(bitstring[-1 - q] for q in sorted(feature_qubits))
-            for f_bit, u_bit in zip(feat, user_feature):
-                if u_bit == 'X':
-                    continue
-                if f_bit != str(u_bit):
-                    return False
-            return True
-
-        return is_good_state
-
-    # Usage when defining your AmplificationProblem:
-    problem = AmplificationProblem(
-        oracle=oracle_subset,
-        state_preparation=qrs_circ,
-        is_good_state=create_is_good_state(feature_qubits, user_feature)
-    )
-
-
-    # --- RUN GROVER ---
-    sampler = AerSampler(run_options={"shots": 2048})
-    grover = Grover(sampler=sampler, iterations=grover_iterations)
-    result = grover.amplify(problem)
-
-
-    # ① Get the raw list of histograms (one dict per executed circuit)
-    raw_list = result.circuit_results
-
-    # ② Turn it into a single plain dict of counts
-    if not raw_list:
-        raise ValueError("No circuit results found in GroverResult")
-    elif len(raw_list) == 1 and isinstance(raw_list[0], dict):
-        counts = raw_list[0]  # the one histogram you want
-    else:
-        # If there are multiple runs, merge their histograms
-        counts = {}
-        for entry in raw_list:
-            if not isinstance(entry, dict):
-                continue
-            for bitstr, c in entry.items():
-                counts[bitstr] = counts.get(bitstr, 0) + c
-
-    # ③ Now ‘counts’ is exactly {bitstring: shot_count}
-    #     Proceed with your existing post‑selection:
-
-    # … after you’ve built `counts` as a {bitstring: shots} dict …
-
-    filtered = {}
-    for bitstring, shots in counts.items():
-        # 1) pull out the flag qubit value:
-        flag_bit = bitstring[-1 - flag_qubit]
-        if flag_bit != '0':
-            continue
-
-        # 2) extract only the feature bits, in MSB→LSB order:
-        feat_bits = ''.join(
-            bitstring[-1 - q]
-            for q in sorted(feature_qubits)
-        )
-
-        # 3) tally
-        filtered[feat_bits] = filtered.get(feat_bits, 0) + shots
-
-    print(filtered)  # keys will now be length‑6 strings like '100001'
-
-    # filtered now has just the post-selected counts.
-
-    # --- PLOT ---
-    if filtered:
-        sorted_bits = sorted(filtered)
-        sorted_counts = [filtered[b] for b in sorted_bits]
-        total = sum(sorted_counts)
-        user_bits = ''.join(map(str, user_feature))
-        xticks = []
-        for b in sorted_bits:
-            hd = sum(c != u for c, u in zip(b, user_bits))
-            xticks.append(f"{b} (HD={hd})")
-        probs = [100 * v / total for v in sorted_counts]
-        plt.figure(figsize=(10, 5))
-        plt.bar(range(len(probs)), probs)
-        plt.xticks(range(len(probs)), xticks, rotation=45, ha='right')
-        plt.title(f"Grover-QKNN amplified | User: {user_feature}")
-        plt.ylabel("Probability (%)")
-        plt.tight_layout()
-        plt.show()
-    else:
-        print("No 'good' states detected in the results.")
 
     # # --- Find the flag qubit index robustly ---
     # flag_reg = [reg for reg in qrs_circ.qregs if reg.name == "c0"]
@@ -259,7 +155,7 @@ def main():
     # plt.tight_layout()
     # plt.show()
 
-    return 0
+    # return 0
 
     #
     # total_qubits = qrs_circ.num_qubits
@@ -356,31 +252,45 @@ def main():
 #     main()
 
 
+    return 0
+
 
     # QRS_CHECKED
-    # === 1) DATA ===
+    # ───────────────────────────────────────────────── DATA ───────────────────────────────────────────────
     feature_mat = [
-        [1, 0, 1, 1, 1, 1],  # 000110
-        [0, 1, 0, 1, 0, 0],  # 010000
-        [0, 0, 1, 1, 1, 0],  # 111010
-        [0, 0, 0, 1, 0, 1],  # 011110
-        [1, 0, 0, 0, 1, 0],  # 000110 (duplicate)
-        [1, 0, 0, 0, 0, 0],  # 000100
-        [1, 1, 1, 1, 1, 1],  # 101010
-        [1, 1, 0, 0, 1, 0],  # 010101 (exact match)
+        [1, 0, 1, 1, 1, 1],
+        [0, 1, 0, 0, 0, 1],
+        [0, 0, 1, 1, 1, 0],
+        [0, 0, 0, 1, 0, 1],
+        [1, 0, 0, 0, 1, 0],
+        [1, 0, 0, 0, 0, 0],
+        [1, 1, 1, 1, 1, 1],
+        [1, 1, 0, 0, 1, 0],
     ]
-    # user_feature = [0, 1, 0, 1, 0, 1]  # six bits
-    user_feature = [0, 0, 0, 0, 0, 1]  # six bits
-    grover_iterations = 0
+    user_feature = [0, 1, 0, 0, 0, 1]
+    feature_subset = [[0, 1, 0, 0, 0, 1]]  # oracle pattern
+    grover_iterations = None
+    g = 1
 
-    # --- Build the QRS circuit (no measurements) ---
-    qrs_circ = qrs_knn_grover_checked.qrs(
-        n_items=len(feature_mat),
+    n_items = len(feature_mat)
+    num_id_qubits = int(np.log2(n_items))
+    num_db_feature_qubits = len(feature_mat[0])
+    feature_qubits = list(range(num_id_qubits,
+                                num_id_qubits + num_db_feature_qubits))
+
+    # ───────────────────────────────────────── BUILD QRS+GROVER CIRCUIT ────────────────────────────────────
+    qrs_circ = qrs_knn_grover.qrs(
+        n_items=n_items,
         feature_mat=feature_mat,
         user_vector=user_feature,
-        plot=False,
-        grover_iterations=grover_iterations
+        feature_subset=feature_subset,
+        g=g,
+        plot_circ=False,
+        plot_histogram=False,
+        grover_iterations=grover_iterations,
+        file_writer=None,
     )
+
 
     # === 2) Transpile & fetch layout ===
     sim = AerSimulator()
@@ -421,7 +331,7 @@ def main():
     qc_t.draw(output='mpl',
                        fold=40,
                        )
-    plt.savefig(f"images/qrs/recommendation_circ{grover_iterations}.png", dpi=300, bbox_inches="tight")
+    plt.savefig(f"images/qrs/new_recommendation_circ{grover_iterations}.png", dpi=300, bbox_inches="tight")
     plt.show()
 
     # === 5) Simulate & get counts ===
@@ -480,7 +390,7 @@ def main():
     plt.tight_layout()
 
     # Save the figure before showing it
-    plt.savefig("images/plots/grover_plot.png", dpi=300)
+    plt.savefig("images/plots/new_grover_plot.png", dpi=300)
 
     plt.show()
 
@@ -510,7 +420,7 @@ def main():
 
 
     print("Transpiling HHL circuit...")
-    bw_pattern, col_map = brickwork_transpiler.transpile(qc, routing_method='stochastic', layout_method='trivial')
+    bw_pattern, col_map = brickwork_transpiler.transpile(qc, routing_method='sabre', layout_method='trivial')
     bw_pattern.print_pattern(lim=200)
 
     encoded_pattern, log_alice = bfk_encoder(bw_pattern)
