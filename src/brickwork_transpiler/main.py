@@ -107,8 +107,8 @@ def main():
 
     # plot_qrs_full.plot_grover_database_scaling()
 
-    # qft_transpilation.experiment_qft_transpilation()
-    hhl_transpilation.experiment_hhl_transpilation(6)
+    qft_transpilation.experiment_qft_transpilation()
+    # hhl_transpilation.experiment_hhl_transpilation(6)
 
     # plot_qrs_data.plot_qrs_with_db_scaling_from_files(name_of_plot="thesis_qrs_plot_test")
 

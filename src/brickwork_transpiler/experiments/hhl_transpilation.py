@@ -15,7 +15,7 @@ def get_writer(file_name: str,
                file_path: str = "src/brickwork_transpiler/experiments/data/output_data/"):
 
     header = ["decomposed_depth", "transpiled_depth", "original_depth",
-              "num_gates_original", "num_gates_transpiled"]
+              "num_gates_original", "num_gates_transpiled", "N"]
     full_path = os.path.join(file_path, file_name)
 
     os.makedirs(file_path, exist_ok=True)
@@ -83,6 +83,7 @@ def experiment_hhl_transpilation(max_qubits: int = 5):
     #     # 4) Collect metrics
     #     writer.set("original_depth",      circ.depth())
     #     writer.set("transpiled_depth",    len(instr_mat[0]))
+    #     writer.set("N",    2**n)
     #     writer.flush()
 
     plot_single_hhl_dataset("hhl_transpilation_cost_experiment_plot")
@@ -94,48 +95,68 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 from matplotlib.lines import Line2D
+import os
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
+from matplotlib.lines import Line2D
 
 
 def plot_single_hhl_dataset(name_of_plot: str = "hhl_default.png"):
     """
     Visualise brickwork–transpilation cost for the HHL circuits stored in
-    experiments_hhl.csv.  The file must contain (at least) the columns
-        decomposed_depth, transpiled_depth, num_gates_original
-    produced by experiment_hhl_transpilation().
+    experiments_hhl.csv.
+
+    Required CSV columns:
+        decomposed_depth, transpiled_depth, N
+
+    Three curves are shown:
+        • decomposed circuit depth
+        • brickwork-transpiled depth
+        • c·log²(n)                      ← NEW
+    plus the original reference c·log³(n).
+
+    The x-axis is n = 2^N (powers of two displayed as clean 10^k ticks).
     """
     # --------------------------------------------------------------------
-    # Load data   – drop n = 0 to avoid log(0) singularities
+    # Load data
     # --------------------------------------------------------------------
     base_dir = "src/brickwork_transpiler/experiments/data/output_data/"
     filename = "experiments_hhl.csv"
 
     df = pd.read_csv(os.path.join(base_dir, filename))
-    df = df[df["num_gates_original"] > 0]
+    df = df[df["N"] > 0]                      # avoid log(0)
 
-    n                = df["num_gates_original"].to_numpy()       # x-axis
+    n                = 2 ** df["N"].to_numpy()              # x-axis: 2^N
     decomposed_depth = df["decomposed_depth"].to_numpy()
     transpiled_depth = df["transpiled_depth"].to_numpy()
 
-    # Reference curve  c·log³ n  (poly-log depth expected for HHL)
-    c      = 4.0
-    ref    = c * np.log(n) ** 3
+    # Reference curves
+    c          = 1000
+    ref_log3   = c * np.log(n) ** 3
+    ref_log2   = 30 * np.log(n) ** 2              # ← NEW curve
 
     # --------------------------------------------------------------------
     # Styling
     # --------------------------------------------------------------------
     colours = {"decomposed_depth": "orange",
                "transpiled_depth": "green",
-               "ref":              "blue"}
+               "ref_log2":         "red",
+               "ref_log3":         "blue"}
     markers = {"decomposed_depth": "s",
                "transpiled_depth": "^"}
-    labels  = {"decomposed_depth": "Decomposed circuit depth",
-               "transpiled_depth": "Brickwork graph depth",
-               "ref":              r"$c \cdot \log^{3} n$"}
+    labels  = {"decomposed_depth": "Decomposed depth",
+               "transpiled_depth": "Brickwork depth",
+               "ref_log2":         r"$c_1 \cdot \log^{2} N$",
+               "ref_log3":         r"$c_2 \cdot \log^{3} N$"}
 
-    mark_every = max(1, len(n) // 8)                      # sparsify markers
+    mark_every = max(1, len(n) // 8)
 
-    y_min = max(1, np.min([decomposed_depth, transpiled_depth, ref]))
-    y_max = np.max([decomposed_depth, transpiled_depth, ref]) * 1.3
+    y_min = max(1, np.min([*decomposed_depth, *transpiled_depth,
+                           *ref_log2, *ref_log3]))
+    y_max = np.max([*decomposed_depth, *transpiled_depth,
+                    *ref_log2, *ref_log3]) * 1.3
 
     # --------------------------------------------------------------------
     # Figure
@@ -155,10 +176,17 @@ def plot_single_hhl_dataset(name_of_plot: str = "hhl_default.png"):
                 markeredgecolor="white",
                 markeredgewidth=1.7)
 
-    ax.plot(n, ref,
-            label=labels["ref"],
-            color=colours["ref"],
+    # Reference curves (no markers)
+    ax.plot(n, ref_log3,
+            label=labels["ref_log3"],
+            color=colours["ref_log3"],
             linestyle="--",
+            linewidth=2.4,
+            alpha=0.9)
+    ax.plot(n, ref_log2,
+            label=labels["ref_log2"],
+            color=colours["ref_log2"],
+            linestyle="-.",
             linewidth=2.4,
             alpha=0.9)
 
@@ -166,25 +194,21 @@ def plot_single_hhl_dataset(name_of_plot: str = "hhl_default.png"):
     # Axes and legend
     # --------------------------------------------------------------------
     ax.set_title("HHL Transpilation Cost", fontsize=15, fontweight="bold")
-    ax.set_xlabel(r"Input circuit size $n$ (log scale)", fontsize=13)
-    ax.set_ylabel(r"Depth (log scale)", fontsize=13)
+    ax.set_xlabel(r"Problem size $N = 2^{n}$", fontsize=13)
+    ax.set_ylabel("Depth (log scale)", fontsize=13)
     ax.set_xscale("log")
     ax.set_yscale("log")
     ax.set_ylim(y_min, y_max)
 
-    ax.xaxis.set_major_locator(mticker.LogLocator(base=10, numticks=10))
-    ax.xaxis.set_major_formatter(
-        mticker.FuncFormatter(lambda v, _: f"{int(v):d}" if v >= 1 else "")
-    )
-    ax.xaxis.set_minor_locator(mticker.LogLocator(base=10,
-                                                  subs=np.arange(1, 10) * 0.1,
-                                                  numticks=100))
-    ax.xaxis.set_minor_formatter(mticker.NullFormatter())
+    # — clean powers-of-10 ticks only —
+    ax.xaxis.set_major_locator(mticker.LogLocator(base=10.0))
+    ax.xaxis.set_major_formatter(mticker.LogFormatterMathtext(base=10.0))
+    ax.xaxis.set_minor_locator(mticker.NullLocator())
 
     ax.tick_params(axis="both", which="major", labelsize=12)
     ax.grid(axis="y", which="both", linestyle=":", alpha=0.35)
 
-    # Custom legend with matching markers
+    # Legend (matching markers/linestyles)
     legend_handles = [
         Line2D([0], [0], color=colours["decomposed_depth"],
                marker=markers["decomposed_depth"], linestyle="-",
@@ -194,8 +218,10 @@ def plot_single_hhl_dataset(name_of_plot: str = "hhl_default.png"):
                marker=markers["transpiled_depth"], linestyle="-",
                markersize=8, label=labels["transpiled_depth"],
                markeredgecolor="white", markeredgewidth=1.7),
-        Line2D([0], [0], color=colours["ref"], linestyle="--", linewidth=3,
-               label=labels["ref"]),
+        Line2D([0], [0], color=colours["ref_log2"], linestyle="-.",
+               linewidth=3, label=labels["ref_log2"]),
+        Line2D([0], [0], color=colours["ref_log3"], linestyle="--",
+               linewidth=3, label=labels["ref_log3"]),
     ]
     ax.legend(handles=legend_handles, fontsize=13, frameon=False, loc="best")
 

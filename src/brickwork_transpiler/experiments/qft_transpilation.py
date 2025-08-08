@@ -3,6 +3,7 @@ import os
 import csv
 
 from qiskit.circuit.library import QFT
+from qiskit.pulse import num_qubits
 
 from src.brickwork_transpiler import brickwork_transpiler, circuits
 
@@ -36,22 +37,22 @@ def experiment_qft_transpilation():
     max_size = 30
 
 
-    for num_qubits in range(3, max_size):
-
-        # Build the canonical QFT from the library
-        qft_circ = QFT(num_qubits=num_qubits,
-                       approximation_degree=0,  # exact QFT
-                       do_swaps=True,
-                       inverse=False,
-                       name=f"QFT_{num_qubits}")
-
-        # print("Transpiling...")
-        instr_mat = brickwork_transpiler.transpile(qft_circ, routing_method='sabre', layout_method='sabre',
-                                                   return_mat=True, file_writer=writer)
-
-        writer.set("transpiled_depth", len(instr_mat[0]))
-        writer.set("original_depth", qft_circ.depth())
-        writer.flush()
+    # for num_qubits in range(3, max_size):
+    #
+    #     # Build the canonical QFT from the library
+    #     qft_circ = QFT(num_qubits=num_qubits,
+    #                    approximation_degree=0,  # exact QFT
+    #                    do_swaps=True,
+    #                    inverse=False,
+    #                    name=f"QFT_{num_qubits}")
+    #
+    #     # print("Transpiling...")
+    #     instr_mat = brickwork_transpiler.transpile(qft_circ, routing_method='sabre', layout_method='sabre',
+    #                                                return_mat=True, file_writer=writer)
+    #
+    #     writer.set("transpiled_depth", len(instr_mat[0]))
+    #     writer.set("original_depth", qft_circ.depth())
+    #     writer.flush()
 
     plot_single_qft_dataset("Thesis_qft_transpilation_cost.png")
 
@@ -61,6 +62,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 from matplotlib.lines import Line2D
+import os
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
+from matplotlib.lines import Line2D
+
 
 def plot_single_qft_dataset(name_of_plot: str = "qft_default.png"):
     base_dir = "src/brickwork_transpiler/experiments/data/output_data/"
@@ -76,27 +84,44 @@ def plot_single_qft_dataset(name_of_plot: str = "qft_default.png"):
     decomposed_depth = df["decomposed_depth"].to_numpy()
     transpiled_depth = df["transpiled_depth"].to_numpy()
 
+    n_qubits = np.arange(3, 3 + len(df))  # 3,4,5,...
+
     # Reference curve  c·√n·log²n
-    c         = 4.0
-    nlogn_ref = c * np.sqrt(n) * np.log(n)**2
+    c         = 50
+    nlogn_ref = c * np.sqrt(n_qubits) * np.log(n_qubits)**2
+
+    # -------------------------------------------------------
+    # NEW: qubit-count reference  log²(n_qubits)
+    #        first row = 3 qubits, then +1 per row
+    # -------------------------------------------------------
+    log2_ref   =  10 * np.log(n_qubits) ** 2          # no prefactor
+    # -------------------------------------------------------
 
     # -------------------------------------------------------
     # Styling
     # -------------------------------------------------------
     colours = {"decomposed_depth": "orange",
                "transpiled_depth": "green",
-               "nlogn_ref":        "blue"}
+               "nlogn_ref":        "blue",
+               "log2_ref":         "red"}        # NEW colour
     markers = {"decomposed_depth": "s",
                "transpiled_depth": "^"}
     labels  = {"decomposed_depth": "Decomposed circuit depth",
                "transpiled_depth": "Brickwork graph depth",
-               "nlogn_ref":        r"$c \cdot \sqrt{n}\,\log^2 n$"}
+               "nlogn_ref":        r"$c_1 \cdot \sqrt{N}\,\log^2 N$",
+               "log2_ref":         r"$c_2 \cdot \log^{2} N$"}
 
     # show at most ~8 markers per curve
     mark_every = max(1, len(n) // 8)
 
-    y_min = max(1, np.min([decomposed_depth, transpiled_depth, nlogn_ref]))
-    y_max = np.max([decomposed_depth, transpiled_depth, nlogn_ref]) * 1.3
+    y_min = max(1, np.min([*decomposed_depth,
+                           *transpiled_depth,
+                           *nlogn_ref,
+                           *log2_ref]))
+    y_max = np.max([*decomposed_depth,
+                    *transpiled_depth,
+                    *nlogn_ref,
+                    *log2_ref]) * 1.3
 
     # -------------------------------------------------------
     # Figure
@@ -107,15 +132,16 @@ def plot_single_qft_dataset(name_of_plot: str = "qft_default.png"):
         ax.plot(n, locals()[key],
                 label=labels[key],
                 marker=markers[key],
-                markevery=mark_every,          # <<< sparsify markers
+                markevery=mark_every,
                 linestyle="-",
                 color=colours[key],
                 linewidth=2.7,
-                markersize=8,                  # <<< slightly smaller
+                markersize=8,
                 alpha=0.97,
                 markeredgecolor="white",
                 markeredgewidth=1.7)
 
+    # Guide curves (no markers)
     ax.plot(n, nlogn_ref,
             label=labels["nlogn_ref"],
             color=colours["nlogn_ref"],
@@ -123,20 +149,27 @@ def plot_single_qft_dataset(name_of_plot: str = "qft_default.png"):
             linewidth=2.4,
             alpha=0.9)
 
+    ax.plot(n, log2_ref,
+            label=labels["log2_ref"],
+            color=colours["log2_ref"],
+            linestyle="-.",
+            linewidth=2.4,
+            alpha=0.9)
+
     # -------------------------------------------------------
     # Axes and legend
     # -------------------------------------------------------
     ax.set_title("QFT Transpilation Cost", fontsize=15, fontweight="bold")
-    ax.set_xlabel(r"Input circuit size $n$ (log scale)", fontsize=13)
+    ax.set_xlabel(r"Input circuit size (log scale)", fontsize=13)
     ax.set_ylabel(r"Depth (log scale)", fontsize=13)
     ax.set_xscale("log")
     ax.set_yscale("log")
     ax.set_ylim(y_min, y_max)
 
     ax.xaxis.set_major_locator(mticker.LogLocator(base=10, numticks=10))
-    ax.xaxis.set_major_formatter(mticker.FuncFormatter(
-        lambda v, _: f"{int(v):d}" if v >= 1 else ""))
-
+    ax.xaxis.set_major_formatter(
+        mticker.FuncFormatter(lambda v, _: f"{int(v):d}" if v >= 1 else "")
+    )
     ax.xaxis.set_minor_locator(mticker.LogLocator(base=10,
                                                   subs=np.arange(1, 10) * 0.1,
                                                   numticks=100))
@@ -146,14 +179,18 @@ def plot_single_qft_dataset(name_of_plot: str = "qft_default.png"):
     ax.grid(axis="y", which="both", linestyle=":", alpha=0.35)
 
     legend_handles = [
-        Line2D([0], [0], color=colours["decomposed_depth"], marker=markers["decomposed_depth"],
-               linestyle="-", markersize=8, label=labels["decomposed_depth"],
+        Line2D([0], [0], color=colours["decomposed_depth"],
+               marker=markers["decomposed_depth"], linestyle="-",
+               markersize=8, label=labels["decomposed_depth"],
                markeredgecolor="white", markeredgewidth=1.7),
-        Line2D([0], [0], color=colours["transpiled_depth"], marker=markers["transpiled_depth"],
-               linestyle="-", markersize=8, label=labels["transpiled_depth"],
+        Line2D([0], [0], color=colours["transpiled_depth"],
+               marker=markers["transpiled_depth"], linestyle="-",
+               markersize=8, label=labels["transpiled_depth"],
                markeredgecolor="white", markeredgewidth=1.7),
-        Line2D([0], [0], color=colours["nlogn_ref"], linestyle="--", linewidth=3,
-               label=labels["nlogn_ref"]),
+        Line2D([0], [0], color=colours["nlogn_ref"], linestyle="--",
+               linewidth=3, label=labels["nlogn_ref"]),
+        Line2D([0], [0], color=colours["log2_ref"], linestyle="-.",
+               linewidth=3, label=labels["log2_ref"]),
     ]
     ax.legend(handles=legend_handles, fontsize=13, frameon=False, loc="best")
 
