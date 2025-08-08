@@ -293,7 +293,7 @@ def get_writer(file_name: str, file_path: str="src/brickwork_transpiler/experime
 
 
     header = ["num_iterations", "decomposed_depth", "transpiled_depth", "original_depth", "num_gates_original",
-              "num_gates_transpiled"]
+              "num_gates_transpiled", "L", "g"]
 
     return src.brickwork_transpiler.utils.BufferedCSVWriter(file_path + file_name, header)
 

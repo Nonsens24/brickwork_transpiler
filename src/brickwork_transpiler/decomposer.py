@@ -305,39 +305,103 @@ from math import pi
 from qiskit import QuantumCircuit, AncillaRegister
 from qiskit.circuit.library import MCXRecursive, MCXGate, PhaseGate
 
+from math import pi
+from qiskit import QuantumCircuit, AncillaRegister
+from qiskit.circuit.library import MCXRecursive, MCXGate, PhaseGate
+
 def linearise_multi_ctrl(qc: QuantumCircuit) -> QuantumCircuit:
-    """Replace MCX (>2-ctrl) and MCU1/MCPhase (>1-ctrl) with linear (1-anc) circuits."""
-    # ▸ ensure ≥2 ancillas exist in qc
+    """Linear-depth replacements for MCX (>2-ctrl) and MCU1/MCP (>1-ctrl)."""
+
+    # ▸ make sure we have at least TWO ancillas available
     if not any(r.name == 'anc' for r in qc.qregs):
         qc.add_register(AncillaRegister(2, 'anc'))
+    elif len(next(r for r in qc.qregs if r.name == 'anc')) < 2:
+        qc.add_register(AncillaRegister(2 - len(next(r for r in qc.qregs if r.name == 'anc')), 'anc_ext'))
+
     anc_reg = next(r for r in qc.qregs if r.name.startswith('anc'))
     phase_anc, scratch_anc = anc_reg[:2]
 
     out = QuantumCircuit(*qc.qregs, *qc.cregs, name=qc.name)
 
     for inst, q, c in qc.data:
+
         # ---------- MCX (>2 controls) ----------
         if isinstance(inst, MCXGate) and inst.num_ctrl_qubits > 2:
             k = inst.num_ctrl_qubits
-            extra = [scratch_anc] if k >= 5 else []
-            out.append(MCXRecursive(k), q + extra + [phase_anc], c)
+            if k >= 5:
+                # controls + phase_anc (single ancilla) + target
+                out.append(MCXRecursive(k), q + [phase_anc], c)
+            else:          # k = 3 or 4 → no ancilla
+                out.append(MCXRecursive(k), q, c)
 
-        # ---------- MCU1  /  MCPhase (>1 control) ----------
+        # ---------- MCU1 / MCPhase (>1 control) ----------
         elif inst.name.lower() in ('mcu1', 'mcphase') and len(q) > 2:
-            theta  = float(inst.params[0]) % (2 * pi)
+            theta = float(inst.params[0]) % (2 * pi)
             ctrls, target = q[:-1], q[-1]
             k = len(ctrls)
 
-            extra = [scratch_anc] if k >= 5 else []
-            out.append(MCXRecursive(k), ctrls + extra + [phase_anc])
+            # Step 1: compute AND of controls into phase_anc
+            if k >= 5:
+                out.append(MCXRecursive(k), ctrls + [scratch_anc, phase_anc])
+            else:
+                out.append(MCXRecursive(k), ctrls + [phase_anc])
+
+            # Step 2: controlled-phase from phase_anc to target
             out.append(PhaseGate(theta).control(1), [phase_anc, target])
-            out.append(MCXRecursive(k), ctrls + extra + [phase_anc])
+
+            # Step 3: un-compute phase_anc
+            if k >= 5:
+                out.append(MCXRecursive(k), ctrls + [scratch_anc, phase_anc])
+            else:
+                out.append(MCXRecursive(k), ctrls + [phase_anc])
 
         # ---------- everything else ----------
         else:
             out.append(inst, q, c)
 
     return out
+
+
+# def linearise_multi_ctrl(qc: QuantumCircuit) -> QuantumCircuit:
+#     """Replace MCX (>2-ctrl) and MCU1/MCPhase (>1-ctrl) with linear (1-anc) circuits."""
+#     # ▸ ensure ≥2 ancillas exist in qc
+#     if not any(r.name == 'anc' for r in qc.qregs):
+#         qc.add_register(AncillaRegister(2, 'anc'))
+#     anc_reg = next(r for r in qc.qregs if r.name.startswith('anc'))
+#     phase_anc, scratch_anc = anc_reg[:2]
+#
+#     out = QuantumCircuit(*qc.qregs, *qc.cregs, name=qc.name)
+#
+#     for inst, q, c in qc.data:
+#         # ---------- MCX (>2 controls) ----------
+#         if isinstance(inst, MCXGate) and inst.num_ctrl_qubits > 2:
+#             k = inst.num_ctrl_qubits
+#             if k >= 5:  # needs ancillas
+#                 out.append(MCXRecursive(k),
+#                            q + [scratch_anc, phase_anc], c)
+#             else:  # k = 3 or 4, no ancilla
+#                 out.append(MCXRecursive(k), q, c)
+#         # if isinstance(inst, MCXGate) and inst.num_ctrl_qubits > 2:
+#         #     k = inst.num_ctrl_qubits
+#         #     extra = [scratch_anc] if k >= 5 else []
+#         #     out.append(MCXRecursive(k), q + extra + [phase_anc], c)
+#
+#         # ---------- MCU1  /  MCPhase (>1 control) ----------
+#         elif inst.name.lower() in ('mcu1', 'mcphase') and len(q) > 2:
+#             theta  = float(inst.params[0]) % (2 * pi)
+#             ctrls, target = q[:-1], q[-1]
+#             k = len(ctrls)
+#
+#             extra = [scratch_anc] if k >= 5 else []
+#             out.append(MCXRecursive(k), ctrls + extra + [phase_anc])
+#             out.append(PhaseGate(theta).control(1), [phase_anc, target])
+#             out.append(MCXRecursive(k), ctrls + extra + [phase_anc])
+#
+#         # ---------- everything else ----------
+#         else:
+#             out.append(inst, q, c)
+#
+#     return out
 
 
 
@@ -355,8 +419,9 @@ def decompose_qc_to_bricks_qiskit(
 ):
     print("before:", qc.count_ops())  # {'mcphase': 1}
 
-    qc_dec = selective_decompose(qc)
-    qc_lin = linearise_multi_ctrl(qc_dec)
+    qc_sel = selective_decompose(qc)
+    print("Selectively decomposed: ", qc_sel.count_ops())
+    qc_lin = linearise_multi_ctrl(qc_sel)
     print("after :", qc_lin.count_ops())  # ≈ 188 cx, 189 rz
 
     # only MCX needs a plug-in now (Qiskit 0.46.3 already has it)
@@ -388,7 +453,7 @@ def decompose_qc_to_bricks_qiskit(
     if file_writer:
         file_writer.set("decomposed_depth",     qc_final.depth())
         file_writer.set("num_gates_transpiled", sum(qc_final.count_ops().values()))
-        file_writer.set("num_gates_original",   sum(qc.decompose(reps=2).count_ops().values()))
+        file_writer.set("num_gates_original",   sum(qc_sel.count_ops().values()))
 
 
     return qc_final

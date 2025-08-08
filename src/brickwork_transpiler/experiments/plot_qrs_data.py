@@ -88,161 +88,161 @@ def get_total_gates(gate_list):
     """Returns the sum of all gates for each entry in the experiment."""
     return [sum(entry.values()) for entry in gate_list]
 
-def plot_grover_database_scaling():
-    data = {
-        'Full -- one match': {
-            'iterations': [1, 2, 3, 4, 6, 8],
-            'orig_depth': [21, 38, 73, 144, 283, 576],
-            'decomposed_depth': [284, 1126, 4874, 20937, 83952, 356365],
-            'transpiled_depth': [354, 1496, 5496, 23882, 93400, 382146],
-            'gates': [
-                {'cx': 289, 'rz': 155, 'rx': 68},
-                {'cx': 1003, 'rz': 531, 'rx': 225},
-                {'cx': 3560, 'rz': 2902, 'rx': 1533},
-                {'cx': 16917, 'rz': 11814, 'rx': 4872},
-                {'cx': 69713, 'rz': 48645, 'rx': 21115},
-                {'cx': 291657, 'rz': 213647, 'rx': 99040},
-            ]
-        },
-        'Full -- no match': {
-            'iterations': [0, 0, 0, 0, 0, 0],
-            'orig_depth': [21, 38, 73, 144, 283, 576],
-            'decomposed_depth': [298, 1119, 4864, 20761, 83588, 358118],
-            'transpiled_depth': [359, 1497, 5439, 23701, 93198, 382490],
-            'gates': [
-                {'cx': 276, 'rz': 164, 'rx': 79},
-                {'cx': 1001, 'rz': 520, 'rx': 214},
-                {'cx': 3564, 'rz': 2948, 'rx': 1578},
-                {'cx': 16944, 'rz': 11757, 'rx': 4829},
-                {'cx': 69798, 'rz': 48451, 'rx': 20890},
-                {'cx': 291528, 'rz': 214746, 'rx': 100287},
-            ]
-        },
-        'Full -- subset match': {
-            'iterations': [1, 1, 2, 3, 4, 6],
-            'orig_depth': [21, 38, 73, 144, 283, 576],
-            'decomposed_depth': [296, 1112, 4874, 20725, 84358, 360447],
-            'transpiled_depth': [359, 1501, 5442, 23806, 93284, 382696],
-            'gates': [
-                {'cx': 276, 'rz': 163, 'rx': 79},
-                {'cx': 988, 'rz': 502, 'rx': 195},
-                {'cx': 3555, 'rz': 2941, 'rx': 1583},
-                {'cx': 16982, 'rz': 11656, 'rx': 4721},
-                {'cx': 69681, 'rz': 49044, 'rx': 21562},
-                {'cx': 290926, 'rz': 216861, 'rx': 102493},
-            ]
-        },
-    }
-
-    # Database size: 2^2, ..., 2^7
-    x_exponents = np.arange(2, 8)
-    database_sizes = 2 ** x_exponents
-    x_labels = [f"$2^{exp}$" for exp in x_exponents]
-
-    # Colours as requested
-    colours = {
-        "orig_depth": "red",
-        "decomposed_depth": "orange",
-        "transpiled_depth": "green",
-        "nlogn": "blue",
-    }
-    markers = {
-        "orig_depth": "o",
-        "decomposed_depth": "s",
-        "transpiled_depth": "^",
-    }
-    depth_labels = {
-        "orig_depth": "Original circuit depth",
-        "decomposed_depth": "Only decomposed depth",
-        "transpiled_depth": "Circuit depth after transpilation",
-        "nlogn": r"$n \log n$ (sum of gates)",
-    }
-
-    # Precompute all gate sums and n*log n for y-limits
-    all_yvals = []
-    nlogn_dict = {}
-    for exp, exp_data in data.items():
-        gate_sums = get_total_gates(exp_data['gates'])
-        nlogn = [n * np.log(n) if n > 0 else 0 for n in gate_sums]
-        nlogn_dict[exp] = nlogn
-        all_yvals.extend(exp_data['orig_depth'])
-        all_yvals.extend(exp_data['decomposed_depth'])
-        all_yvals.extend(exp_data['transpiled_depth'])
-        all_yvals.extend(nlogn)
-
-    # Global y-limits (log scale)
-    ymin = max(1, min(all_yvals))
-    ymax = max(all_yvals) * 1.3  # a little headroom
-
-    fig, axs = plt.subplots(1, 3, figsize=(18, 6.5), sharey=True)
-
-    for ax, (exp_name, exp_data) in zip(axs, data.items()):
-        x = database_sizes
-        # Main lines
-        for key in ['orig_depth', 'decomposed_depth', 'transpiled_depth']:
-            ax.plot(
-                x, exp_data[key],
-                label=depth_labels[key],
-                marker=markers[key],
-                linestyle='-',
-                color=colours[key],
-                linewidth=2.7,
-                markersize=11,
-                alpha=0.97,
-                markeredgecolor='white',
-                markeredgewidth=1.7,
-            )
-        # n*log n line
-        nlogn = nlogn_dict[exp_name]
-        ax.plot(
-            x, nlogn,
-            label=depth_labels['nlogn'],
-            color=colours['nlogn'],
-            linestyle='--',
-            linewidth=2.5,
-            marker=None,
-            alpha=0.99,
-        )
-        # Annotate Grover iterations on transpiled line, numbers in black
-        for xi, yi, iters in zip(x, exp_data['transpiled_depth'], exp_data['iterations']):
-            ax.annotate(
-                str(iters), (xi, yi),
-                textcoords="offset points", xytext=(0, 13), ha='center',
-                fontsize=11, fontweight='bold', color='black',
-                bbox=dict(boxstyle='round,pad=0.14', fc='white', ec='none', alpha=0.60)
-            )
-        ax.set_title(exp_name, fontsize=15, fontweight='bold')
-        ax.set_xlabel("Database size $N = 2^x$", fontsize=13)
-        ax.set_xscale('log')
-        ax.set_yscale('log')
-        ax.set_ylim(ymin, ymax)
-        ax.set_xticks(database_sizes)
-        ax.set_xticklabels(x_labels)
-        ax.tick_params(axis='both', which='major', labelsize=12)
-        ax.grid(axis='y', which='both', linestyle=':', alpha=0.35)
-    axs[0].set_ylabel("Circuit depth / $n\\log n$ (log scale)", fontsize=13)
-
-    # Legend
-    legend_elements = [
-        Line2D([0], [0], color=colours['orig_depth'], marker=markers['orig_depth'], linestyle='-',
-               markersize=11, label=depth_labels['orig_depth'], markeredgecolor='white', markeredgewidth=1.7),
-        Line2D([0], [0], color=colours['decomposed_depth'], marker=markers['decomposed_depth'], linestyle='-',
-               markersize=11, label=depth_labels['decomposed_depth'], markeredgecolor='white', markeredgewidth=1.7),
-        Line2D([0], [0], color=colours['transpiled_depth'], marker=markers['transpiled_depth'], linestyle='-',
-               markersize=11, label=depth_labels['transpiled_depth'], markeredgecolor='white', markeredgewidth=1.7),
-        Line2D([0], [0], color=colours['nlogn'], linestyle='--', linewidth=3,
-               label=depth_labels['nlogn']),
-    ]
-    fig.legend(
-        handles=legend_elements,
-        loc='lower center', ncol=4, fontsize=13, frameon=False,
-        bbox_to_anchor=(0.52, -0.03)
-    )
-
-    plt.tight_layout(rect=[0, 0.04, 1, 0.97])
-    plt.show()
-
-    return nlogn_dict
+# def plot_grover_database_scaling():
+#     data = {
+#         'Full -- one match': {
+#             'iterations': [1, 2, 3, 4, 6, 8],
+#             'orig_depth': [21, 38, 73, 144, 283, 576],
+#             'decomposed_depth': [284, 1126, 4874, 20937, 83952, 356365],
+#             'transpiled_depth': [354, 1496, 5496, 23882, 93400, 382146],
+#             'gates': [
+#                 {'cx': 289, 'rz': 155, 'rx': 68},
+#                 {'cx': 1003, 'rz': 531, 'rx': 225},
+#                 {'cx': 3560, 'rz': 2902, 'rx': 1533},
+#                 {'cx': 16917, 'rz': 11814, 'rx': 4872},
+#                 {'cx': 69713, 'rz': 48645, 'rx': 21115},
+#                 {'cx': 291657, 'rz': 213647, 'rx': 99040},
+#             ]
+#         },
+#         'Full -- no match': {
+#             'iterations': [0, 0, 0, 0, 0, 0],
+#             'orig_depth': [21, 38, 73, 144, 283, 576],
+#             'decomposed_depth': [298, 1119, 4864, 20761, 83588, 358118],
+#             'transpiled_depth': [359, 1497, 5439, 23701, 93198, 382490],
+#             'gates': [
+#                 {'cx': 276, 'rz': 164, 'rx': 79},
+#                 {'cx': 1001, 'rz': 520, 'rx': 214},
+#                 {'cx': 3564, 'rz': 2948, 'rx': 1578},
+#                 {'cx': 16944, 'rz': 11757, 'rx': 4829},
+#                 {'cx': 69798, 'rz': 48451, 'rx': 20890},
+#                 {'cx': 291528, 'rz': 214746, 'rx': 100287},
+#             ]
+#         },
+#         'Full -- subset match': {
+#             'iterations': [1, 1, 2, 3, 4, 6],
+#             'orig_depth': [21, 38, 73, 144, 283, 576],
+#             'decomposed_depth': [296, 1112, 4874, 20725, 84358, 360447],
+#             'transpiled_depth': [359, 1501, 5442, 23806, 93284, 382696],
+#             'gates': [
+#                 {'cx': 276, 'rz': 163, 'rx': 79},
+#                 {'cx': 988, 'rz': 502, 'rx': 195},
+#                 {'cx': 3555, 'rz': 2941, 'rx': 1583},
+#                 {'cx': 16982, 'rz': 11656, 'rx': 4721},
+#                 {'cx': 69681, 'rz': 49044, 'rx': 21562},
+#                 {'cx': 290926, 'rz': 216861, 'rx': 102493},
+#             ]
+#         },
+#     }
+#
+#     # Database size: 2^2, ..., 2^7
+#     x_exponents = np.arange(2, 8)
+#     database_sizes = 2 ** x_exponents
+#     x_labels = [f"$2^{exp}$" for exp in x_exponents]
+#
+#     # Colours as requested
+#     colours = {
+#         "orig_depth": "red",
+#         "decomposed_depth": "orange",
+#         "transpiled_depth": "green",
+#         "nlogn": "blue",
+#     }
+#     markers = {
+#         "orig_depth": "o",
+#         "decomposed_depth": "s",
+#         "transpiled_depth": "^",
+#     }
+#     depth_labels = {
+#         "orig_depth": "Original circuit depth",
+#         "decomposed_depth": "Only decomposed depth",
+#         "transpiled_depth": "Circuit depth after transpilation",
+#         "nlogn": r"$n \log n$ (sum of gates)",
+#     }
+#
+#     # Precompute all gate sums and n*log n for y-limits
+#     all_yvals = []
+#     nlogn_dict = {}
+#     for exp, exp_data in data.items():
+#         gate_sums = get_total_gates(exp_data['gates'])
+#         nlogn = [n * np.log(n) if n > 0 else 0 for n in gate_sums]
+#         nlogn_dict[exp] = nlogn
+#         all_yvals.extend(exp_data['orig_depth'])
+#         all_yvals.extend(exp_data['decomposed_depth'])
+#         all_yvals.extend(exp_data['transpiled_depth'])
+#         all_yvals.extend(nlogn)
+#
+#     # Global y-limits (log scale)
+#     ymin = max(1, min(all_yvals))
+#     ymax = max(all_yvals) * 1.3  # a little headroom
+#
+#     fig, axs = plt.subplots(1, 3, figsize=(18, 6.5), sharey=True)
+#
+#     for ax, (exp_name, exp_data) in zip(axs, data.items()):
+#         x = database_sizes
+#         # Main lines
+#         for key in ['orig_depth', 'decomposed_depth', 'transpiled_depth']:
+#             ax.plot(
+#                 x, exp_data[key],
+#                 label=depth_labels[key],
+#                 marker=markers[key],
+#                 linestyle='-',
+#                 color=colours[key],
+#                 linewidth=2.7,
+#                 markersize=11,
+#                 alpha=0.97,
+#                 markeredgecolor='white',
+#                 markeredgewidth=1.7,
+#             )
+#         # n*log n line
+#         nlogn = nlogn_dict[exp_name]
+#         ax.plot(
+#             x, nlogn,
+#             label=depth_labels['nlogn'],
+#             color=colours['nlogn'],
+#             linestyle='--',
+#             linewidth=2.5,
+#             marker=None,
+#             alpha=0.99,
+#         )
+#         # Annotate Grover iterations on transpiled line, numbers in black
+#         for xi, yi, iters in zip(x, exp_data['transpiled_depth'], exp_data['iterations']):
+#             ax.annotate(
+#                 str(iters), (xi, yi),
+#                 textcoords="offset points", xytext=(0, 13), ha='center',
+#                 fontsize=11, fontweight='bold', color='black',
+#                 bbox=dict(boxstyle='round,pad=0.14', fc='white', ec='none', alpha=0.60)
+#             )
+#         ax.set_title(exp_name, fontsize=15, fontweight='bold')
+#         ax.set_xlabel("Database size $N = 2^x$", fontsize=13)
+#         ax.set_xscale('log')
+#         ax.set_yscale('log')
+#         ax.set_ylim(ymin, ymax)
+#         ax.set_xticks(database_sizes)
+#         ax.set_xticklabels(x_labels)
+#         ax.tick_params(axis='both', which='major', labelsize=12)
+#         ax.grid(axis='y', which='both', linestyle=':', alpha=0.35)
+#     axs[0].set_ylabel("Circuit depth / $n\\log n$ (log scale)", fontsize=13)
+#
+#     # Legend
+#     legend_elements = [
+#         Line2D([0], [0], color=colours['orig_depth'], marker=markers['orig_depth'], linestyle='-',
+#                markersize=11, label=depth_labels['orig_depth'], markeredgecolor='white', markeredgewidth=1.7),
+#         Line2D([0], [0], color=colours['decomposed_depth'], marker=markers['decomposed_depth'], linestyle='-',
+#                markersize=11, label=depth_labels['decomposed_depth'], markeredgecolor='white', markeredgewidth=1.7),
+#         Line2D([0], [0], color=colours['transpiled_depth'], marker=markers['transpiled_depth'], linestyle='-',
+#                markersize=11, label=depth_labels['transpiled_depth'], markeredgecolor='white', markeredgewidth=1.7),
+#         Line2D([0], [0], color=colours['nlogn'], linestyle='--', linewidth=3,
+#                label=depth_labels['nlogn']),
+#     ]
+#     fig.legend(
+#         handles=legend_elements,
+#         loc='lower center', ncol=4, fontsize=13, frameon=False,
+#         bbox_to_anchor=(0.52, -0.03)
+#     )
+#
+#     plt.tight_layout(rect=[0, 0.04, 1, 0.97])
+#     plt.show()
+#
+#     return nlogn_dict
 
 
 
@@ -274,6 +274,7 @@ def plot_qrs_with_db_scaling_from_files(name_of_plot="default.png"):
     #     "Full -- one match duplicates": "experiment_qrs_full_one_match_duplicates.csv",
     # }
 
+    # plot_exps = ["Full -- one match", "Full -- no match", "Full -- subset match", "Full -- one match duplicates"]
     plot_exps = ["No db -- one match", "No db -- no match", "No db -- subset match", "No db -- one match duplicates"]
     # plot_exps = ["No db -- no match", "No db -- subset match", "No db -- one match duplicates"]
     data = {}
@@ -299,25 +300,26 @@ def plot_qrs_with_db_scaling_from_files(name_of_plot="default.png"):
     x_labels = [f"$2^{exp}$" for exp in x_exponents]
 
     colours = {
-        "orig_depth": "red",
+        "L": "red",
         "decomposed_depth": "orange",
         "transpiled_depth": "green",
         "nlogn_orig": "blue",  # now dark blue
     }
     markers = {
-        "orig_depth": "o",
+        "L": "o",
         "decomposed_depth": "s",
         "transpiled_depth": "^",
     }
     depth_labels = {
-        "orig_depth": "Original circuit depth",
-        "decomposed_depth": "Only decomposed depth",
-        "transpiled_depth": "Circuit depth after transpilation",
-        "nlogn_orig": r"$c \cdot n \log n$ (original gates)",  # c is explained below
+        "L": "Database size (L)",
+        "decomposed_depth": "Decomposed circuit depth",
+        "transpiled_depth": "Brickwork graph depth",
+        # "nlogn_orig": r"$c \cdot n \log n$ (original gates)",  # c is explained below
+        "nlogn_orig": r"$c \cdot \sqrt{L} \log L$",
     }
 
     # Set this constant to scale the nlogn line
-    scaling_const = 3000  # <-- CHANGE THIS VALUE as needed
+    scaling_const = 5000  # <-- CHANGE THIS VALUE as needed
 
     all_yvals = []
     nlogn_orig_dict = {}
@@ -328,9 +330,10 @@ def plot_qrs_with_db_scaling_from_files(name_of_plot="default.png"):
         # Multiply by scaling constant here
         # nlogn_orig = scaling_const * 396 * n_gates_orig * np.log(n_gates_orig) + np.sqrt(_L/_g)
         # nlogn_orig = scaling_const * 396 * np.log2(n_gates_orig)**2 + np.log2(n_gates_orig) * 400* np.sqrt(_L / _g)
+        # nlogn_orig = scaling_const * n_gates_orig * np.log2(n_gates_orig)
         nlogn_orig = scaling_const * np.sqrt(_L)*np.log(_L)
         nlogn_orig_dict[exp] = nlogn_orig
-        all_yvals.extend(exp_data["orig_depth"])
+        all_yvals.extend(exp_data["L"])
         all_yvals.extend(exp_data["decomposed_depth"])
         all_yvals.extend(exp_data["transpiled_depth"])
         all_yvals.extend(nlogn_orig)
@@ -344,8 +347,8 @@ def plot_qrs_with_db_scaling_from_files(name_of_plot="default.png"):
     for idx, exp in enumerate(plot_exps):
         ax = axs[idx]
         exp_data = data[exp]
-        x = database_sizes[:len(exp_data["orig_depth"])]
-        for key in ['orig_depth', 'decomposed_depth', 'transpiled_depth']:
+        x = database_sizes[:len(exp_data["L"])]
+        for key in ['L', 'decomposed_depth', 'transpiled_depth']:
             ax.plot(
                 x, exp_data[key],
                 label=depth_labels[key],
@@ -388,8 +391,8 @@ def plot_qrs_with_db_scaling_from_files(name_of_plot="default.png"):
 
     # Place the legend and keep a handle to it
     legend_elements = [
-        Line2D([0], [0], color=colours['orig_depth'], marker=markers['orig_depth'], linestyle='-',
-               markersize=11, label=depth_labels['orig_depth'], markeredgecolor='white', markeredgewidth=1.7),
+        Line2D([0], [0], color=colours['L'], marker=markers['L'], linestyle='-',
+               markersize=11, label=depth_labels['L'], markeredgecolor='white', markeredgewidth=1.7),
         Line2D([0], [0], color=colours['decomposed_depth'], marker=markers['decomposed_depth'], linestyle='-',
                markersize=11, label=depth_labels['decomposed_depth'], markeredgecolor='white', markeredgewidth=1.7),
         Line2D([0], [0], color=colours['transpiled_depth'], marker=markers['transpiled_depth'], linestyle='-',

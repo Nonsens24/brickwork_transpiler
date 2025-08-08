@@ -34,22 +34,28 @@ def qrs(n_items, feature_mat, user_vector, feature_subset, g, plot_circ=False, p
     # qc = QuantumCircuit(total_qubits, num_db_feature_qubits)
 
     # print("Running database initialisation...")
-    # qrs_init = initialise_database(qc, id_qubits, feature_qubits, user_qubits, user_vector, feature_mat)
+    qrs_init = initialise_database(qc, id_qubits, feature_qubits, user_qubits, user_vector, feature_mat)
 
     # print("Running Q-KNN...")
-    qrs_knn = knn(qc, feature_qubits, user_qubits)
+    qrs_knn = knn(qrs_init, feature_qubits, user_qubits)
 
-    qA = qc.qregs[-1][0] if qc.qregs and qc.qregs[-1].name == 'qA' else None
-    if qA is None:
-        grov = QuantumRegister(1, "qA")
-        qc.add_register(grov)
-        qA = grov[0]
-    qc.x(qA); qc.h(qA)
+    if grover_iterations != 0:
 
-    # print("Running Grover...")
-    qrs_amplified = amplify_recommendations(qrs_knn, feature_qubits, user_qubits, user_vector, len(feature_mat), g,
-                                            feature_subset, plot=plot_histogram, iterations=grover_iterations,
-                                            file_writer=file_writer)
+        qA = qc.qregs[-1][0] if qc.qregs and qc.qregs[-1].name == 'qA' else None
+        if qA is None:
+            grov = QuantumRegister(1, "qA")
+            qc.add_register(grov)
+            qA = grov[0]
+        qc.x(qA); qc.h(qA)
+
+        # print("Running Grover...")
+        qrs_amplified = amplify_recommendations(qrs_knn, feature_qubits, user_qubits, user_vector, len(feature_mat), g,
+                                                feature_subset, plot=plot_histogram, iterations=grover_iterations,
+                                                file_writer=file_writer)
+
+    else:
+        print("No amplification")
+        qrs_amplified = qrs_knn
 
     # Build and draw the circuit
     if plot_circ:

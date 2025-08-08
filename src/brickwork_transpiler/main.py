@@ -24,7 +24,8 @@ from src.brickwork_transpiler import brickwork_transpiler
 from src.brickwork_transpiler.algorithms import qrs_knn_grover
 from src.brickwork_transpiler.algorithms.hhl import generate_example_hhl_QC
 from src.brickwork_transpiler.bfk_encoder import bfk_encoder
-from src.brickwork_transpiler.experiments import qrs_full_transpilation, plot_qrs_data, qrs_no_db_transpilation
+from src.brickwork_transpiler.experiments import qrs_full_transpilation, plot_qrs_data, qrs_no_db_transpilation, \
+    qft_transpilation, hhl_transpilation
 from src.brickwork_transpiler.noise import DepolarisingInjector
 # from src.brickwork_transpiler.noise import to_noisy_pattern
 import src.brickwork_transpiler.circuits as circuits
@@ -86,10 +87,10 @@ def main():
     # import qiskit.circuit.library.standard_gates as sg
     # print(dir(sg))
 
-    qrs_no_db_transpilation.experiment_qrs_no_db_no_matching_element()
-    qrs_no_db_transpilation.experiment_qrs_no_db_subset_grover()
-    qrs_no_db_transpilation.experiment_qrs_no_db_one_match_duplicates()
-    qrs_no_db_transpilation.experiment_qrs_no_db_one_matching_element()
+    # qrs_no_db_transpilation.experiment_qrs_no_db_no_matching_element()
+    # qrs_no_db_transpilation.experiment_qrs_no_db_subset_grover()
+    # qrs_no_db_transpilation.experiment_qrs_no_db_one_match_duplicates()
+    # qrs_no_db_transpilation.experiment_qrs_no_db_one_matching_element()
     # print("Full -- one match")
     # qrs_full_transpilation.experiment_qrs_full_one_matching_element()
     # print("Full -- no match")
@@ -105,7 +106,11 @@ def main():
     # qrs_no_db_transpilation.experiment_qrs_no_db_one_match_duplicates()
 
     # plot_qrs_full.plot_grover_database_scaling()
-    plot_qrs_data.plot_qrs_with_db_scaling_from_files(name_of_plot="thesis_exact_bound_scale_no_db_bugged4")
+
+    # qft_transpilation.experiment_qft_transpilation()
+    hhl_transpilation.experiment_hhl_transpilation(6)
+
+    # plot_qrs_data.plot_qrs_with_db_scaling_from_files(name_of_plot="thesis_qrs_plot_test")
 
 
     # # --- Find the flag qubit index robustly ---

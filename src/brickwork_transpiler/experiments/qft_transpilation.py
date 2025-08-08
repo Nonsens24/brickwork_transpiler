@@ -1,0 +1,162 @@
+import numpy as np
+import os
+import csv
+
+from qiskit.circuit.library import QFT
+
+from src.brickwork_transpiler import brickwork_transpiler, circuits
+
+import src.brickwork_transpiler.utils
+
+
+def get_writer(file_name: str, file_path: str = "src/brickwork_transpiler/experiments/data/output_data/"):
+
+    header = ["decomposed_depth", "transpiled_depth", "original_depth", "num_gates_original",
+              "num_gates_transpiled"]
+    full_path = os.path.join(file_path, file_name)
+
+    # Ensure the directory exists
+    os.makedirs(file_path, exist_ok=True)
+
+    # Create file with header if it doesn't exist
+    if not os.path.isfile(full_path):
+        with open(full_path, 'w', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(header)
+
+    # Now return your custom writer
+    return src.brickwork_transpiler.utils.BufferedCSVWriter(full_path, header)
+
+
+def experiment_qft_transpilation():
+
+    filename = "experiments_qft.csv"
+    writer = get_writer(filename)
+
+    max_size = 30
+
+
+    for num_qubits in range(3, max_size):
+
+        # Build the canonical QFT from the library
+        qft_circ = QFT(num_qubits=num_qubits,
+                       approximation_degree=0,  # exact QFT
+                       do_swaps=True,
+                       inverse=False,
+                       name=f"QFT_{num_qubits}")
+
+        # print("Transpiling...")
+        instr_mat = brickwork_transpiler.transpile(qft_circ, routing_method='sabre', layout_method='sabre',
+                                                   return_mat=True, file_writer=writer)
+
+        writer.set("transpiled_depth", len(instr_mat[0]))
+        writer.set("original_depth", qft_circ.depth())
+        writer.flush()
+
+    plot_single_qft_dataset("Thesis_qft_transpilation_cost.png")
+
+import os
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
+from matplotlib.lines import Line2D
+
+def plot_single_qft_dataset(name_of_plot: str = "qft_default.png"):
+    base_dir = "src/brickwork_transpiler/experiments/data/output_data/"
+    filename = "experiments_qft.csv"
+
+    # -------------------------------------------------------
+    # Load data   – drop n = 0 to avoid log(0)
+    # -------------------------------------------------------
+    df = pd.read_csv(os.path.join(base_dir, filename))
+    df = df[df["num_gates_original"] > 0]
+
+    n                = df["num_gates_original"].to_numpy()
+    decomposed_depth = df["decomposed_depth"].to_numpy()
+    transpiled_depth = df["transpiled_depth"].to_numpy()
+
+    # Reference curve  c·√n·log²n
+    c         = 4.0
+    nlogn_ref = c * np.sqrt(n) * np.log(n)**2
+
+    # -------------------------------------------------------
+    # Styling
+    # -------------------------------------------------------
+    colours = {"decomposed_depth": "orange",
+               "transpiled_depth": "green",
+               "nlogn_ref":        "blue"}
+    markers = {"decomposed_depth": "s",
+               "transpiled_depth": "^"}
+    labels  = {"decomposed_depth": "Decomposed circuit depth",
+               "transpiled_depth": "Brickwork graph depth",
+               "nlogn_ref":        r"$c \cdot \sqrt{n}\,\log^2 n$"}
+
+    # show at most ~8 markers per curve
+    mark_every = max(1, len(n) // 8)
+
+    y_min = max(1, np.min([decomposed_depth, transpiled_depth, nlogn_ref]))
+    y_max = np.max([decomposed_depth, transpiled_depth, nlogn_ref]) * 1.3
+
+    # -------------------------------------------------------
+    # Figure
+    # -------------------------------------------------------
+    fig, ax = plt.subplots(figsize=(8, 6))
+
+    for key in ("decomposed_depth", "transpiled_depth"):
+        ax.plot(n, locals()[key],
+                label=labels[key],
+                marker=markers[key],
+                markevery=mark_every,          # <<< sparsify markers
+                linestyle="-",
+                color=colours[key],
+                linewidth=2.7,
+                markersize=8,                  # <<< slightly smaller
+                alpha=0.97,
+                markeredgecolor="white",
+                markeredgewidth=1.7)
+
+    ax.plot(n, nlogn_ref,
+            label=labels["nlogn_ref"],
+            color=colours["nlogn_ref"],
+            linestyle="--",
+            linewidth=2.4,
+            alpha=0.9)
+
+    # -------------------------------------------------------
+    # Axes and legend
+    # -------------------------------------------------------
+    ax.set_title("QFT Transpilation Cost", fontsize=15, fontweight="bold")
+    ax.set_xlabel(r"Input circuit size $n$ (log scale)", fontsize=13)
+    ax.set_ylabel(r"Depth (log scale)", fontsize=13)
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_ylim(y_min, y_max)
+
+    ax.xaxis.set_major_locator(mticker.LogLocator(base=10, numticks=10))
+    ax.xaxis.set_major_formatter(mticker.FuncFormatter(
+        lambda v, _: f"{int(v):d}" if v >= 1 else ""))
+
+    ax.xaxis.set_minor_locator(mticker.LogLocator(base=10,
+                                                  subs=np.arange(1, 10) * 0.1,
+                                                  numticks=100))
+    ax.xaxis.set_minor_formatter(mticker.NullFormatter())
+
+    ax.tick_params(axis="both", which="major", labelsize=12)
+    ax.grid(axis="y", which="both", linestyle=":", alpha=0.35)
+
+    legend_handles = [
+        Line2D([0], [0], color=colours["decomposed_depth"], marker=markers["decomposed_depth"],
+               linestyle="-", markersize=8, label=labels["decomposed_depth"],
+               markeredgecolor="white", markeredgewidth=1.7),
+        Line2D([0], [0], color=colours["transpiled_depth"], marker=markers["transpiled_depth"],
+               linestyle="-", markersize=8, label=labels["transpiled_depth"],
+               markeredgecolor="white", markeredgewidth=1.7),
+        Line2D([0], [0], color=colours["nlogn_ref"], linestyle="--", linewidth=3,
+               label=labels["nlogn_ref"]),
+    ]
+    ax.legend(handles=legend_handles, fontsize=13, frameon=False, loc="best")
+
+    plt.tight_layout()
+    plt.savefig(f"images/qrs/qrs_{name_of_plot}", dpi=300, bbox_inches="tight")
+    plt.show()

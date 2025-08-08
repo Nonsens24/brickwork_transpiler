@@ -470,7 +470,7 @@ def qft(n):
     """
     Returns a QuantumCircuit implementing the n-qubit Quantum Fourier Transform.
     """
-    input_vector = Statevector.from_label('+' * n)
+    # input_vector = Statevector.from_label('+' * n)
 
     qc = QuantumCircuit(n, name='QFT')
     # Apply QFT
@@ -483,4 +483,4 @@ def qft(n):
     for i in range(n // 2):
         qc.swap(i, n - i - 1)
 
-    return qc, input_vector
+    return qc#, input_vector
