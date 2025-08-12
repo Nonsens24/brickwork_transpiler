@@ -416,13 +416,19 @@ def decompose_qc_to_bricks_qiskit(
         routing_method: str = "basic",
         layout_method: str = "trivial",
         file_writer=None,
+        with_ancillas: bool = True,
 ):
     print("before:", qc.count_ops())  # {'mcphase': 1}
 
     qc_sel = selective_decompose(qc)
     print("Selectively decomposed: ", qc_sel.count_ops())
-    qc_lin = linearise_multi_ctrl(qc_sel)
-    print("after :", qc_lin.count_ops())  # ≈ 188 cx, 189 rz
+
+    if with_ancillas:
+        qc_lin = linearise_multi_ctrl(qc_sel)
+        print("after :", qc_lin.count_ops())  # ≈ 188 cx, 189 rz
+
+    else:
+        qc_lin = qc_sel
 
     # only MCX needs a plug-in now (Qiskit 0.46.3 already has it)
     hls_cfg = HLSConfig()#mcx={'synthesis_method': 'recursion'})
@@ -446,7 +452,12 @@ def decompose_qc_to_bricks_qiskit(
     )
 
     if draw:
-        print(qc_final.draw())
+        qc_final.draw(output='mpl',
+                        fold=40,
+                        style="iqp"
+                        )
+        plt.savefig(f"images/Circuits/Decomposed_minimal_recommendation_circuit.png", dpi=300, bbox_inches="tight")
+        plt.show()
 
     print("post-HLS :", qc_final.count_ops())
 

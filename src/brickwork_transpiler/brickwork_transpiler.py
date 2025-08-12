@@ -2,11 +2,13 @@ from qiskit import QuantumCircuit
 from src.brickwork_transpiler import decomposer, graph_builder, pattern_converter, utils, visualiser
 
 
-def transpile(qc: QuantumCircuit, input_vector=None, routing_method=None, layout_method=None, return_mat: bool = False, file_writer=None):
+def transpile(qc: QuantumCircuit, input_vector=None, routing_method=None, layout_method=None, return_mat: bool = False,
+              file_writer=None, with_ancillas=True, plot_decomposed: bool = False):
 
     # Decompose to CX, rzrxrz, id   -   Need opt = 3 for SU(2) rotation merging
     decomposed_qc = decomposer.decompose_qc_to_bricks_qiskit(qc, opt=3, routing_method=routing_method,
-                                                              layout_method=layout_method, file_writer=file_writer)
+                                                              layout_method=layout_method, file_writer=file_writer,
+                                                             with_ancillas=with_ancillas, draw=plot_decomposed)
 
 
     # Optiise instruction matrix with dependency graph

@@ -1,5 +1,5 @@
 import numpy as np
-from qiskit import QuantumCircuit
+from qiskit import QuantumCircuit, QuantumRegister
 from qiskit.circuit.library import PhaseGate
 from qiskit.quantum_info import Statevector
 
@@ -484,3 +484,74 @@ def qft(n):
         qc.swap(i, n - i - 1)
 
     return qc#, input_vector
+
+
+def minimal_qrs(user_feature=[1, 1]):
+
+    qc = QuantumCircuit(5)
+    c0 = QuantumRegister(1, name="c0")
+    qc.add_register(c0)
+
+    input_vector = Statevector.from_label('++++++')
+
+    # Database:
+    # 0 - 00
+    # 1 - 10
+
+    index_qubit = 0
+    db_qubits = [1, 2]
+    feature_qubits = [3, 4]
+    # c0 = 5
+
+    # 0 Initialize from +
+
+    qc.h(db_qubits)
+    qc.h(feature_qubits)
+
+    # 1 Encode database
+    # qc.h(0) Not necessary since is already in |+>
+    qc.cx(index_qubit, db_qubits[1])
+
+    # 2 Encode feature
+    for i, bit in enumerate(reversed(user_feature)):
+        if bit == 1:
+            qc.x(feature_qubits[i])
+
+
+    # 3 Hamming distance calculation
+    qc.cx(feature_qubits[0], db_qubits[1])
+    qc.cx(feature_qubits[1], db_qubits[0])
+
+    # 4 Sum of distances
+    l = 2
+    # (a) P2: deposit a phase e^{+i π/l} on (f=1, c0=0)
+    qc.cp(+np.pi / l, db_qubits[0], c0)
+    qc.cp(+np.pi / l, db_qubits[1], c0)
+
+    # (b) P1: single-qubit phase e^{-i π/(2l)} on (f=1)
+    qc.p(-np.pi / (2 * l), db_qubits)
+
+
+    # Uncompute encoding
+    qc.cx(feature_qubits[0], db_qubits[1])
+    qc.cx(feature_qubits[1], db_qubits[0])
+
+    # Ancilla
+    qc.h(c0)
+
+
+    return qc, input_vector
+
+
+
+
+
+
+
+
+
+
+
+
+
+

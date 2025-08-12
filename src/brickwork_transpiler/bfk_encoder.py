@@ -10,45 +10,12 @@ from copy import deepcopy
 from typing import Dict, Tuple, List, Any, Optional
 
 
-def bfk_encoder(pattern: Pattern,
+def encode_pattern(pattern: Pattern,
                 theta_lookup: Optional[Dict[Tuple[int,int], float]] = None,
                 rng: Optional[np.random.Generator] = None,
                 remove_dependencies: bool = False):
     """
     Blind each measurement angle δ = φ + θ + r   (mod 2), all in units of π.
-
-    We DO NOT evaluate feed-forward parities s,t. Instead, we copy the
-    dependency sets (s_domain, t_domain) into the info list so you can
-    reconstruct/adapt later if needed.
-
-    Parameters
-    ----------
-    pattern : Pattern
-        Original pattern containing Ms with (angle, s_domain, t_domain).
-        `angle` is treated as the angle to be blinded (φ or φ', your choice).
-    theta_lookup : dict[node, float] or None
-        Optional pre-chosen θ values (units of π). If None, sample uniformly from {0, 1/4, ..., 7/4}.
-    rng : np.random.Generator or None
-        Random source. If None, uses default Generator.
-    remove_dependencies: bool
-        if true the return Pattern type does not contain X- and Z byproducts
-
-    Returns
-    -------
-    new_pattern : Pattern
-        Copy of the pattern with each M angle replaced by δ.
-    info_list : list[dict]
-        For each measured node:
-            {
-              'node': node,
-              'phi': original_angle,
-              'theta': θ,
-              'r': r,
-              'delta': δ,
-              's_domain': set(...),
-              't_domain': set(...)
-            }
-        (No s_par, t_par, phi_prime are computed here.)
     """
     if rng is None:
         rng = np.random.default_rng()
@@ -61,41 +28,43 @@ def bfk_encoder(pattern: Pattern,
 
     for cmd in new_pat._Pattern__seq:
         if isinstance(cmd, M):
-            phi = cmd.angle  # interpret as "already adapted" or logical, as you choose
+            phi = cmd.angle  # treat as given (φ or already-adapted φ′)
 
             # choose θ if not supplied
             if cmd.node not in theta_lookup:
                 theta_lookup[cmd.node] = rng.integers(0, 8) / 4.0  # {0, 0.25, ..., 1.75}
             theta = theta_lookup[cmd.node]
 
-            r = int(rng.integers(0, 2))           # {0,1}
+            r = int(rng.integers(0, 2))  # {0,1}
 
-            # write blinded command
-            new_seq.append(M(cmd.node, cmd.plane, theta, cmd.s_domain, cmd.t_domain))
+            # compute blinded angle δ in units of π (mod 2)
+            delta = ( (phi % 2.0) + theta + r ) % 2.0
 
-            # store everything needed for reconstruction/adaptation
-            info_list.append(dict(node=cmd.node,
-                                  phi=phi,
-                                  theta=theta,
-                                  r=r,
-                                  x_byproducts=set(),
-                                  z_byproducts=set(),
-                                  s_domain=set(cmd.s_domain),
-                                  t_domain=set(cmd.t_domain)))
+            # write blinded command with δ
+            new_seq.append(M(cmd.node, cmd.plane, delta, cmd.s_domain, cmd.t_domain))
+
+            # record metadata (include δ for convenience)
+            info_list.append(dict(
+                node=cmd.node,
+                phi=phi,
+                theta=theta,
+                r=r,
+                delta=delta,
+                x_byproducts=set(),
+                z_byproducts=set(),
+                s_domain=set(cmd.s_domain),
+                t_domain=set(cmd.t_domain),
+            ))
 
         elif isinstance(cmd, X):
-        # update last measurement’s x_byproducts
             if info_list:
-                # print(cmd.node)
                 info_list[-1]["x_byproducts"].add(cmd.node)
-
             if not remove_dependencies:
                 new_seq.append(cmd)
 
         elif isinstance(cmd, Z):
             if info_list:
                 info_list[-1]["z_byproducts"].add(cmd.node)
-
             if not remove_dependencies:
                 new_seq.append(cmd)
 
@@ -104,3 +73,4 @@ def bfk_encoder(pattern: Pattern,
 
     new_pat._Pattern__seq = new_seq
     return new_pat, info_list
+

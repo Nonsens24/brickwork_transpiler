@@ -200,7 +200,8 @@ def amplify_recommendations(qc: QuantumCircuit,
                             plot: bool = False,
                             plot_circ_grover: bool = False,
                             iterations=None,
-                            file_writer=None
+                            file_writer=None,
+                            circ_only: bool = False,
                             ) -> QuantumCircuit:
 
 
@@ -241,12 +242,12 @@ def amplify_recommendations(qc: QuantumCircuit,
     sampler = AerSampler(run_options={"shots": shots})
     grover = Grover(sampler=sampler, iterations=optimal_iterations)
 
-    # print("Simulating circuit...")
-    # result = grover.amplify(problem)
-    # iterations_used = result.iterations[0] # For set pre-calculated iterations the list has 1 item
-    #
-    # if len(result.iterations) > 1:
-    #     raise ValueError("Iterations list contained more than one value")
+    print("Simulating circuit...")
+    result = grover.amplify(problem)
+    iterations_used = result.iterations[0] # For set pre-calculated iterations the list has 1 item
+
+    if len(result.iterations) > 1:
+        raise ValueError("Iterations list contained more than one value")
 
     grover_opt = Grover(sampler=sampler, iterations=optimal_iterations)
     if file_writer:
@@ -257,7 +258,8 @@ def amplify_recommendations(qc: QuantumCircuit,
 
     circuit = grover_opt.construct_circuit(problem)#.decompose(reps=2) # for non-unitary rectangle amplification
 
-    return circuit
+    if circ_only:
+        return circuit
 
     if plot_circ_grover:
         print("Plotting amplification circuit...")

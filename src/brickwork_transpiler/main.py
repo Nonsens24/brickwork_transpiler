@@ -20,10 +20,11 @@ from matplotlib import pyplot as plt
 # )
 import visualiser
 # from libs.gospel.gospel.brickwork_state_transpiler.brickwork_state_transpiler import transpile
-from src.brickwork_transpiler import brickwork_transpiler
+from src.brickwork_transpiler import brickwork_transpiler, utils
 from src.brickwork_transpiler.algorithms import qrs_knn_grover
 from src.brickwork_transpiler.algorithms.hhl import generate_example_hhl_QC
-from src.brickwork_transpiler.bfk_encoder import bfk_encoder
+from src.brickwork_transpiler.bfk_encoder import encode_pattern
+from src.brickwork_transpiler.circuits import minimal_qrs
 from src.brickwork_transpiler.experiments import qrs_full_transpilation, plot_qrs_data, qrs_no_db_transpilation, \
     qft_transpilation, hhl_transpilation
 from src.brickwork_transpiler.noise import DepolarisingInjector
@@ -33,10 +34,49 @@ import src.brickwork_transpiler.circuits as circuits
 from qiskit import transpile, ClassicalRegister, QuantumRegister
 from qiskit_aer import AerSimulator
 from qiskit import QuantumCircuit
+import src.brickwork_transpiler.experiments.minimaLqrs as minimaLqrs
 
 
 def main():
 
+
+    # minimaLqrs.build_graph()
+    minimaLqrs.run_and_plot_minimal_qrs_only_db()
+
+
+    # experiment = circuits.cx_and_h_circ()
+    #
+    # experiment.draw(output='mpl',
+    #                 fold=30,
+    #                 style="iqp"
+    #                    )
+    # plt.savefig(f"images/Circuits/minimal_recommendation_circuit.png", dpi=300, bbox_inches="tight")
+    # plt.show()
+    #
+    #
+    # bw_pattern, col_map = brickwork_transpiler.transpile(experiment, routing_method='sabre', layout_method='trivial',
+    #                                                      with_ancillas=False)
+    #
+    # visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+    #                                              show_angles=True,
+    #                                              node_colours=col_map,
+    #                                              use_node_colours=True,
+    #                                              title="Brickwork graph: Minimal QRS")
+    #
+    # file_path = "src/brickwork_transpiler/experiments/data/output_data/"
+    #
+    # pattern_writer = utils.BufferedCSVWriter(file_path + "minimal_qrs_experiment_pattern.txt", ["pattern"])
+    # log_writer = utils.BufferedCSVWriter(file_path + "minimal_qrs_experiment_log.txt", ["log"])
+    #
+    # encoded_pattern, log_alice = encode_pattern(bw_pattern)
+    # pattern_writer.set("pattern", encoded_pattern.print_pattern(lim=2**32))
+    # log_writer.set("log", log_alice)
+    #
+    # pattern_writer.flush()
+    # log_writer.flush()
+    #
+    # visualiser.plot_brickwork_graph_locked(encoded_pattern, use_locks=False, title="Brickwork Graph: Minimal QRS Encoded",
+    #                                        show_angles=True)
 
 
     # Plot HHL
@@ -107,7 +147,7 @@ def main():
 
     # plot_qrs_full.plot_grover_database_scaling()
 
-    qft_transpilation.experiment_qft_transpilation()
+    # qft_transpilation.experiment_qft_transpilation()
     # hhl_transpilation.experiment_hhl_transpilation(6)
 
     # plot_qrs_data.plot_qrs_with_db_scaling_from_files(name_of_plot="thesis_qrs_plot_test")
@@ -431,11 +471,11 @@ def main():
     bw_pattern, col_map = brickwork_transpiler.transpile(qc, routing_method='sabre', layout_method='trivial')
     bw_pattern.print_pattern(lim=200)
 
-    encoded_pattern, log_alice = bfk_encoder(bw_pattern)
+    encoded_pattern, log_alice = encode_pattern(bw_pattern)
     encoded_pattern.print_pattern(lim=200)
     print(log_alice)
 
-    encoded_pattern2, log_alice2 = bfk_encoder(bw_pattern, remove_dependencies=False)
+    encoded_pattern2, log_alice2 = encode_pattern(bw_pattern, remove_dependencies=False)
     encoded_pattern2.print_pattern(lim=200)
     print(log_alice2)
 

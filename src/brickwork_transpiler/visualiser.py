@@ -649,11 +649,13 @@ def plot_brickwork_graph_locked(
         node_image_path: str = 'images/lock_delta_nobg_2.png',
         use_locks: bool = True,
         edge_color: str = 'gray',
+        font_size: int = 9,
         figsize: tuple = None,
         cell_size: float = 0.7,
         node_spacing: float = 1.8,
         margin: float = 1.2,
-        title: str = "UBQC structure"
+        title: str = "UBQC structure",
+        show_angles: bool = False,
     ):
     # Get the graph
     nodes, edges = bw_pattern.get_graph()
@@ -729,10 +731,17 @@ def plot_brickwork_graph_locked(
 
         # labels = {node: rf"$\delta$" for node, (r, c) in zip(nodes, nodes)}
         # labels = {}
-        labels = {node: rf"$\theta_{{{node[0]},{node[1]}}}$" for node in nodes}
+        if show_angles:
+            angles = bw_pattern.get_angles() if show_angles else {}
+
+            labels = {node: f"({r},{c})\n{angles[node]:.2f}π" if show_angles and node in angles else f"({r},{c})" for
+                      node, (r, c) in zip(nodes, nodes)}
+        else:
+            labels = {node: rf"$\theta_{{{node[0]},{node[1]}}}$" for node in nodes}
+
         nx.draw_networkx_labels(
             G, pos, labels=labels,
-            font_size=20,
+            font_size=font_size,
             font_family='serif',
             ax=ax,
             font_weight='medium'
