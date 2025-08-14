@@ -22,14 +22,6 @@ def transpile(qc: QuantumCircuit, input_vector=None, routing_method=None, layout
     if return_mat:
         return qc_mat_aligned
 
-
-    # print("qc_mat:")
-    # visualiser.print_matrix(qc_mat)
-    # print("cx_mat:")
-    # visualiser.print_matrix(cx_mat)
-    # print("qc_mat_aligned:")
-    # visualiser.print_matrix(qc_mat_aligned)
-
     # Build the graph from the optimised and formatted instruction matrix
     bw_graph_data = graph_builder.generate_brickwork_graph_from_instruction_matrix(qc_mat_aligned)
 
@@ -43,4 +35,4 @@ def transpile(qc: QuantumCircuit, input_vector=None, routing_method=None, layout
     # Calculate reference statevector
     # reference_output = utils.calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vector)
 
-    return bw_pattern, col_map #reference_output, col_map
+    return bw_pattern, col_map, decomposed_qc#, reference_output

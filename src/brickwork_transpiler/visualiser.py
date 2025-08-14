@@ -240,7 +240,8 @@ def plot_brickwork_graph_from_pattern(
         margin: float = 1.2,
         title: str = "Brickwork Graph",
         use_node_colours: bool = False,
-        node_colours: dict = None
+        node_colours: dict = None,
+        save_plot: bool = False,
     ):
     if node_colours is None:
         node_colours = {}
@@ -329,8 +330,9 @@ def plot_brickwork_graph_from_pattern(
     # plt.tight_layout()
     plt.show()
 
-    fig.savefig(f"images/graphs/{title}.pdf", format="pdf", bbox_inches="tight")
-    fig.savefig(f"images/graphs/{title}.png", format="png", dpi=300, bbox_inches="tight")
+    if save_plot:
+        fig.savefig(f"images/graphs/{title}.pdf", format="pdf", bbox_inches="tight")
+        fig.savefig(f"images/graphs/{title}.png", format="png", dpi=300, bbox_inches="tight")
 
 
 def plot_brickwork_graph_from_pattern33(

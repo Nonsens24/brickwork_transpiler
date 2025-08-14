@@ -1,6 +1,8 @@
 import numpy as np
 # import qiskit.compiler.transpiler
 from matplotlib import pyplot as plt
+from qiskit.quantum_info import Statevector
+
 # from tensorflow.python.keras.utils.layer_utils import print_summary
 
 # from graphix.rng import ensure_rng
@@ -35,13 +37,109 @@ from qiskit import transpile, ClassicalRegister, QuantumRegister
 from qiskit_aer import AerSimulator
 from qiskit import QuantumCircuit
 import src.brickwork_transpiler.experiments.minimaLqrs as minimaLqrs
+from src.brickwork_transpiler.utils import calculate_ref_state_from_qiskit_circuit, extract_logical_to_physical, \
+    undo_layout_on_state
+
+import numpy as np
+from qiskit.quantum_info import Statevector
+
+# --- core helpers ---
+
+# def permute_statevector_qubits(vec, p_old_to_new):
+#     """
+#     vec: complex array of length 2^m (little-endian; q0 = LSB).
+#     p_old_to_new: list of length m; maps old bit position -> new bit position.
+#     """
+#     m = len(p_old_to_new)
+#     out = np.empty_like(vec)
+#     for i in range(1 << m):
+#         j = 0
+#         for old, new in enumerate(p_old_to_new):
+#             j |= ((i >> old) & 1) << new
+#         out[j] = vec[i]
+#     return out
+#
+# def graphix_to_qiskit_perm_from_pattern(bw_pattern):
+#     """
+#     Graphix reports outputs in big-endian; Qiskit uses little-endian.
+#     This returns p[g] = q meaning: move Graphix bit g -> Qiskit logical bit q.
+#     """
+#     return [t[0] for t in bw_pattern.output_nodes][::-1]
+#
+# def embed_state_into_n_qubits(vec_k, target_positions, n_total):
+#     """
+#     Embed a k-qubit state vec_k into an n-qubit register where the k logical
+#     qubits occupy 'target_positions' (list of length k, each in [0..n_total-1]),
+#     and all other qubits are |0>. Little-endian convention throughout.
+#     """
+#     k = len(target_positions)
+#     out = np.zeros(1 << n_total, dtype=complex)
+#     for i in range(1 << k):
+#         J = 0
+#         for g, pos in enumerate(target_positions):
+#             J |= ((i >> g) & 1) << pos
+#         out[J] = vec_k[i]
+#     return out
 
 
 def main():
 
 
     # minimaLqrs.build_graph()
-    minimaLqrs.run_and_plot_minimal_qrs_only_db()
+    # minimaLqrs.run_and_plot_minimal_qrs_only_db()
+
+    # input_vec = Statevector.from_label('+++')  # three-qubit plus state
+
+    # 2) Define your 2-qubit circuit (no H gates needed)
+    qc, input_vec = circuits.minimal_qrs([0, 1])
+
+    # Transpile!
+    bw_pattern, col_map, transpiled_qc = brickwork_transpiler.transpile(qc, input_vec,
+                                                         routing_method="sabre",
+                                                         layout_method="sabre",
+                                                         with_ancillas=False)
+    # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
+    visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+                                                 node_colours=col_map,
+                                                 use_node_colours=True,
+                                                 title="Brickwork_Graph_test_system_shift")
+
+    # Simulate the generated pattern
+
+    # outstate = bw_pattern.simulate_pattern(backend='tensornetwork')
+    # outvec = np.asarray(outstate).ravel()
+
+    print("Standardize Pattern")
+    bw_pattern.standardize()  # puts commands into N-E-M-(X/Z/C) order
+    bw_pattern.shift_signals()  # optional but recommended; reduces feedforward
+    # (optional) aggressively prune:
+    # bw_pattern.perform_pauli_measurements()
+
+    print("Simulating Pattern")
+    tn = bw_pattern.simulate_pattern(backend="tensornetwork", graph_prep="parallel")
+    psi = tn.to_statevector()  # state on your declared outputs
+
+
+
+    print("Permuting output state")
+    # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
+
+    print("Evolving refrence state")
+    # ref_state = input_vec.evolve(transpiled_qc)
+    mapping = extract_logical_to_physical(qc, transpiled_qc)
+
+    # If you simulated with Qiskit:
+    sv_phys = Statevector(input_vec).evolve(transpiled_qc)
+    sv_logical = undo_layout_on_state(sv_phys, mapping)
+
+    # If you simulated with your MBQC engine and got a flat numpy array `psi`:
+    sv_logical_from_mbqc = undo_layout_on_state(psi, mapping, total_qubits=transpiled_qc.num_qubits)
+    # compare amplitudes (up to global phase)
+    # print("ref_state = ", sv_logical_from_mbqc)
+    print("Graphix output rerouted = ", sv_logical_from_mbqc)
+
+    # Compare output up to global phase
+    assert utils.assert_equal_up_to_global_phase(sv_logical_from_mbqc.data, psi)
 
 
     # experiment = circuits.cx_and_h_circ()

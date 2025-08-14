@@ -381,3 +381,63 @@ class BufferedCSVWriter:
             writer = csv.DictWriter(f, fieldnames=self.headers, restval="")
             writer.writerow(self.row)
         self.row = {}
+
+
+from qiskit.quantum_info import Statevector
+from qiskit.circuit.library import PermutationGate
+import numpy as np
+import math
+
+# --- 1) Save the mapping (call this once, right after transpile) -----------------
+def extract_logical_to_physical(qc_in, qc_out):
+    """
+    Returns a list `logical_to_physical` such that logical_to_physical[j]
+    is the *output wire index* in qc_out where logical qubit j (of qc_in) ended up.
+    """
+    layout = getattr(qc_out, "layout", None)
+
+    # Preferred: Transpiler provides a dict {Qubit_in -> int(out_index)}
+    if layout is not None and getattr(layout, "input_qubit_mapping", None) is not None:
+        return [layout.input_qubit_mapping[q] for q in qc_in.qubits]
+
+    # Fallback: try to compose initial_layout with routing_permutation()
+    if layout is not None and getattr(layout, "initial_layout", None) is not None:
+        init = layout.initial_layout  # {Qubit_in -> int(pre-route index)}
+        pre = [init[q] for q in qc_in.qubits]
+        try:
+            route = list(layout.routing_permutation())  # maps pre-route index -> final index
+        except Exception:
+            route = list(range(qc_out.num_qubits))
+        return [route[p] for p in pre]
+
+    # Last resort: assume identity (no layout/routing applied)
+    return list(range(min(qc_in.num_qubits, qc_out.num_qubits)))
+
+
+# --- 2) Undo the mapping on a statevector after simulation ----------------------
+def undo_layout_on_state(state, logical_to_physical, total_qubits=None):
+    """
+    Given a state in the *transpiled circuit's wire order*, return a Statevector
+    reordered so that the original logical qubits come first.
+
+    `state` can be:
+      - qiskit.quantum_info.Statevector
+      - a 1D numpy array/list of amplitudes
+    If you pass a numpy array, also pass `total_qubits` (or it will be inferred from len(state)).
+    """
+    # Ensure Statevector, infer N if needed
+    if isinstance(state, Statevector):
+        sv = state
+        N = sv.num_qubits
+    else:
+        arr = np.asarray(state, dtype=complex)
+        N = total_qubits if total_qubits is not None else int(round(math.log2(arr.size)))
+        sv = Statevector(arr, dims=[2]*N)
+
+    logical_idx = list(logical_to_physical)
+    # Put any extra qubits (ancillas) after the logical ones, preserving their order
+    anc_idx = [i for i in range(N) if i not in logical_idx]
+
+    # PermutationGate(pattern): pattern[k] = m  means "move qubit m to position k"
+    pattern = logical_idx + anc_idx
+    return sv.evolve(PermutationGate(pattern))
