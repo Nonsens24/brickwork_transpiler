@@ -130,7 +130,7 @@ def main():
 
     # If you simulated with Qiskit:
     sv_phys = Statevector(input_vec).evolve(transpiled_qc)
-    sv_logical = undo_layout_on_state(sv_phys, mapping)
+    undo_layout_on_state(sv_phys, mapping)
 
     # If you simulated with your MBQC engine and got a flat numpy array `psi`:
     sv_logical_from_mbqc = undo_layout_on_state(psi, mapping, total_qubits=transpiled_qc.num_qubits)
