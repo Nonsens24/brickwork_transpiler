@@ -1,7 +1,7 @@
 import numpy as np
 from qiskit import QuantumCircuit
 from qiskit.quantum_info import Statevector
-from src.brickwork_transpiler import brickwork_transpiler, visualiser, utils
+from src.brickwork_transpiler import brickwork_transpiler, visualiser, utils, circuits
 from src.brickwork_transpiler.utils import calculate_ref_state_from_qiskit_circuit, undo_layout_on_state, \
     extract_logical_to_physical
 
@@ -218,6 +218,45 @@ def test_five_in_optimise_gates():
 
     sv_phys = Statevector(input_vec).evolve(transpiled_qc)
     undo_layout_on_state(sv_phys, mapping)
+
+    # If you simulated with your MBQC engine and got a flat numpy array `psi`:
+    sv_logical_from_mbqc = undo_layout_on_state(psi, mapping, total_qubits=transpiled_qc.num_qubits)
+
+    # Compare output up to global phase
+    assert utils.assert_equal_up_to_global_phase(sv_logical_from_mbqc.data, psi)
+
+
+def test_minimal_qrs_experiment():
+    # minimaLqrs.build_graph()
+    # minimaLqrs.run_and_plot_minimal_qrs_only_db()
+
+    # input_vec = Statevector.from_label('+++')  # three-qubit plus state
+
+    # 2) Define your 2-qubit circuit (no H gates needed)
+    qc, input_vec = circuits.minimal_qrs([0, 1])
+
+    # Transpile!
+    bw_pattern, col_map, transpiled_qc = brickwork_transpiler.transpile(qc, input_vec,
+                                                         routing_method="sabre",
+                                                         layout_method="sabre",
+                                                         with_ancillas=False)
+
+    visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+                                                 node_colours=col_map,
+                                                 use_node_colours=True,
+                                                 title="Brickwork_Graph_test_system_shift")
+
+
+    bw_pattern.standardize()  # puts commands into N-E-M-(X/Z/C) order
+    bw_pattern.shift_signals()  # optional but recommended; reduces feedforward
+    # (optional) aggressively prune:
+    # bw_pattern.perform_pauli_measurements()
+
+    tn = bw_pattern.simulate_pattern(backend="tensornetwork", graph_prep="parallel")
+    psi = tn.to_statevector()  # state on your declared outputs
+
+    mapping = extract_logical_to_physical(qc, transpiled_qc)
+
 
     # If you simulated with your MBQC engine and got a flat numpy array `psi`:
     sv_logical_from_mbqc = undo_layout_on_state(psi, mapping, total_qubits=transpiled_qc.num_qubits)

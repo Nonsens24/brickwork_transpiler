@@ -2,8 +2,9 @@ import numpy as np
 import pytest
 import unittest
 from qiskit import QuantumCircuit
+from qiskit.quantum_info import Statevector
 
-from src.brickwork_transpiler import visualiser, decomposer
+from src.brickwork_transpiler import visualiser, decomposer, brickwork_transpiler
 from src.brickwork_transpiler.decomposer import align_bricks, instructions_to_matrix_dag, align_cx_matrix, \
     insert_rotations_adjecant_to_cx
 
@@ -46,7 +47,7 @@ def names(matrix):
 
 def get_matrices(qc):
     # Decompose to CX, rzrxrz, id
-    decomposed_qc = decomposer.decompose_qc_to_bricks_qiskit(qc, opt=3)
+    decomposed_qc = decomposer.decompose_qc_to_bricks_qiskit(qc, opt=3, with_ancillas=False)
 
     # Optiise instruction matrix with dependency graph
     qc_mat, cx_mat = decomposer.instructions_to_matrix_dag(decomposed_qc)
@@ -388,7 +389,7 @@ class TestAlignCXMatrix(unittest.TestCase):
 
     def get_cx_mat(self, qc):
         # Decompose to CX, rzrxrz, id
-        decomposed_qc = decomposer.decompose_qc_to_bricks_qiskit(qc, opt=3)
+        decomposed_qc = decomposer.decompose_qc_to_bricks_qiskit(qc, opt=3, with_ancillas=False)
 
         # Optiise instruction matrix with dependency graph
         qc_mat, cx_mat = decomposer.instructions_to_matrix_dag(decomposed_qc)
@@ -476,7 +477,8 @@ def names(matrix):
 
 def get_aligned_and_original_from_circ(qc):
     # Decompose to CX, rzrxrz, id
-    decomposed_qc = decomposer.decompose_qc_to_bricks_qiskit(qc, opt=3)
+    decomposed_qc = decomposer.decompose_qc_to_bricks_qiskit(qc, opt=3,
+                                                             with_ancillas=False)
 
     # Optiise instruction matrix with dependency graph
     qc_mat, cx_mat = decomposer.instructions_to_matrix_dag(decomposed_qc)
@@ -549,7 +551,9 @@ class TestInsertRotations(unittest.TestCase):
         result = insert_rotations_adjecant_to_cx(aligned, original)
         # visualiser.print_matrix(result)
 
-        expected = [[[], [], ['cx0c'], ['rz', 'rx', 'rz']], [[], ['rz', 'rx', 'rz'], ['cx0t'], []]]
+        expected = [[[], ['rx'], ['cx0c'], ['rz', 'rx', 'rz']],
+                [[], ['rz', 'rx', 'rz'], ['cx0t'], ['rz', 'rx']]]
+
         self.assertEqual(names(result), expected)
 
     def test_duplication_bug(self):
@@ -692,62 +696,62 @@ class TestInsertRotations(unittest.TestCase):
         aligned, original = get_aligned_and_original_from_circ(qc_bugged)
         result = insert_rotations_adjecant_to_cx(aligned, original)
 
-        expected = [[[],    # row 0
-                      [],
-                      [],
-                      [],
-                      ['cx1c'],
-                      ['rx'],
-                      [],
-                      [],
-                      ['cx3c'],
-                      ['rz', 'rx'],
-                      [],
-                      [],
-                      ['cx5t'],
-                      [],
-                      [],
-                      []],
-
-                     [[],   # row 1
-                      ['cx0c'],
-                      ['rz', 'rx', 'rz'],
-                      [],
-                      ['cx1t'],
-                      ['cx2c'],
-                      ['rz', 'rx'],
-                      [],
-                      ['cx3t'],
-                      ['rz'],
-                      [],
-                      ['cx4t'],
-                      ['cx5c'],
-                      ['rz', 'rx', 'rz'],
-                      [],
-                      ['cx6t']],
-
-                     [[],   # row 2
-                      ['cx0t'],
-                      [],
-                      [],
-                      [],
-                      ['cx2t'],
-                      [],
-                      [],
-                      [],
-                      [],
-                      [],
-                      ['cx4c'],
-                      [],
-                      [],
-                      [],
-                      ['cx6c']]]
+        expected = [[[],
+                  [],
+                  [],
+                  [],
+                  ['cx1c'],
+                  [],
+                  [],
+                  [],
+                  ['cx3c'],
+                  ['rz'],
+                  [],
+                  [],
+                  ['cx5t'],
+                  [],
+                  [],
+                  []],
+                 [[],
+                  ['cx0c'],
+                  ['rz', 'rx', 'rz'],
+                  [],
+                  ['cx1t'],
+                  ['cx2c'],
+                  ['rz'],
+                  [],
+                  ['cx3t'],
+                  ['rz'],
+                  [],
+                  ['cx4t'],
+                  ['cx5c'],
+                  ['rz', 'rx', 'rz'],
+                  [],
+                  ['cx6t']],
+                 [[],
+                  ['cx0t'],
+                  [],
+                  [],
+                  [],
+                  ['cx2t'],
+                  [],
+                  [],
+                  [],
+                  [],
+                  [],
+                  ['cx4c'],
+                  [],
+                  [],
+                  [],
+                  ['cx6c']]]
 
         self.assertEqual(names(result), expected)
 
 
     def test_many_shifts(self):
         qc_bugged = QuantumCircuit(5)
+
+        input_vec = Statevector.from_label('+++++')
 
         qc_bugged.h(0)
         qc_bugged.cx(1, 0)
@@ -793,67 +797,80 @@ class TestInsertRotations(unittest.TestCase):
         result = insert_rotations_adjecant_to_cx(aligned, original)
 
         expected =  [[[],
-                      ['rz', 'rx', 'rz'],
-                      ['cx0t'],
-                      [],
-                      [],
-                      [],
-                      ['cx3t'],
-                      [],
-                      [],
-                      [],
-                      ['cx5t'],
-                      [],
-                      [],
-                      [],
-                      []],
-                     [[],
-                      [],
-                      ['cx0c'],
-                      ['rz', 'rx', 'rz'],
-                      [],
-                      ['cx2t'],
-                      ['cx3c'],
-                      ['rz', 'rx'],
-                      [],
-                      ['cx4c'],
-                      ['cx5c'],
-                      ['rx', 'rz'],
-                      [],
-                      ['cx6c'],
-                      []],
-                     [[],
-                      [],
-                      [],
-                      [],
-                      [],
-                      ['cx2c'],
-                      ['rz', 'rx'],
-                      [],
-                      [],
-                      ['cx4t'],
-                      ['rz', 'rx'],
-                      [],
-                      [],
-                      ['cx6t'],
-                      ['rz', 'rx']],
-                     [[], ['cx1c'], ['rz'], [], [], [], [], [], [], [], [], [], [], [], []],
-                     [['rz', 'rx', 'rz'],
-                      ['cx1t'],
-                      ['rx', 'rz'],
-                      [],
-                      [],
-                      [],
-                      [],
-                      [],
-                      [],
-                      [],
-                      [],
-                      [],
-                      [],
-                      [],
-                      []]]
-
+              ['rz', 'rx', 'rz'],
+              ['cx0t'],
+              [],
+              [],
+              [],
+              ['cx3t'],
+              [],
+              [],
+              [],
+              ['cx5t'],
+              [],
+              [],
+              [],
+              []],
+             [[],
+              [],
+              ['cx0c'],
+              ['rz', 'rx', 'rz'],
+              [],
+              ['cx2t'],
+              ['cx3c'],
+              ['rz', 'rx'],
+              [],
+              ['cx4c'],
+              ['cx5c'],
+              ['rx', 'rz'],
+              [],
+              ['cx6c'],
+              []],
+             [[],
+              [],
+              [],
+              [],
+              [],
+              ['cx2c'],
+              ['rz', 'rx'],
+              [],
+              [],
+              ['cx4t'],
+              ['rz', 'rx'],
+              [],
+              [],
+              ['cx6t'],
+              ['rz', 'rx']],
+             [['rx'],
+              ['cx1c'],
+              ['rz', 'rx'],
+              [],
+              [],
+              [],
+              [],
+              [],
+              [],
+              [],
+              [],
+              [],
+              [],
+              [],
+              []],
+             [['rz', 'rx', 'rz'],
+              ['cx1t'],
+              ['rx'],
+              [],
+              [],
+              [],
+              [],
+              [],
+              [],
+              [],
+              [],
+              [],
+              [],
+              [],
+              []]]
 
         self.assertEqual(names(result), expected)
 

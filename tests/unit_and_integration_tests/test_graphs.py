@@ -7,7 +7,8 @@ from src.brickwork_transpiler import decomposer, graph_builder, visualiser, patt
 
 def gen_test_graph(qc):
     # Decompose to CX, rzrxrz, id
-    decomposed_qc = decomposer.decompose_qc_to_bricks_qiskit(qc, opt=3)
+    decomposed_qc = decomposer.decompose_qc_to_bricks_qiskit(qc, opt=3,
+                                                             with_ancillas=False)
 
     # Optiise instruction matrix with dependency graph
     qc_mat, cx_mat = decomposer.instructions_to_matrix_dag(decomposed_qc)

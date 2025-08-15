@@ -44,7 +44,7 @@ def _extract_Ms(pat: Pattern):
 def bw_pattern():
     # Build the same pattern the user described
     experiment, _ = circuits.cx_and_h_circ()
-    bw_pat, col_map = brickwork_transpiler.transpile(
+    bw_pat, col_map, _ = brickwork_transpiler.transpile(
         experiment,
         routing_method="sabre",
         layout_method="trivial",
