@@ -171,8 +171,8 @@ def test_four_in_cx_cancel():
 
     mapping = extract_logical_to_physical(qc, transpiled_qc)
 
-    sv_phys = Statevector(input_vec).evolve(transpiled_qc)
-    undo_layout_on_state(sv_phys, mapping)
+    # sv_phys = Statevector(input_vec).evolve(transpiled_qc)
+    # undo_layout_on_state(sv_phys, mapping)
 
     # If you simulated with your MBQC engine and got a flat numpy array `psi`:
     sv_logical_from_mbqc = undo_layout_on_state(psi, mapping, total_qubits=transpiled_qc.num_qubits)
@@ -215,9 +215,6 @@ def test_five_in_optimise_gates():
     # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
 
     mapping = extract_logical_to_physical(qc, transpiled_qc)
-
-    sv_phys = Statevector(input_vec).evolve(transpiled_qc)
-    undo_layout_on_state(sv_phys, mapping)
 
     # If you simulated with your MBQC engine and got a flat numpy array `psi`:
     sv_logical_from_mbqc = undo_layout_on_state(psi, mapping, total_qubits=transpiled_qc.num_qubits)
