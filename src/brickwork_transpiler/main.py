@@ -2,6 +2,8 @@ import numpy as np
 # import qiskit.compiler.transpiler
 from matplotlib import pyplot as plt
 from qiskit.quantum_info import Statevector
+import os
+import re
 
 # from tensorflow.python.keras.utils.layer_utils import print_summary
 
@@ -29,7 +31,7 @@ from src.brickwork_transpiler.bfk_encoder import encode_pattern
 from src.brickwork_transpiler.circuits import minimal_qrs
 from src.brickwork_transpiler.experiments import qrs_full_transpilation, plot_qrs_data, qrs_no_db_transpilation, \
     qft_transpilation, hhl_transpilation
-from src.brickwork_transpiler.noise import DepolarisingInjector
+from src.brickwork_transpiler.noise import DepolarisingInjector, SimulationNoiseModel
 # from src.brickwork_transpiler.noise import to_noisy_pattern
 import src.brickwork_transpiler.circuits as circuits
 
@@ -37,429 +39,1071 @@ from qiskit import transpile, ClassicalRegister, QuantumRegister
 from qiskit_aer import AerSimulator
 from qiskit import QuantumCircuit
 import src.brickwork_transpiler.experiments.minimal_qrs_transpilation_simulation as mqrs
-from src.brickwork_transpiler.utils import calculate_ref_state_from_qiskit_circuit, extract_logical_to_physical, \
-    undo_layout_on_state
+# from src.brickwork_transpiler.utils import calculate_ref_state_from_qiskit_circuit, \
+#     logical_to_final_physical, axes_phys_from_tn_outputs, undo_sabre_on_tn_state, get_qiskit_permutation, \
+#     extract_logical_to_physical, undo_layout_on_state, extract_physical_to_logical, extract_logical_to_physical24, \
+#     undo_sabre_to_preroute_physical24, permute_qubits
+
+from typing import List, Tuple, Iterable
+from qiskit.transpiler.layout import TranspileLayout, Layout
+from qiskit.circuit import Qubit
+
+from src.brickwork_transpiler.utils import extract_logical_to_physical24, undo_sabre_to_preroute_physical24, \
+    calculate_ref_state_from_qiskit_circuit, extract_logical_to_physical, undo_layout_on_state
+
+
+# def permutation_input_to_output(tl: TranspileLayout) -> List[int]:
+#     """
+#     Robustly compute π mapping input wire index -> output wire index from a TranspileLayout,
+#     tolerating dynamic layouts (non-identical Qubit objects across mappings).
+#
+#     Strategy
+#     --------
+#     1) Build keys for input qubits: (reg_name, qubit_index, reg_size) -> input_index.
+#     2) Extract physical->virtual from initial_layout; convert virtual to input_index.
+#     3) Extract physical->virtual from final_layout; convert virtual to output_index (its .index).
+#     4) Glue via physical index: for each physical p, set π[input_i_at_p] = output_j_at_p.
+#     """
+#     n = tl._input_qubit_count
+#
+#     def qkey(q: Qubit) -> Tuple[str, int, int]:
+#         reg = getattr(q, "register", None)
+#         name = getattr(reg, "name", None)
+#         size = getattr(reg, "size", None)
+#         if size is None and reg is not None:
+#             try:
+#                 size = len(reg)
+#             except Exception:
+#                 size = -1
+#         return (name, getattr(q, "index", None), size)
+#
+#     # ---- 1) input qubit keys -> input indices
+#     inkey_to_i = {qkey(q): i for q, i in tl.input_qubit_mapping.items()}
+#
+#     # ---- helpers to extract p->v pairs from a Layout regardless of internal orientation
+#     def phys_to_virtual_pairs(layout: Layout) -> Iterable[Tuple[int, Qubit]]:
+#         # Preferred: official API if available
+#         try:
+#             m = layout.get_physical_bits()  # recent Qiskit returns dict[int, Qubit]
+#             if isinstance(m, dict):
+#                 return list(m.items())
+#         except Exception:
+#             pass
+#
+#         # Try private internals (different Qiskit versions)
+#         for attr in ("_p2v", "_int_to_bit", "_physical_to_virtual"):
+#             d = getattr(layout, attr, None)
+#             if isinstance(d, dict) and d:
+#                 return list(d.items())
+#
+#         # Fallback: infer orientation via items()
+#         pairs = []
+#         try:
+#             for a, b in layout.items():
+#                 if isinstance(a, int):
+#                     pairs.append((a, b))
+#                 elif isinstance(b, int):
+#                     pairs.append((b, a))
+#         except Exception:
+#             pass
+#         if not pairs:
+#             raise ValueError("Could not extract physical→virtual mapping from Layout.")
+#         return pairs
+#
+#     # ---- 2) p -> input index i
+#     p_to_i = {}
+#     for p, v in phys_to_virtual_pairs(tl.initial_layout):
+#         k = qkey(v)
+#         if k not in inkey_to_i:
+#             raise KeyError(
+#                 f"Virtual {v} (key={k}) from initial_layout not found in input_qubit_mapping."
+#             )
+#         p_to_i[p] = inkey_to_i[k]
+#
+#     # ---- 3) p -> output index j
+#     def out_index(vout: Qubit) -> int:
+#         j = getattr(vout, "index", None)
+#         if j is not None:
+#             return j
+#         # Fallback via output_qubit_list using structural key
+#         out_list = list(getattr(tl, "_output_qubit_list", []))
+#         if out_list:
+#             kv = qkey(vout)
+#             for idx, vv in enumerate(out_list):
+#                 if qkey(vv) == kv:
+#                     return idx
+#         raise KeyError(f"Cannot determine output index for {vout}")
+#
+#     p_to_j = {p: out_index(v) for p, v in phys_to_virtual_pairs(tl.final_layout)}
+#
+#     # ---- 4) stitch via physical index
+#     pi = [-1] * n
+#     for p, i in p_to_i.items():
+#         if p not in p_to_j:
+#             raise KeyError(f"Physical index {p} present in initial_layout missing in final_layout.")
+#         pi[i] = p_to_j[p]
+#
+#     if any(x < 0 for x in pi):
+#         raise ValueError(f"Incomplete permutation derived: {pi}")
+#     return pi
+#
+#
+#
+# def permutation_output_to_input(tl: TranspileLayout) -> List[int]:
+#     """
+#     Inverse permutation: maps output wire index to input wire index.
+#     """
+#     pi = permutation_input_to_output(tl)
+#     inv = [None] * len(pi)
+#     for i, j in enumerate(pi):
+#         inv[j] = i
+#     return inv
+#
+#
+#
+#
+# import numpy as np
+#
+# def reorder_statevector_by_perm(psi, perm):
+#     """
+#     Reorder a statevector to reflect a qubit permutation π with π[i] = j
+#     (input wire i becomes output wire j). Compatible with Qiskit's
+#     little-endian basis ordering (qubit-0 = LSB).
+#
+#     Parameters
+#     ----------
+#     psi : (2**n,) array_like of complex
+#         Statevector amplitudes in the *input* wire ordering.
+#     perm : sequence of int, length n
+#         Permutation π mapping input wire index -> output wire index.
+#
+#     Returns
+#     -------
+#     np.ndarray
+#         Statevector amplitudes in the *output* wire ordering.
+#
+#     Notes
+#     -----
+#     Implementation reshapes to an n-index tensor and uses a single transpose.
+#     With C-order flatten, axes 0..(n-1) correspond to qubits (n-1)..0.
+#     """
+#     psi = np.asarray(psi)
+#     if psi.ndim != 1:
+#         raise ValueError("psi must be a 1D statevector.")
+#     # Infer n and validate length
+#     n = int(round(np.log2(psi.size)))
+#     if (1 << n) != psi.size:
+#         raise ValueError("len(psi) must be a power of 2.")
+#     if len(perm) != n:
+#         raise ValueError("perm must have length n = log2(len(psi)).")
+#     if sorted(perm) != list(range(n)):
+#         raise ValueError("perm must be a permutation of range(n).")
+#
+#     perm = np.asarray(perm, dtype=int)
+#
+#     # inv[j] = i such that π[i] = j
+#     inv = np.empty(n, dtype=int)
+#     inv[perm] = np.arange(n, dtype=int)
+#
+#     # Build axis permutation:
+#     # axis index for qubit q is (n-1-q); set output axis (n-1-j) to input axis (n-1-inv[j]).
+#     axes = np.empty(n, dtype=int)
+#     for j in range(n):
+#         axes[n - 1 - j] = n - 1 - inv[j]
+#
+# #     # Reshape -> transpose -> flatten
+# #     out = psi.reshape((2,) * n).transpose(axes).reshape(-1)
+# #     # Make contiguous (optional), then return
+# #     return np.ascontiguousarray(out)
+# #
+#
+# # --- Drop-in pipeline (place this near your imports) ---
+# import os
+# import numpy as np
+# import matplotlib.pyplot as plt
+# from typing import List, Tuple, Iterable, Optional, Dict
+# from qiskit.quantum_info import Statevector
+# from qiskit.circuit import Qubit
+# from qiskit.transpiler.layout import Layout, TranspileLayout
+#
+# # ========== Core utilities ==========
+#
+# def reorder_statevector_by_perm(psi: np.ndarray, perm: List[int]) -> np.ndarray:
+#     """Reorder a statevector by permutation π with π[i]=j (input wire i → output wire j).
+#     Qiskit is little-endian (q[0]=LSB)."""
+#     psi = np.asarray(psi)
+#     if psi.ndim != 1:
+#         raise ValueError("psi must be 1D.")
+#     n = int(round(np.log2(psi.size)))
+#     if (1 << n) != psi.size:
+#         raise ValueError("len(psi) must be a power of 2.")
+#     if len(perm) != n or sorted(perm) != list(range(n)):
+#         raise ValueError("perm must be a permutation of range(n).")
+#
+#     perm = np.asarray(perm, dtype=int)
+#     inv = np.empty(n, dtype=int)   # inv[j] = i with π[i] = j
+#     inv[perm] = np.arange(n, dtype=int)
+#
+#     axes = np.empty(n, dtype=int)
+#     # axis for qubit q is (n-1-q). Set output axis (n-1-j) to input axis (n-1-inv[j]).
+#     for j in range(n):
+#         axes[n - 1 - j] = n - 1 - inv[j]
+#     return np.ascontiguousarray(psi.reshape((2,) * n).transpose(axes).reshape(-1))
+#
+# def graphix_to_qiskit_statevector(psi: np.ndarray, graphix_is_msb0: bool = True) -> np.ndarray:
+#     """Convert Graphix indexing → Qiskit (LSB-first). If Graphix is MSB-first (default),
+#     this is a qubit-order reversal; otherwise it’s a no-op."""
+#     psi = np.asarray(psi)
+#     if psi.ndim != 1:
+#         raise ValueError("psi must be 1D.")
+#     n = int(round(np.log2(psi.size)))
+#     if (1 << n) != psi.size:
+#         raise ValueError("len(psi) must be 2**n.")
+#     if not graphix_is_msb0:
+#         return np.ascontiguousarray(psi)
+#     return np.ascontiguousarray(psi.reshape((2,) * n).transpose(tuple(range(n - 1, -1, -1))).reshape(-1))
+#
+# # ========== Dynamic-safe SABRE layout extraction ==========
+#
+# def _qkey(q: Qubit) -> Tuple[Optional[str], Optional[int], Optional[int]]:
+#     reg = getattr(q, "register", None)
+#     name = getattr(reg, "name", None)
+#     size = getattr(reg, "size", None)
+#     if size is None and reg is not None:
+#         try: size = len(reg)
+#         except Exception: size = -1
+#     return (name, getattr(q, "index", None), size)
+#
+# def _phys_to_virtual_pairs(layout: Layout) -> Iterable[Tuple[int, Qubit]]:
+#     # Preferred modern API
+#     try:
+#         m = layout.get_physical_bits()  # dict[int -> Qubit]
+#         if isinstance(m, dict):
+#             return list(m.items())
+#     except Exception:
+#         pass
+#     # Private fallbacks
+#     for attr in ("_p2v", "_int_to_bit", "_physical_to_virtual"):
+#         d = getattr(layout, attr, None)
+#         if isinstance(d, dict) and d:
+#             return list(d.items())
+#     # Infer from items()
+#     pairs = []
+#     try:
+#         for a, b in layout.items():
+#             if isinstance(a, int): pairs.append((a, b))
+#             elif isinstance(b, int): pairs.append((b, a))
+#     except Exception:
+#         pass
+#     if not pairs:
+#         raise ValueError("Could not extract physical→virtual mapping from Layout.")
+#     return pairs
+#
+# def permutation_input_to_output(tl: TranspileLayout) -> List[int]:
+#     """π: input wire index -> output wire index. Dynamic-layout safe."""
+#     n = tl._input_qubit_count
+#     inkey_to_i = {_qkey(q): i for q, i in tl.input_qubit_mapping.items()}  # input virtuals -> input indices
+#     # physical -> input index
+#     p_to_i: Dict[int, int] = {}
+#     for p, v in _phys_to_virtual_pairs(tl.initial_layout):
+#         k = _qkey(v)
+#         if k not in inkey_to_i:
+#             raise KeyError(f"Virtual {v} (key={k}) from initial_layout not in input_qubit_mapping.")
+#         p_to_i[p] = inkey_to_i[k]
+#     # physical -> output index
+#     def out_index(vout: Qubit) -> int:
+#         j = getattr(vout, "index", None)
+#         if j is not None: return j
+#         out_list = list(getattr(tl, "_output_qubit_list", []))
+#         if out_list:
+#             kv = _qkey(vout)
+#             for idx, vv in enumerate(out_list):
+#                 if _qkey(vv) == kv: return idx
+#         raise KeyError(f"Cannot determine output index for {vout}")
+#     p_to_j = {p: out_index(v) for p, v in _phys_to_virtual_pairs(tl.final_layout)}
+#     # stitch
+#     pi = [-1]*n
+#     for p, i in p_to_i.items():
+#         if p not in p_to_j:
+#             raise KeyError(f"Physical {p} present in initial_layout missing in final_layout.")
+#         pi[i] = p_to_j[p]
+#     if any(x < 0 for x in pi):
+#         raise ValueError(f"Incomplete permutation derived: {pi}")
+#     return pi
+#
+# def inverse_perm(perm: List[int]) -> List[int]:
+#     inv = [None]*len(perm)
+#     for i, j in enumerate(perm): inv[j] = i
+#     return inv
+#
+
 
 import numpy as np
-from qiskit.quantum_info import Statevector
+from typing import Sequence, Literal
+
+def undo_statevector_permutation(
+    state: np.ndarray,
+    mapping: Sequence[int],
+    *,
+    convention: Literal["src_at_dest","dest_from_src"] = "src_at_dest",
+    little_endian: bool = True,
+) -> np.ndarray:
+    """
+    Undo a qubit permutation on a 2**n statevector.
+
+    mapping:
+      - if convention == "src_at_dest": mapping[j] = old qubit at new position j
+      - if convention == "dest_from_src": mapping[i] = new position of old qubit i
+    """
+    psi = np.asarray(state).reshape(-1)
+    size = psi.size
+    n = int(np.log2(size))
+    if (1 << n) != size:
+        raise ValueError(f"length {size} is not a power of two")
+    p = list(mapping)
+    if len(p) != n or sorted(p) != list(range(n)):
+        raise ValueError("mapping must be a permutation of range(n)")
+
+    # Normalize to the "src_at_dest" form expected by the transpose logic
+    if convention == "dest_from_src":
+        p = np.argsort(p).tolist()
+
+    q2axis = (lambda q: n - 1 - q) if little_endian else (lambda q: q)
+    axes_perm = [q2axis(q) for q in p]
+    inv_axes = np.argsort(axes_perm)
+
+    return np.transpose(psi.reshape((2,) * n), axes=inv_axes).reshape(-1)
+
+# import numpy as np
+# from typing import Sequence
+#
+# def undo_statevector_permutation(
+#     state: np.ndarray,
+#     sources_at_positions: Sequence[int],
+#     *,
+#     little_endian: bool = True,
+# ) -> np.ndarray:
+#     """
+#     Undo a permutation of qubits that was applied to an n-qubit statevector.
+#
+#     Parameters
+#     ----------
+#     state : array_like, shape (2**n,)
+#         The (permuted) statevector in the *current* qubit order.
+#     sources_at_positions : Sequence[int], length n
+#         A permutation p of [0..n-1] describing the permutation that was applied:
+#             position j was replaced by the value from position p[j]
+#         (i.e., the qubit now sitting at position j used to be qubit p[j]).
+#         Example: p = [0, 2, 1] means positions 1 and 2 were swapped.
+#     little_endian : bool, default True
+#         If True (Qiskit-style), qubit 0 is the least significant bit (last axis).
+#         If False, qubit 0 is the most significant bit (first axis).
+#
+#     Returns
+#     -------
+#     np.ndarray, shape (2**n,)
+#         The statevector restored to the original qubit order.
+#
+#     Notes
+#     -----
+#     Time/memory are Θ(2**n). Validates that len(p) == n and p is a permutation.
+#     """
+#     psi = np.asarray(state)
+#     if psi.ndim != 1:
+#         psi = psi.reshape(-1)
+#
+#     size = psi.size
+#     n = int(np.log2(size))
+#     if (1 << n) != size:
+#         raise ValueError(f"Statevector length {size} is not a power of two.")
+#
+#     p = list(sources_at_positions)
+#     if len(p) != n or sorted(p) != list(range(n)):
+#         raise ValueError("sources_at_positions must be a permutation of range(n) with length n.")
+#
+#     # Map qubit index -> axis index in the reshaped tensor
+#     q2axis = (lambda q: n - 1 - q) if little_endian else (lambda q: q)
+#
+#     # Axes order that *was used* to apply the permutation
+#     axes_perm = [q2axis(q) for q in p]
+#
+#     # To undo, transpose by the inverse of that axes permutation
+#     inv_axes = np.argsort(axes_perm)
+#
+#     psi_t = psi.reshape((2,) * n)
+#     return np.transpose(psi_t, axes=inv_axes).reshape(-1)
+
+
+import numpy as np
+from typing import Sequence, Literal
+
+def _q2axis(q: int, n: int, little_endian: bool) -> int:
+    return (n - 1 - q) if little_endian else q
+
+def apply_qubit_permutation(
+    state: np.ndarray,
+    mapping: Sequence[int],
+    *,
+    convention: Literal["src_at_dest","dest_from_src"],
+    little_endian: bool = True,
+) -> np.ndarray:
+    """
+    Apply a qubit permutation to a statevector.
+    mapping:
+      - "src_at_dest": mapping[j] = old qubit that moves to new position j
+      - "dest_from_src": mapping[i] = new position of old qubit i
+    """
+    psi = np.asarray(state).reshape(-1)
+    n = int(np.log2(psi.size))
+    if (1 << n) != psi.size: raise ValueError("length must be 2**n")
+    p = list(mapping)
+    if sorted(p) != list(range(n)): raise ValueError("mapping must be a permutation")
+
+    if convention == "dest_from_src":
+        p = np.argsort(p).tolist()  # convert to src_at_dest
+
+    axes_old = list(range(n))  # axes for original tensor
+    axes_new = [ _q2axis(q, n, little_endian) for q in p ]   # which old qubit sits at each new position
+    # axes_new is expressed in "qubit indices"; convert to tensor-axis indices:
+    # original tensor axes are ordered by qubit indices via _q2axis(q)
+    qubit_axis = { q: _q2axis(q, n, little_endian) for q in range(n) }
+    axes_perm = [ qubit_axis[q] for q in p ]  # order of old axes in the new tensor
+
+    return np.transpose(psi.reshape((2,)*n), axes=axes_perm).reshape(-1)
+
+def undo_qubit_permutation(
+    state: np.ndarray,
+    mapping: Sequence[int],
+    *,
+    convention: Literal["src_at_dest","dest_from_src"],
+    little_endian: bool = True,
+) -> np.ndarray:
+    """Undo a previously applied permutation (inverse of apply_qubit_permutation)."""
+    psi = np.asarray(state).reshape(-1)
+    n = int(np.log2(psi.size))
+    if (1 << n) != psi.size: raise ValueError("length must be 2**n")
+    p = list(mapping)
+    if sorted(p) != list(range(n)): raise ValueError("mapping must be a permutation")
+
+    if convention == "dest_from_src":
+        p = np.argsort(p).tolist()  # convert to src_at_dest
+
+    # axes used to apply the permutation:
+    axes_perm = [ _q2axis(q, n, little_endian) for q in p ]
+    inv_axes = np.argsort(axes_perm)
+
+    return np.transpose(psi.reshape((2,)*n), axes=inv_axes).reshape(-1)
+
+
 
 # --- core helpers ---
 
-# def permute_statevector_qubits(vec, p_old_to_new):
-#     """
-#     vec: complex array of length 2^m (little-endian; q0 = LSB).
-#     p_old_to_new: list of length m; maps old bit position -> new bit position.
-#     """
-#     m = len(p_old_to_new)
-#     out = np.empty_like(vec)
-#     for i in range(1 << m):
-#         j = 0
-#         for old, new in enumerate(p_old_to_new):
-#             j |= ((i >> old) & 1) << new
-#         out[j] = vec[i]
-#     return out
-#
-# def graphix_to_qiskit_perm_from_pattern(bw_pattern):
-#     """
-#     Graphix reports outputs in big-endian; Qiskit uses little-endian.
-#     This returns p[g] = q meaning: move Graphix bit g -> Qiskit logical bit q.
-#     """
-#     return [t[0] for t in bw_pattern.output_nodes][::-1]
-#
-# def embed_state_into_n_qubits(vec_k, target_positions, n_total):
-#     """
-#     Embed a k-qubit state vec_k into an n-qubit register where the k logical
-#     qubits occupy 'target_positions' (list of length k, each in [0..n_total-1]),
-#     and all other qubits are |0>. Little-endian convention throughout.
-#     """
-#     k = len(target_positions)
-#     out = np.zeros(1 << n_total, dtype=complex)
-#     for i in range(1 << k):
-#         J = 0
-#         for g, pos in enumerate(target_positions):
-#             J |= ((i >> g) & 1) << pos
-#         out[J] = vec_k[i]
-#     return out
-
-#
-# import numpy as np
-#
-# def postselect_marginal_on_ancilla_zero(
-#     amps,
-#     n,
-#     targets_logical=(1, 2),
-#     ancilla_logical=None,
-#     shots=None,
-#     seed=1,
-#     mapping=None,                # logical -> physical; if given, undo to logical order
-#     input_is_qiskit_order=True,  # set False if your input uses big-endian (q0 = MSB)
-# ):
-#     """
-#     Returns:
-#       probs:  dict over {'00','01','10','11'} for (q_targets in given order) | ancilla=0
-#       counts: dict if shots is not None
-#     Notes:
-#       - Indices are in LOGICAL numbering after undo.
-#       - Qiskit little-endian convention (q0 = LSB) is used internally.
-#     """
-#     data = np.asarray(getattr(amps, "data", amps), dtype=complex).reshape(-1)
-#     assert data.size == (1 << n), "Length must be 2**n."
-#
-#     # Normalize
-#     norm = float((data.conj() * data).real.sum())
-#     if not np.isclose(norm, 1.0, atol=1e-12):
-#         data = data / np.sqrt(norm)
-#
-#     # Work as an n-axis tensor; apply endian fix then undo layout to LOGICAL order
-#     tens = data.reshape([2] * n)
-#
-#     if not input_is_qiskit_order:                 # big-endian -> little-endian
-#         tens = np.transpose(tens, axes=list(range(n))[::-1])
-#
-#     if mapping is not None:                       # physical -> logical (undo)
-#         # mapping: logical -> physical; make new axis j = old axis mapping[j]
-#         axes = [mapping[j] for j in range(n)]
-#         tens = np.transpose(tens, axes=axes)
-#
-#     data_log = tens.reshape(-1)                   # now in logical Qiskit order
-#
-#     # Indices in logical order
-#     a = (n - 1) if (ancilla_logical is None) else int(ancilla_logical)
-#     t1, t2 = map(int, targets_logical)
-#
-#     # Vectorized accumulation for P(t1,t2 | ancilla=0)
-#     p = (data_log.conj() * data_log).real
-#     idx = np.arange(p.size, dtype=np.uint64)
-#     keep = ((idx >> a) & 1) == 0
-#     if not np.any(keep):
-#         raise ValueError("Post-selection event has zero probability (ancilla always 1).")
-#
-#     b1 = ((idx >> t1) & 1)[keep]
-#     b2 = ((idx >> t2) & 1)[keep]
-#     w  = p[keep]
-#     mass = float(w.sum())
-#
-#     def s(bit1, bit2):
-#         return float(w[(b1 == bit1) & (b2 == bit2)].sum()) / mass
-#
-#     probs = {"00": s(0,0), "01": s(0,1), "10": s(1,0), "11": s(1,1)}
-#
-#     counts = None
-#     if shots is not None:
-#         rng = np.random.default_rng(seed)
-#         labels = ["00", "01", "10", "11"]
-#         weights = np.array([probs[l] for l in labels], dtype=float)
-#         counts = dict(zip(labels, rng.multinomial(int(shots), weights)))
-#
-#     return probs, counts
-#
-#
-# from qiskit.quantum_info import Statevector
-# import numpy as np
-# import matplotlib.pyplot as plt
-#
-# from qiskit.quantum_info import Statevector
-# import numpy as np
-# import matplotlib.pyplot as plt
-#
-# def postselect_ancilla_and_marginalize(sv_logical: Statevector,
-#                                        anc_idx: int,
-#                                        measure_qargs: list[int],
-#                                        anc_value: int = 0):
-#     """
-#     Version that does NOT use Statevector.project (works on older Qiskit).
-#     Returns P(measure_qargs | anc_idx = anc_value) as a dict.
-#     The first element of `measure_qargs` is the MSB of the returned keys.
-#     """
-#     # Build joint over [measure_qargs..., anc_idx] so the ancilla is the last bit in each key
-#     qargs_joint = list(measure_qargs) + [anc_idx]
-#     joint = sv_logical.probabilities_dict(qargs=qargs_joint)
-#
-#     # Numerator: collect all outcomes where ancilla bit == anc_value
-#     num = {}
-#     denom = 0.0
-#     anc_char = str(int(anc_value))
-#     for key, p in joint.items():
-#         if key[-1] == anc_char:          # last char corresponds to ancilla because we appended it last
-#             meas_key = key[:-1]          # drop ancilla bit
-#             num[meas_key] = num.get(meas_key, 0.0) + p
-#             denom += p
-#
-#     if np.isclose(denom, 0.0):
-#         # No support on the requested ancilla outcome
-#         return {format(i, f'0{len(measure_qargs)}b'): 0.0 for i in range(2**len(measure_qargs))}
-#
-#     # Normalize to get the conditional
-#     out = {k: v/denom for k, v in num.items()}
-#
-#     # Stable ordering of keys
-#     ordered = sorted(out.keys())
-#     return {k: out[k] for k in ordered}
-#
-# def plot_distribution(dist: dict, title: str = "Conditional distribution"):
-#     labels = list(dist.keys())
-#     values = [dist[k] for k in labels]
-#     plt.figure()
-#     plt.bar(labels, values)
-#     plt.xlabel("Measured bitstring (order = measure_qargs)")
-#     plt.ylabel("Probability")
-#     plt.title(title)
-#     plt.tight_layout()
-#     plt.show()
-#
-# def ancilla_logical_index(qc, reg_name="c0", pos=0):
-#     """
-#     Return the integer index (in qc.qubits order) of bit `pos` in register named `reg_name`.
-#     Uses QuantumCircuit.find_bit when available; falls back to list index otherwise.
-#     """
-#     try:
-#         qr = next(r for r in qc.qregs if r.name == reg_name)
-#     except StopIteration:
-#         raise ValueError(f"No quantum register named {reg_name!r} in circuit.")
-#     qbit = qr[pos]
-#     try:
-#         return qc.find_bit(qbit).index  # preferred, no deprecation
-#     except AttributeError:
-#         return qc.qubits.index(qbit)    # older Terra fallback
-#
-#
-# from qiskit import transpile
-# from qiskit.quantum_info import Statevector
-# import numpy as np
-# import matplotlib.pyplot as plt
-#
-# # ---------- Robust helpers ----------
-#
-# def ancilla_logical_index(qc, reg_name="c0", pos=0):
-#     """Index (in qc.qubits order) of bit `pos` in register `reg_name`."""
-#     try:
-#         qr = next(r for r in qc.qregs if r.name == reg_name)
-#     except StopIteration:
-#         raise ValueError(f"No quantum register named {reg_name!r} in circuit.")
-#     qbit = qr[pos]
-#     try:
-#         return qc.find_bit(qbit).index  # preferred (no deprecation)
-#     except AttributeError:
-#         return qc.qubits.index(qbit)    # fallback for very old Terra
-#
-# def logical_to_outputwire_indices(qc_in, qc_out):
-#     """
-#     L2W[j] = index in qc_out.qubits (virtual wire order) where logical j (qc_in.qubits[j]) ended up.
-#     Works across Terra versions.
-#     """
-#     out = []
-#     for q in qc_in.qubits:
-#         try:
-#             out.append(qc_out.find_bit(q).index)
-#         except Exception:
-#             # Fallback: identity if transpile preserved bit objects in order
-#             out.append(qc_out.qubits.index(q))
-#     return out
-#
-# def logical_to_physical_indices(qc_in, qc_out):
-#     """
-#     L2P[j] = final *physical* index for logical j.
-#     Use when your state is in physical-qubit order (e.g., MBQC/hardware).
-#     """
-#     lay = getattr(qc_out, "layout", None)
-#     if lay is None:
-#         raise ValueError("Transpiled circuit has no layout; cannot map to physical indices.")
-#
-#     # Modern: input_qubit_mapping (VirtualBit -> physical int)
-#     if hasattr(lay, "input_qubit_mapping") and lay.input_qubit_mapping is not None:
-#         return [int(lay.input_qubit_mapping[q]) for q in qc_in.qubits]
-#
-#     # Older: final_layout mapping VirtualBit -> PhysicalQubit
-#     if hasattr(lay, "final_layout") and lay.final_layout is not None:
-#         fl = lay.final_layout
-#         phys = []
-#         for q in qc_in.qubits:
-#             pq = fl[q]  # PhysicalQubit or int
-#             phys.append(int(getattr(pq, "index", pq)))
-#         return phys
-#
-#     # As a last resort try initial_layout + routing_permutation (not ideal but better than nothing)
-#     if hasattr(lay, "initial_layout") and lay.initial_layout is not None:
-#         init = lay.initial_layout
-#         pre = [int(init[q]) for q in qc_in.qubits]  # pre-route virtual indices
-#         try:
-#             route = list(lay.routing_permutation())  # virtual->virtual; NOT physical, but keep as fallback
-#         except Exception:
-#             route = list(range(qc_out.num_qubits))
-#         return [route[p] for p in pre]
-#
-#     raise ValueError("Cannot extract logical→physical indices from this layout.")
-#
-# def conditional_dist_from_state(state, measure_idxs, anc_idx, anc_value=0):
-#     """
-#     `state`: qiskit Statevector (or array convertible to one) in *its native qubit order*.
-#     `measure_idxs`: indices (in this state's order) of qubits to keep; first is MSB in keys.
-#     `anc_idx`: index (in this state's order) of the ancilla.
-#     Returns dict bitstring -> probability of P(measure_idxs | anc=anc_value).
-#     """
-#     sv = state if isinstance(state, Statevector) else Statevector(state)
-#     qargs_joint = list(measure_idxs) + [anc_idx]  # ancilla last -> easy slice
-#     joint = sv.probabilities_dict(qargs=qargs_joint)
-#
-#     num, denom = {}, 0.0
-#     keep = str(int(anc_value))
-#     for key, p in joint.items():        # key is "<bits of measure_idxs><anc>"
-#         if key[-1] == keep:
-#             k = key[:-1]                # drop ancilla bit
-#             num[k] = num.get(k, 0.0) + p
-#             denom += p
-#
-#     if np.isclose(denom, 0.0):
-#         return {format(i, f'0{len(measure_idxs)}b'): 0.0 for i in range(2**len(measure_idxs))}
-#     out = {k: v / denom for k, v in num.items()}
-#     return {k: out[k] for k in sorted(out)}  # stable key order
-#
-# def plot_distribution(dist: dict, title: str):
-#     labels = list(dist.keys())
-#     values = [dist[k] for k in labels]
-#     plt.figure()
-#     plt.bar(labels, values)
-#     plt.xlabel("Measured bitstring (order = measure_qargs; first = MSB)")
-#     plt.ylabel("Probability")
-#     plt.title(title)
-#     plt.tight_layout()
-#     plt.show()
-
-import numpy as np
-import matplotlib.pyplot as plt
-from qiskit.quantum_info import Statevector
-
-# ---- tiny helpers ----
-
-def ancilla_logical_index(qc, reg_name="c0", pos=0):
-    """Index (in qc.qubits order) of bit `pos` in register `reg_name` (version-proof)."""
-    qr = next(r for r in qc.qregs if r.name == reg_name)
-    try:
-        return qc.find_bit(qr[pos]).index    # modern Terra
-    except AttributeError:
-        return qc.qubits.index(qr[pos])      # older Terra
-
-def overlap_abs_up_to_global_phase(a, b):
-    """|⟨a|b⟩| for two statevectors (arrays). ==1 if equal up to global phase."""
-    a = np.asarray(a, dtype=complex).ravel()
-    b = np.asarray(b, dtype=complex).ravel()
-    if a.size != b.size:
-        return 0.0
-    return abs(np.vdot(a, b))
-
-def conditional_dist_qargs(sv_logical, measure_qargs, anc_idx, anc_value=0):
-    """
-    P(measure_qargs | anc_idx = anc_value), with qargs in *logical* order.
-    Keys use the given measure order; first is MSB.
-    """
-    joint = sv_logical.probabilities_dict(qargs=list(measure_qargs) + [anc_idx])
-    num, denom = {}, 0.0
-    keep = str(int(anc_value))
-    for bitstr, p in joint.items():       # "meas_bits ... anc"
-        if bitstr[-1] == keep:
-            k = bitstr[:-1]               # drop ancilla bit
-            num[k] = num.get(k, 0.0) + p
-            denom += p
-    if np.isclose(denom, 0.0):
-        return {format(i, f'0{len(measure_qargs)}b'): 0.0 for i in range(2**len(measure_qargs))}
-    out = {k: v/denom for k, v in num.items()}
-    return {k: out[k] for k in sorted(out)}  # stable order
-
-def plot_distribution(dist, title):
-    xs = list(dist.keys()); ys = [dist[k] for k in xs]
-    plt.figure(); plt.bar(xs, ys)
-    plt.xlabel("bitstring (order = measure_qargs; first = MSB)")
-    plt.ylabel("Probability")
-    plt.title(title)
-    plt.tight_layout(); plt.show()
-
-# ---- DROP-IN: use your existing helpers to resolve order, then condition+measure ----
-
-def mbqc_q21_given_c0_zero(qc_in, transpiled_qc, psi, anc_reg="c0", anc_pos=0):
-    """
-    psi: Graphix MBQC statevector (flat array) on declared outputs.
-    Uses your extract_logical_to_physical + undo_layout_on_state to obtain a *logical-ordered*
-    Statevector, regardless of what order Graphix used, then returns and plots P(q2 q1 | c0=0).
-    """
-    N = transpiled_qc.num_qubits
-    sv_mbqc = Statevector(psi, dims=[2]*N)
-
-    # 1) Get logical->physical mapping from your transpiled circuit
-    mapping = extract_logical_to_physical(qc_in, transpiled_qc)
-
-    # 2) Try to undo layout. If undo is identity up to global phase, psi was already logical.
-    sv_undo = undo_layout_on_state(sv_mbqc, mapping)
-    ov = overlap_abs_up_to_global_phase(sv_undo.data, sv_mbqc.data)
-
-    if np.isclose(ov, 1.0, atol=1e-10):
-        sv_logical = sv_mbqc          # Graphix already returned logical order
-        order_note = "MBQC outputs already in logical order"
-    else:
-        sv_logical = sv_undo          # Graphix returned physical; we converted to logical
-        order_note = "Converted from physical to logical order via mapping"
-
-    # 3) Indices in *logical* order
-    anc_idx = ancilla_logical_index(qc_in, reg_name=anc_reg, pos=anc_pos)
-    measure_qargs = [2, 1]            # you asked for q2 (MSB), q1 (LSB)
-
-    # 4) Conditional distribution and plot
-    dist = conditional_dist_qargs(sv_logical, measure_qargs, anc_idx, anc_value=0)
-    plot_distribution(dist, title=f"P(q2 q1 | {anc_reg}=0) — {order_note}")
-
-    return {"distribution": dist, "order_note": order_note, "overlap_abs": ov, "mapping": list(mapping)}
-
-
-
-
-
 def main():
+    # 1) Create the |++> state directly
+    input_vec = Statevector.from_label('+++++')  # three-qubit plus state
 
+    # 2) Define your 2-qubit circuit (no H gates needed)
+    qc = QuantumCircuit(5)
+    qc.cx(0, 1)
+    qc.s(2)
+    qc.rx(np.pi/3, 2)
+    qc.t(2)
+    qc.x(2)
+    qc.cx(3, 4)
+
+    qc.draw(output='mpl',
+                        fold=40,
+                        style="iqp"
+                        )
+
+    bw_pattern, col_map, transpiled_qc = brickwork_transpiler.transpile(qc, input_vec,
+                                                         routing_method="sabre",
+                                                         layout_method="sabre",
+                                                         with_ancillas=False)
+    # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
+    transpiled_qc.draw(output='mpl',
+                        fold=40,
+                        style="iqp"
+                        )
+    visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+                                                 node_colours=col_map,
+                                                 use_node_colours=True,
+                                                 title="test_cx_from_zero_upper",
+                                                 )
+
+    # Optimise for tensornetwork backand and simulation efficiency
+    bw_pattern.standardize()  # puts commands into N-E-M-(X/Z/C) order
+    bw_pattern.shift_signals()  # optional but recommended; reduces feedforward
+
+    tn = bw_pattern.simulate_pattern(backend="tensornetwork", graph_prep="parallel")
+    psi = tn.to_statevector()  # state on your declared outputs
+
+    ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
+    # ref_state = input_vec.evolve(qc)
+
+    # Round trip must be identity for any random state
+    rng = np.random.default_rng(0)
+    psi = rng.normal(size=32) + 1j * rng.normal(size=32)
+    psi /= np.linalg.norm(psi)
+
+    p2l = [3, 4, 1, 0, 2]  # physical -> logical
+    # simulate a (hypothetical) conversion logical -> physical:
+    l2p = np.argsort(p2l).tolist()
+
+    psi_phys = apply_qubit_permutation(psi, l2p, convention="dest_from_src", little_endian=True)
+    psi_back = undo_qubit_permutation(psi_phys, p2l, convention="src_at_dest", little_endian=True)
+    assert np.allclose(psi, psi_back)
+
+    mapping = extract_logical_to_physical(qc, transpiled_qc)
+    print("mapping: ", mapping)
+
+    # If you simulated with your MBQC engine and got a flat numpy array `psi`:
+    # sv_logical_from_mbqc = undo_layout_on_state(psi, mapping, total_qubits=transpiled_qc.num_qubits)
+    unmapped_sv = undo_statevector_permutation(psi, mapping)
+
+
+
+    print("ref_state: ", ref_state)
+
+    print("unmapped_sv: ", unmapped_sv)
+
+    # Compare output up to global phase
+    assert utils.assert_equal_up_to_global_phase(unmapped_sv, ref_state)
+
+    return 0
+    # # --- imports ---------------------------------------------------------------
+    # import math, numpy as np
+    # from qiskit import QuantumCircuit
+    # from qiskit.quantum_info import Statevector
+    # from qiskit.circuit.library import PermutationGate
+    #
+    # # --- helpers ---------------------------------------------------------------
+    #
+    # def extract_logical_to_physical(qc_in, qc_out):
+    #     """
+    #     l2p[j] = p1 (final physical wire) for logical qubit j of qc_in, as realized in qc_out.
+    #     """
+    #     layout = getattr(qc_out, "layout", None)
+    #     if layout is None or getattr(layout, "initial_layout", None) is None:
+    #         n = min(qc_in.num_qubits, qc_out.num_qubits)
+    #         return list(range(n))
+    #     init = layout.initial_layout  # virtual -> pre-route physical
+    #     pre = [init[q] for q in qc_in.qubits]  # p0
+    #     try:
+    #         route = list(layout.routing_permutation())  # p0 -> p1
+    #     except Exception:
+    #         route = list(range(qc_out.num_qubits))
+    #     return [route[p0] for p0 in pre]  # j -> p1
+    #
+    # def _perm_LE_for_route_inverse(route):
+    #     """
+    #     Convert wire-space inverse routing r^{-1}: p1->p0 into little-endian qubit-index
+    #     permutation for PermutationGate (perm[i]=j means move qubit i to position j).
+    #     """
+    #     N = len(route)
+    #     # r^{-1} over wire indices
+    #     rinv_wire = [None] * N
+    #     for p0, p1 in enumerate(route):
+    #         rinv_wire[p1] = p0
+    #     # wire <-> little-endian index: i_LE = N-1 - i_wire
+    #     perm_LE = [None] * N
+    #     for i_LE in range(N):
+    #         i_wire = N - 1 - i_LE
+    #         j_wire = rinv_wire[i_wire]
+    #         j_LE = N - 1 - j_wire
+    #         perm_LE[i_LE] = j_LE
+    #     # sanity
+    #     if sorted(perm_LE) != list(range(N)):
+    #         raise ValueError(f"Bad LE permutation derived from route: {perm_LE}")
+    #     return perm_LE
+    #
+    # def undo_sabre_on_state(state, qc_out, total_qubits=None):
+    #     """
+    #     Given 'state' in the final-physical wire order (Graphix result),
+    #     undo SABRE's routing to obtain **pre-route physical** order.
+    #     """
+    #     # Normalize to Statevector
+    #     if isinstance(state, Statevector):
+    #         sv = state
+    #     else:
+    #         arr = np.asarray(state, dtype=complex)
+    #         N = total_qubits if total_qubits is not None else int(round(math.log2(arr.size)))
+    #         sv = Statevector(arr, dims=[2] * N)
+    #
+    #     layout = getattr(qc_out, "layout", None)
+    #     if layout is None:
+    #         return sv
+    #
+    #     try:
+    #         route = list(layout.routing_permutation())  # p0 -> p1
+    #     except Exception:
+    #         return sv  # nothing to undo
+    #
+    #     perm_LE = _perm_LE_for_route_inverse(route)  # r^{-1} in LE indices
+    #     return sv.evolve(PermutationGate(perm_LE))
+    #
+    # def calculate_ref_state_from_qiskit_circuit(
+    #         bw_pattern,
+    #         qc_in,
+    #         transpiled_qc,
+    #         input_vector,
+    #         *,
+    #         align_graphix_to_qiskit: bool = True,
+    #         ancilla_init: str = "0",
+    #         permute_qubits_fn=None,  # pass your existing permute_qubits if you have it
+    # ):
+    #     """
+    #     Build a reference state that matches **pre-route physical** order.
+    #
+    #     Steps:
+    #       1) (optional) Align Graphix’s big-endian labeling to Qiskit logical indices.
+    #       2) Evolve 'input_vector' through the (optionally permuted) qc_in -> logical-order state.
+    #       3) Permute logical j -> pre-route physical p0 using initial_layout.
+    #       4) (optional) Pad ancillas if transpiled has more qubits.
+    #     """
+    #     if bw_pattern is None:
+    #         raise AssertionError("bw_pattern is None")
+    #
+    #     qc_used = qc_in
+    #     if align_graphix_to_qiskit:
+    #         # Graphix output_nodes are big-endian; flip to little-endian
+    #         entries_le = [t[0] for t in bw_pattern.output_nodes][::-1]
+    #         # For each Qiskit logical j, find its position in Graphix’s LE list
+    #         perm_logical_to_graphix = [entries_le.index(j) for j in range(len(entries_le))]
+    #         if permute_qubits_fn is not None:
+    #             # If you have a circuit-level reindexer, use it:
+    #             qc_used = permute_qubits_fn(qc_in, perm=perm_logical_to_graphix)
+    #         else:
+    #             # Otherwise, we’ll apply this logical permutation to the STATE after evolution.
+    #             pass
+    #
+    #     # Logical evolution on the intended input (|+++++> here)
+    #     ref_state_logical = input_vector.evolve(qc_used)
+    #
+    #     # If we didn't reindex the circuit, apply the logical permutation to the state now
+    #     if align_graphix_to_qiskit and permute_qubits_fn is None:
+    #         N = qc_in.num_qubits
+    #         # perm[i]=j moves logical i → logical position j
+    #         perm = list(range(N))
+    #         for i, j in enumerate(perm_logical_to_graphix):
+    #             perm[i] = j
+    #         ref_state_logical = ref_state_logical.evolve(PermutationGate(perm))
+    #
+    #     # Ancilla padding if needed
+    #     L = qc_used.num_qubits
+    #     N = transpiled_qc.num_qubits
+    #     if N < L:
+    #         raise ValueError(f"Transpiled has {N} qubits but qc_in has {L}.")
+    #     if N > L:
+    #         anc = Statevector.from_label(ancilla_init * (N - L))
+    #         ref_state_logical = anc.tensor(ref_state_logical)  # ancillas on higher wires
+    #
+    #     # logical → pre-route physical (initial_layout)
+    #     layout = getattr(transpiled_qc, "layout", None)
+    #     if layout is None or getattr(layout, "initial_layout", None) is None:
+    #         return ref_state_logical
+    #
+    #     init = layout.initial_layout  # virtual -> pre-route physical
+    #     pre = [init[q] for q in qc_used.qubits]  # p0 for each logical j
+    #     perm_j_to_p0 = list(range(N))
+    #     for j, p0 in enumerate(pre):
+    #         perm_j_to_p0[j] = p0
+    #     # Fill any remaining slots bijectively (only relevant if N > L)
+    #     if N > L:
+    #         used = set(pre)
+    #         rest = [p for p in range(N) if p not in used]
+    #         for k, j in enumerate(range(L, N)):
+    #             perm_j_to_p0[j] = rest[k]
+    #     if sorted(perm_j_to_p0) != list(range(N)):
+    #         raise ValueError(f"Invalid logical→pre-route map: {perm_j_to_p0}")
+    #
+    #     return ref_state_logical.evolve(PermutationGate(perm_j_to_p0))
+    #
+    # # --- your pipeline (cleaned) -----------------------------------------------
+    #
+    # # 0) Define input and circuit
+    # input_vec = Statevector.from_label('+++++')
+    #
+    # qc_in = QuantumCircuit(5)
+    # qc_in.cx(0, 1)
+    # qc_in.s(2)
+    # qc_in.rx(np.pi / 3, 2)
+    # qc_in.t(2)
+    # qc_in.x(2)
+    # qc_in.cx(3, 4)
+    #
+    # # 1) Transpile to brickwork / SABRE
+    # bw_pattern, col_map, transpiled_qc = brickwork_transpiler.transpile(
+    #     qc_in, input_vec,
+    #     routing_method="sabre",
+    #     layout_method="sabre",
+    #     with_ancillas=False
+    # )
+    #
+    # # 2) Graphix simulation
+    # bw_pattern.standardize()
+    # bw_pattern.shift_signals()
+    # tn = bw_pattern.simulate_pattern(backend="tensornetwork", graph_prep="parallel")
+    # psi = tn.to_statevector()
+    #
+    # # 3) Undo SABRE on Graphix state -> pre-route physical order
+    # try:
+    #     route = list(transpiled_qc.layout.routing_permutation())  # p0 -> p1 (debug/use)
+    # except Exception:
+    #     route = list(range(transpiled_qc.num_qubits))
+    # psi_preroute_physical = undo_sabre_on_state(psi, transpiled_qc, total_qubits=transpiled_qc.num_qubits)
+    #
+    # # (optional) also compute l2p (logical -> final physical) for consistency checks
+    # l2p = extract_logical_to_physical(qc_in, transpiled_qc)  # j -> p1
+    # pre = [transpiled_qc.layout.initial_layout[q] for q in qc_in.qubits]  # j -> p0
+    # assert [route[p0] for p0 in pre] == l2p
+    #
+    # # 4) Qiskit reference in the SAME (pre-route physical) order
+    # ref_state_preroute_physical = calculate_ref_state_from_qiskit_circuit(
+    #     bw_pattern=bw_pattern,
+    #     qc_in=qc_in,
+    #     transpiled_qc=transpiled_qc,
+    #     input_vector=input_vec,
+    #     align_graphix_to_qiskit=True,  # set False if you already aligned elsewhere
+    #     ancilla_init="0",
+    #     permute_qubits_fn=None  # or None if you want state-level permutation
+    # )
+    #
+    # # 5) Compare up to global phase
+    # print(f"Qiskit ref_state: {ref_state_preroute_physical}")
+    # print(f"psi_preroute_physical: {psi_preroute_physical}")
+    # if utils.assert_equal_up_to_global_phase(psi_preroute_physical, ref_state_preroute_physical):
+    #     print("Same up to global phase!")
+    #
+    # return 0
+
+    # qc_in, input_vec = circuits.h_and_cx_circ()
+
+    input_vec = Statevector.from_label('+++++')  # three-qubit plus state
+
+    # 2) Define your 2-qubit circuit (no H gates needed)
+    qc_in = QuantumCircuit(5)
+    qc_in.cx(0, 1)
+    qc_in.s(2)
+    qc_in.rx(np.pi/3, 2)
+    qc_in.t(2)
+    qc_in.x(2)
+    qc_in.cx(3, 4)
+
+    bw_pattern, col_map, transpiled_qc = brickwork_transpiler.transpile(
+        qc_in, input_vec,
+        routing_method="sabre",
+        layout_method="sabre",
+        with_ancillas=False
+    )
+
+    ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc_in, input_vec)
+    # ref_state = Statevector.from_instruction(qc_in).data
+    # correct: apply qc_in to the |+++++> state
+    ref_state = input_vec.evolve(qc_in)  # NOT Statevector.from_instruction(qc_in)
+
+    transpiled_qc.draw(output='mpl',
+                        fold=40,
+                        style="iqp"
+                        )
+
+    # Preprocess data to standard form
+    bw_pattern.standardize()
+    bw_pattern.shift_signals()
+
+    # Get the output state from Graphix simulation
+    tn = bw_pattern.simulate_pattern(backend="tensornetwork", graph_prep="parallel")
+    psi = tn.to_statevector()
+
+    # Plot informative graph
+    visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+                                                 show_angles=True,
+                                                 node_colours=col_map,
+                                                 use_node_colours=True,
+                                                 title="Brickwork graph: H + CX")
+
+
+    # After transpile
+    l2p = extract_logical_to_physical24(qc_in, transpiled_qc)  # logical -> final physical
+    psi_preroute_physical = undo_sabre_to_preroute_physical24(
+        psi, l2p, qc_in, transpiled_qc, total_qubits=transpiled_qc.num_qubits
+    )
+
+    from qiskit.circuit.library import PermutationGate
+
+    def logical_to_preroute_perm(qc_in, qc_out):
+        """Return perm with PermutationGate semantics perm[i]=j (move i→j),
+           that moves logical position j to its pre-route physical index p0."""
+        layout = qc_out.layout
+        init = layout.initial_layout
+        pre = [init[q] for q in qc_in.qubits]  # p0 for each logical j
+        N = qc_out.num_qubits
+        perm = list(range(N))
+        for j, p0 in enumerate(pre):
+            perm[j] = p0
+        return perm
+
+    perm_j_to_p0 = logical_to_preroute_perm(qc_in, transpiled_qc)
+    ref_state_preroute_physical = ref_state.evolve(PermutationGate(perm_j_to_p0))
+
+    # Build the Graphix state, then undo SABRE on it (as you already do):
+    route = list(transpiled_qc.layout.routing_permutation())  # p0 -> p1
+    # psi_preroute_physical = undo_sabre_with_permgate24(psi, route, total_qubits=transpiled_qc.num_qubits)
+
+    # Build the reference in the *same* pre-route physical order:
+    ref_state_preroute_physical = calculate_ref_state_from_qiskit_circuit(
+        bw_pattern, qc_in, transpiled_qc, input_vec, align_graphix_to_qiskit=True
+    )
+
+    print(f"Qiskit ref_state: {ref_state_preroute_physical}")
+    print(f"psi_preroute_physical: {psi_preroute_physical}")
+    # Compare output state upto global phase
+    if utils.assert_equal_up_to_global_phase(psi_preroute_physical, ref_state_preroute_physical):
+        print("Same up to global phase!")
+
+    return 0
+
+    # user_vec = [0, 0]
+    # qc_in, input_vec = circuits.minimal_qrs(user_vec)
+    #
+    # print(qc_in)
+    #
+    # bw_pattern, col_map, transpiled_qc = brickwork_transpiler.transpile(
+    #     qc_in, routing_method="sabre", layout_method=None, with_ancillas=False
+    # )
+    #
+    # # (optional) keep your standardization steps
+    # bw_pattern.standardize()
+    # bw_pattern.shift_signals()
+    #
+    # print(transpiled_qc.layout)
+    #
+    # # If you already have a Graphix→Qiskit permutation from the pattern, keep using it.
+    # # Otherwise, set `use_graphix_perm = False` to use the endian-based converter.
+    # use_graphix_perm = True
+    # graphix_is_msb0 = True  # set False if Graphix already outputs little-endian (q0=LSB)
+    #
+    # # --- Graphix simulation (TN backend as you had) ---
+    # tn = bw_pattern.simulate_pattern(backend="tensornetwork", graph_prep="parallel")
+    # psi = tn.to_statevector()  # Graphix indexing, 1D complex array
+    #
+    # # --- Qiskit reference statevector in INPUT wire order (no SABRE) ---
+    # try:
+    #     qc_nom = qc_in.remove_final_measurements(inplace=False)
+    # except Exception:
+    #     qc_nom = qc_in
+    # psi_ref = np.asarray(Statevector.from_instruction(qc_nom).data, dtype=complex)
+    #
+    # # Sanity check sizes
+    # if psi.size != psi_ref.size:
+    #     raise RuntimeError(
+    #         f"Graphix vector length {psi.size} differs from reference {psi_ref.size}. "
+    #         "Check for extra ancilla or qubit count mismatch."
+    #     )
+    #
+    # # --- Step 1: Graphix indexing → Qiskit indexing (no SABRE yet) ---
+    # if use_graphix_perm:
+    #     # Your function (assumed to map Graphix pattern qubit order to Qiskit’s logical order)
+    #     perm_gx_to_qk = get_qiskit_permutation(bw_pattern)  # π: graphix_index -> qiskit_index
+    #     psi_qk = reorder_statevector_by_perm(psi, perm_gx_to_qk)
+    # else:
+    #     # Fallback: treat Graphix as MSB-first and just reverse qubit order
+    #     psi_qk = graphix_to_qiskit_statevector(psi, graphix_is_msb0=graphix_is_msb0)
+    #
+    # # --- Step 2: Undo SABRE wiring (output → input order) using inverse permutation ---
+    # pi = permutation_input_to_output(transpiled_qc.layout)  # input -> output
+    # inv = inverse_perm(pi)  # output -> input
+    #
+    # # Graphix sim corresponds to SABRE's *output* logical order; bring it back to *input* order:
+    # psi_gx_input = reorder_statevector_by_perm(psi_qk, inv)
+    #
+    # # --- Step 3: Align global phase, compute metrics, report ---
+    # overlap = np.vdot(psi_ref, psi_gx_input)  # <ref | graphix>
+    # phase = -np.angle(overlap)
+    # psi_gx_aligned = psi_gx_input * np.exp(1j * phase)
+    #
+    # fidelity = float(np.abs(np.vdot(psi_ref, psi_gx_aligned)) ** 2)
+    # err = psi_gx_aligned - psi_ref
+    # max_abs_err = float(np.max(np.abs(err)))
+    # rms_err = float(np.sqrt(np.mean(np.abs(err) ** 2)))
+    #
+    # print("SABRE π (input→output):", pi)
+    # print("Inverse (output→input):", inv)
+    # print(f"Global phase (radians): {phase:.12f}")
+    # print(f"Fidelity: {fidelity:.12e}")
+    # print(f"max|err|: {max_abs_err:.12e}   RMS err: {rms_err:.12e}")
+    #
+    # # =========================
+    # # === Your plotting part ==
+    # # =========================
+    # # You previously plotted after applying π (SABRE output basis). You can choose:
+    # plot_basis = "input"  # options: "input" (default, matches qc_in) or "output"
+    #
+    # if plot_basis == "input":
+    #     amps = np.asarray(psi_gx_input, dtype=complex)  # input wire order (matches psi_ref)
+    # elif plot_basis == "output":
+    #     # reproduce your previous psi_out for visualization in SABRE output order
+    #     psi_out = reorder_statevector_by_perm(psi_qk, pi)
+    #     amps = np.asarray(psi_out, dtype=complex)
+    # else:
+    #     raise ValueError("plot_basis must be 'input' or 'output'.")
+    #
+    # # --- normalize (safe) ---
+    # norm = np.linalg.norm(amps)
+    # if not np.isclose(norm, 1.0):
+    #     amps = amps / norm
+    #
+    # # --- statevector -> probabilities (nonzero only) ---
+    # sv = Statevector(amps)
+    # probs_dict = sv.probabilities_dict()  # keys are bitstrings; bit[-1] is q0 (LSB) in Qiskit
+    #
+    # # --- post-select c0 = 0 on a chosen qubit index (in the chosen basis) ---
+    # eps = 1e-12
+    # flip_plot_labels = True
+    # target_qubit = 5  # interpret this index in the selected 'plot_basis'
+    # top_k = None  # e.g., 40
+    #
+    # filtered = {b: p for b, p in probs_dict.items() if b[-(target_qubit + 1)] == '0'}
+    # Z = sum(filtered.values())
+    # if Z == 0:
+    #     raise ValueError("After conditioning on c0=0, no support remains. Check target_qubit/basis/endianness.")
+    # filtered = {b: (p / Z) for b, p in filtered.items() if (p / Z) > eps}
+    #
+    # if top_k is not None:
+    #     filtered = dict(sorted(filtered.items(), key=lambda kv: kv[1], reverse=True)[:top_k])
+    #
+    # xs = sorted(filtered)
+    # ys = [filtered[b] for b in xs]
+    # tot = sum(ys)
+    # probs = [100.0 * y / tot for y in ys]
+    #
+    # labels = [b[::-1] for b in xs] if flip_plot_labels else xs
+    #
+    # os.makedirs("images/plots", exist_ok=True)
+    # plt.figure(figsize=(7, 3.6))
+    # plt.bar(range(len(xs)), probs)
+    # plt.xticks(range(len(xs)), labels, rotation=70, ha='right')
+    # plt.ylabel("Probability (%)")
+    # title_basis = "Input" if plot_basis == "input" else "SABRE Output"
+    # plt.title(f"Minimal QRS (post-select c0=0) | feature: {user_vec} | basis: {title_basis}")
+    # plt.tight_layout()
+    # plt.savefig(f"images/plots/minimal_qrs_statevector_plot_{user_vec}_{plot_basis}.png", dpi=300, bbox_inches="tight")
+    # plt.show()
+    #
+    #
+    # return 0
     user_vec = [0, 0]
     qc_in, input_vec = circuits.minimal_qrs(user_vec)
 
     print(qc_in)
 
     bw_pattern, col_map, transpiled_qc = brickwork_transpiler.transpile(
-        qc_in, input_vec, routing_method="sabre", layout_method="sabre", with_ancillas=False
+        qc_in, input_vec,
+        routing_method="sabre",
+        layout_method="sabre",
+        with_ancillas=False
     )
+
+    # visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+    #                                              node_colours=col_map,
+    #                                              use_node_colours=True,
+    #                                              title="noise_test",
+    #                                              )
+
     bw_pattern.standardize()
     bw_pattern.shift_signals()
 
-    import graphix.noise_models.noise_model as noise_model
+    print(transpiled_qc.layout)
 
-    tn = bw_pattern.simulate_pattern(backend="tensornetwork", graph_prep="parallel")
+
+    # 0) simulate MBQC (TN backend)
+    tn = bw_pattern.simulate_pattern(backend="densitymatrix", noise_model=SimulationNoiseModel(p1=0.05, p2=0.001))
     psi = tn.to_statevector()
+    eps = 1e-12  # or 0.0 for no pruning
+    flip_plot_labels = True
+    target_qubit = 0
+    top_k = None  # e.g., 40 to keep only the top-40 bars (None = keep all)
 
 
-    mapping = extract_logical_to_physical(qc_in, transpiled_qc)
+    # --- statevector -> probabilities (nonzero only) ---
+    amps = np.asarray(psi, dtype=complex)
+    norm = np.linalg.norm(amps)
+    if not np.isclose(norm, 1.0):
+        amps = amps / norm
 
 
-    # If you simulated with your MBQC engine and got a flat numpy array `psi`:
-    sv_logical_from_mbqc = undo_layout_on_state(psi, mapping, total_qubits=transpiled_qc.num_qubits)
+    sv = Statevector(amps)
 
-    import numpy as np
-    from qiskit.quantum_info import Statevector
+    shots = 20_000  # choose your shot budget
+    counts = sv.sample_counts(shots=shots)  # dict[str, int]; b[-1] is q0 (little-endian)
 
-    import numpy as np
-    import matplotlib.pyplot as plt
-    from qiskit.quantum_info import Statevector
+    # (optional) prune tiny mass in *counts*
+    min_count = 1
+    counts = {b: c for b, c in counts.items() if c >= min_count}
 
-    # ---- inputs / knobs ----
-    amps = np.asarray(sv_logical_from_mbqc, dtype=complex)
-    import os
-    import numpy as np
-    import matplotlib.pyplot as plt
-    from qiskit.quantum_info import Statevector
+    # (optional) keep only the top-k outcomes
+    if top_k is not None:
+        counts = dict(sorted(counts.items(), key=lambda kv: kv[1], reverse=True)[:top_k])
 
-    # --- knobs ---
-    target_qubit = 0  # c0 at bit-5 (little-endian: rightmost char is qubit 0)
+    # --- plotting ---
+    xs = sorted(counts)  # canonical keys
+    ys = [counts[b] for b in xs]  # <-- COUNTS now
+
+    labels = [b[::-1] for b in xs] if flip_plot_labels else xs
+
+    os.makedirs("images/plots", exist_ok=True)
+    plt.figure(figsize=(7, 3.6))
+    plt.bar(range(len(xs)), ys)
+    plt.xticks(range(len(xs)), labels, rotation=70, ha='right')
+    plt.ylabel("Counts")
+    plt.title(f"Minimal QRS Results with noise (no post-selection) | feature: {user_vec}")
+    plt.tight_layout()
+    plt.savefig(f"images/plots/minimal_qrs_NOISE_CLIFFORD_statevector_evolution_plot_{user_vec}.png",
+                dpi=300, bbox_inches="tight")
+    plt.show()
+
+    # # --- post-select c0 = 0 on target_qubit, renormalize, prune tiny mass ---
+    # filtered = {b: p for b, p in probs_dict.items() }#if b[target_qubit] == '0'}
+    # Z = sum(filtered.values())
+    # if Z == 0:
+    #     raise ValueError("After conditioning on c0=0, no support remains. Check target_qubit/endian.")
+    # filtered = {b: (p / Z) for b, p in filtered.items() if (p / Z) > eps}
+    #
+    # # (optional) keep only the top-k outcomes
+    # if top_k is not None:
+    #     filtered = dict(sorted(filtered.items(), key=lambda kv: kv[1], reverse=True)[:top_k])
+    #
+    # # --- your plotting style ---
+    # xs = sorted(filtered)  # canonical keys
+    # ys = [filtered[b] for b in xs]
+    #
+    #
+    # # DISPLAY-ONLY: flip label bit order if you want MSB↔LSB swapped
+    # labels = [b[::-1] for b in xs] if flip_plot_labels else xs
+    #
+    # os.makedirs("images/plots", exist_ok=True)
+    # plt.figure(figsize=(7, 3.6))
+    # plt.bar(range(len(xs)), ys)
+    # plt.xticks(range(len(xs)), labels, rotation=70, ha='right')  # readable labels
+    # plt.ylabel("Counts")
+    # plt.title(f"Minimal QRS Results with noise (no post-selection) | feature: {user_vec}")
+    # plt.tight_layout()
+    # plt.savefig(f"images/plots/minimal_qrs_NOISE_CLIFFORD_statevector_evolution_plot_{user_vec}.png", dpi=300, bbox_inches="tight")
+    # plt.show()
+
+
+    return 0
+
+    # --- post-select c0 = 0 on the ancilla bit ---
+    filtered = {b: p for b, p in probs_dict.items() if b[anc_pos] == '0'}
+
     flip_plot_labels = True  # display-only MSB↔LSB flip
     user_feature = "demo"  # customize per run
     eps = 1e-12  # drop tiny probabilities post-selection
     top_k = None  # e.g., 40 to keep only the top-40 bars (None = keep all)
 
     # --- statevector -> probabilities (nonzero only) ---
-    amps = np.asarray(sv_logical_from_mbqc, dtype=complex)
+    amps = np.asarray(psi, dtype=complex)
     norm = np.linalg.norm(amps)
     if not np.isclose(norm, 1.0):
         amps = amps / norm
@@ -497,9 +1141,204 @@ def main():
     plt.savefig(f"images/plots/minimal_qrs_NOISE_CLIFFORD_statevector_evolution_plot_{user_vec}.png", dpi=300, bbox_inches="tight")
     plt.show()
 
-    # import numpy as np
+
+
+    return 0
+
+    # # 1) SABRE mapping (original logical order → final physical)
+    # L2P = logical_to_final_physical(qc_in, transpiled_qc)
+    #
+    # # 2) TN axis order in physical indices
+    # axes_phys = axes_phys_from_tn_outputs(tn, bw_pattern)
+    #
+    # # 3) Put TN state back into original logical order (now ancilla aligns)
+    # sv_logical_from_mbqc = undo_sabre_on_tn_state(psi, L2P, axes_phys)
+
+    # tn = bw_pattern.simulate_pattern(backend="tensornetwork", graph_prep="parallel")#, noise_model=SimulationNoiseModel)
+    # # tn = bw_pattern.simulate_pattern(backend="densitymatrix", noise_model=SimulationNoiseModel(p1=0.05, p2=0.0001))
+    # psi = tn.to_statevector()
+    #
+    #
+    # mapping = extract_logical_to_physical(qc_in, transpiled_qc)
+    # # If you simulated with your MBQC engine and got a flat numpy array `psi`:
+    # sv_logical_from_mbqc = undo_layout_on_state(psi, mapping)#, total_qubits=transpiled_qc.num_qubits)
+
+
+
+    # ---- inputs / knobs ----
+
+    # --- helpers: parse Qubit(...) safely (no deprecated attributes) ---
+    _QUBIT_RE = re.compile(
+        r"Qubit\(QuantumRegister\(\s*\d+\s*,\s*'([^']+)'\s*\)\s*,\s*(\d+)\s*\)\Z"
+    )
+
+    def _qb_info(qb):
+        m = _QUBIT_RE.match(repr(qb))
+        if not m:
+            raise ValueError(f"Unexpected qubit repr: {repr(qb)}")
+        name, idx = m.group(1), int(m.group(2))
+        return name, idx
+
+    # 1) Qiskit circuit index of c0[0] (used for filtering)
+    def qiskit_index_of_c0(layout, circuit, reg_name="c0", reg_index=0):
+        v = None
+        for qb, vidx in layout.input_qubit_mapping.items():
+            nm, ix = _qb_info(qb)
+            if nm == reg_name and ix == reg_index:
+                v = vidx
+                break
+        if v is None:
+            raise KeyError(f"{reg_name}[{reg_index}] not found in input_qubit_mapping.")
+        out_qb = layout.final_layout[v]
+        return circuit.find_bit(out_qb).index
+
+    # 2) Build Graphix-qubit index → Qiskit-circuit index map, g_to_q[g] = q
+    def g_to_q_map(layout, circuit, graphix_reg_order=("q", "c0")):
+        """
+        Assumes Graphix enumerates qubits by register then index, e.g. q[0..N-1], then c0[0].
+        If your source order differs, adjust graphix_reg_order.
+        """
+        # (a) determine virtual index -> circuit index
+        v_to_q = {}
+        for qb, v in layout.input_qubit_mapping.items():
+            out_qb = layout.final_layout[v]
+            q = circuit.find_bit(out_qb).index
+            v_to_q[v] = q
+
+        # (b) determine Graphix enumeration order over the *input* qubits
+        items = []
+        for qb, v in layout.input_qubit_mapping.items():
+            nm, ix = _qb_info(qb)
+            # order registers according to graphix_reg_order, unknown names go last alphabetically
+            try:
+                reg_rank = graphix_reg_order.index(nm)
+            except ValueError:
+                reg_rank = len(graphix_reg_order)
+            items.append((reg_rank, nm, ix, v))
+        items.sort()  # (reg_rank, name, index)
+
+        # (c) compose g -> v -> q
+        g_to_q = [v_to_q[v] for (_, _, _, v) in items]
+        return g_to_q  # length n, with unique ints in [0..n-1]
+
+    # 3) Reorder amplitudes by exact bit-permutation defined by g_to_q
+    def reorder_amps_graphix_to_qiskit(psi, g_to_q, graphix_big_endian=True):
+        psi = np.asarray(psi, dtype=complex).reshape(-1)
+        n = len(g_to_q)
+        if psi.size != (1 << n):
+            raise ValueError(f"psi length {psi.size} != 2**{n}")
+        I = np.arange(1 << n, dtype=np.uint64)
+        J = np.zeros_like(I)
+        # Graphix bit position for qubit g:
+        #   big-endian: MSB at g=0 → bitpos = n-1-g
+        #   little-endian: bitpos = g
+        for g, q in enumerate(g_to_q):
+            g_bitpos = (n - 1 - g) if graphix_big_endian else g
+            J |= ((I >> g_bitpos) & 1) << q
+        return psi[J]
+
+    # 4) Full pipeline: reorder, then filter on c0=0 at the correct Qiskit index
+    def filtered_probs_c0_eq_0(psi, circuit, layout, graphix_big_endian=True, eps=0.0, top_k=None):
+        n = circuit.num_qubits
+        q_idx = qiskit_index_of_c0(layout, circuit, "c0", 0)
+        g2q = g_to_q_map(layout, circuit)  # derive full wire permutation
+        amps_q = reorder_amps_graphix_to_qiskit(psi, g2q, graphix_big_endian)
+
+        # normalize
+        norm = np.linalg.norm(amps_q)
+        if norm == 0:
+            raise ValueError("Zero statevector.")
+        if not np.isclose(norm, 1.0):
+            amps_q = amps_q / norm
+
+        probs = Statevector(amps_q).probabilities_dict()  # keys little-endian, rightmost = q0
+
+        # diagnostics (optional)
+        mass0 = sum(p for b, p in probs.items() if b[-(q_idx + 1)] == '0')
+        mass1 = 1.0 - mass0
+        # print(f"P(c0=0)={mass0:.6f}, P(c0=1)={mass1:.6f}")
+
+        # post-select c0=0
+        kept = {b: p for b, p in probs.items() if b[-(q_idx + 1)] == '0'}
+        Z = sum(kept.values())
+        if Z == 0:
+            raise ValueError("Conditioning on c0=0 leaves no support — check mapping.")
+        kept = {b: (p / Z) for b, p in kept.items() if (p / Z) > eps}
+
+        if top_k is not None:
+            kept = dict(sorted(kept.items(), key=lambda kv: kv[1], reverse=True)[:top_k])
+
+        # Graphix index of c0 for display only
+        g_idx = (n - 1 - q_idx) if graphix_big_endian else q_idx
+        return kept, q_idx, g_idx, (mass0, mass1)
+
+
+    # psi: length 2**n complex array from Graphix (g0 is MSB / leftmost)
+    GRAPHIX_BIG_ENDIAN = True  # set False if psi is already Qiskit-ordered
+    EPS = 1e-12  # or 0.0 for no pruning
+    TOP_K = None  # or an int
+
+    filtered, q_idx, g_idx, (p0, p1) = filtered_probs_c0_eq_0(
+        psi,
+        transpiled_qc,
+        transpiled_qc.layout,
+        graphix_big_endian=GRAPHIX_BIG_ENDIAN,
+        eps=EPS,
+        top_k=TOP_K
+    )
+
+    print(f"Qiskit circuit index for c0[0]: {q_idx}  → Graphix index: {g_idx}")
+    print(f"P(c0=0)={p0:.6f}, P(c0=1)={p1:.6f}")
+    print(f"#outcomes post c0=0: {len(filtered)}")
+    # Example: inspect top outcomes
+    print(sorted(filtered.items(), key=lambda kv: kv[1], reverse=True)[:10])
+
+    target_qubit = q_idx
+    flip_plot_labels = True  # display-only MSB↔LSB flip
+    user_feature = "demo"  # customize per run
+    eps = 1e-12  # drop tiny probabilities post-selection
+    top_k = None  # e.g., 40 to keep only the top-40 bars (None = keep all)
+
+    # # --- statevector -> probabilities (nonzero only) ---
+    # amps = np.asarray(psi, dtype=complex)
+    # norm = np.linalg.norm(amps)
+    # if not np.isclose(norm, 1.0):
+    #     amps = amps / norm
+    #
+    # sv = Statevector(amps)
+    # probs_dict = sv.probabilities_dict()  # keys: bitstrings; b[-1] is q0 (little-endian)
+    #
+    # # --- post-select c0 = 0 on target_qubit, renormalize, prune tiny mass ---
+    # filtered = {b: p for b, p in probs_dict.items() if b[-(target_qubit + 1)] == '0'}
+    # Z = sum(filtered.values())
+    # if Z == 0:
+    #     raise ValueError("After conditioning on c0=0, no support remains. Check target_qubit/endian.")
+    # filtered = {b: (p / Z) for b, p in filtered.items() if (p / Z) > eps}
+    #
+    # # (optional) keep only the top-k outcomes
+    # if top_k is not None:
+    #     filtered = dict(sorted(filtered.items(), key=lambda kv: kv[1], reverse=True)[:top_k])
+
+    # --- your plotting style ---
+    xs = sorted(filtered)  # canonical keys
+    ys = [filtered[b] for b in xs]
+    tot = sum(ys)
+    probs = [100.0 * y / tot for y in ys]  # percentage
+
+    # DISPLAY-ONLY: flip label bit order if you want MSB↔LSB swapped
+    labels = [b[::-1] for b in xs] if flip_plot_labels else xs
+
+    os.makedirs("images/plots", exist_ok=True)
+    plt.figure(figsize=(7, 3.6))
+    plt.bar(range(len(xs)), probs)
+    plt.xticks(range(len(xs)), labels, rotation=70, ha='right')  # readable labels
+    plt.ylabel("Probability (%)")
+    plt.title(f"Minimal QRS Results (post-selected c0=0) | feature: {user_vec}")
+    plt.tight_layout()
+    plt.savefig(f"images/plots/minimal_qrs_NOISE_CLIFFORD_statevector_evolution_plot_{user_vec}.png", dpi=300, bbox_inches="tight")
+    plt.show()
+
     # from qiskit.quantum_info import Statevector
-    # import numpy as np
     # from qiskit.quantum_info import Statevector
     #
     # # amps is your 1D complex statevector (sv_logical_from_mbqc)
@@ -926,7 +1765,6 @@ def main():
     tn = bw_pattern.simulate_pattern(backend="tensornetwork", graph_prep="parallel")
     graphix_vec = tn.to_statevector()  # state on your declared outputs
 
-    import numpy as np
 
     # --- core helpers -------------------------------------------------------------
 
@@ -1035,7 +1873,6 @@ def main():
                                                 targets=targets, ancilla=anc)
     print(f"P(ancilla@q{anc}=0) = {mass:.6f};  conditional P{targets}|anc=0 = {cond}")
 
-    # import numpy as np
     # from qiskit.quantum_info import Statevector
     #
     # # Suppose Graphix gave you a 1D array-like of complex amplitudes:

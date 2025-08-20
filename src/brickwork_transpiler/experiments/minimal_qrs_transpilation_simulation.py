@@ -2,7 +2,7 @@ from matplotlib import pyplot as plt
 
 from src.brickwork_transpiler import circuits, brickwork_transpiler, visualiser, utils
 from src.brickwork_transpiler.bfk_encoder import encode_pattern
-from src.brickwork_transpiler.utils import extract_logical_to_physical, undo_layout_on_state
+# from src.brickwork_transpiler.utils import extract_logical_to_physical, undo_layout_on_state
 
 
 def build_graph():

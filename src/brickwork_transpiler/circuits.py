@@ -486,7 +486,7 @@ def qft(n):
     return qc#, input_vector
 
 
-def minimal_qrs(user_feature=[1, 1]):
+def minimal_qrs(user_feature):
 
     qc = QuantumCircuit(5)
     c0 = QuantumRegister(1, name="c0")

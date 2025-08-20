@@ -4,6 +4,42 @@ from graphix.channels import depolarising_channel, two_qubit_depolarising_channe
 from graphix.pattern import Pattern
 from graphix.command import M, E
 
+from graphix.channels import depolarising_channel, two_qubit_depolarising_channel
+from graphix.noise_models.noise_model import NoiseModel
+
+
+class SimulationNoiseModel(NoiseModel):
+    def __init__(self, p1, p2):
+        super().__init__()
+        self.p1 = p1  # single-qubit error prob
+        self.p2 = p2  # two-qubit error prob
+
+    def prepare_qubit(self):
+        return depolarising_channel(self.p1)
+
+    def measure(self):
+        return depolarising_channel(self.p1)
+
+    def byproduct_x(self):
+        return depolarising_channel(self.p1)
+
+    def byproduct_z(self):
+        return depolarising_channel(self.p1)
+
+    def clifford(self):
+        return depolarising_channel(self.p1)
+
+    def entangle(self):
+        # CZ or other two-qubit gate
+        return two_qubit_depolarising_channel(self.p2)
+
+    def tick_clock(self):
+        # Optional: apply idle decoherence every timestep
+        return depolarising_channel(self.p1)
+
+    def confuse_result(self, cmd):
+        return cmd
+
 class DepolarisingInjector:
     def __init__(self, single_prob: float, two_prob: float):
         self.single_prob = single_prob

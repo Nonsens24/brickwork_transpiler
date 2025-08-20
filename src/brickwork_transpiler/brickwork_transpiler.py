@@ -10,15 +10,13 @@ def transpile(qc: QuantumCircuit, input_vector=None, routing_method=None, layout
                                                               layout_method=layout_method, file_writer=file_writer,
                                                              with_ancillas=with_ancillas, draw=plot_decomposed)
 
-
-    # Optiise instruction matrix with dependency graph
-    # print("To matrix...")
+    # Optimise Instruction matrix with dependency graph
     qc_mat, cx_mat = decomposer.instructions_to_matrix_dag(decomposed_qc)
-    # visualiser.print_matrix(qc_mat)
-    # print("Align bricks...")
-    qc_mat_aligned = decomposer.align_bricks(cx_mat, qc_mat)
-    # visualiser.print_matrix(qc_mat_aligned)
 
+    # Align gates according to brickwork topology
+    qc_mat_aligned = decomposer.align_bricks(cx_mat, qc_mat)
+
+    # Depth analysis only requires the number of columns of the aligned matrix, saving resources
     if return_mat:
         return qc_mat_aligned
 
