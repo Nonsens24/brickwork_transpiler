@@ -1,6 +1,1 @@
-decomposed_depth,transpiled_depth,original_depth,num_gates_original,num_gates_transpiled,N
-333,306,4,323,472,2
-3475,3479,4,3470,5316,4
-39451,40047,4,37549,57286,8
-387205,391458,4,361980,560590,16
-3431855,3438526,4,3188285,4978586,32
+decomposed_depth,transpiled_depth,original_depth,num_gates_original,num_gates_transpiled,N,kappa,s_sparsity

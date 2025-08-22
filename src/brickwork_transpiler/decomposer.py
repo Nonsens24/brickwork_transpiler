@@ -120,22 +120,56 @@ def decompose_qc_to_bricks_qiskit(
     ) if qc_lin.num_qubits > 1 else None)
 
     print("Transpiling...")
-    qc_final = transpile(
-        qc_lin,
-        basis_gates=basis,
-        coupling_map=coupling,
-        layout_method=layout_method,
-        routing_method=routing_method,
-        hls_config=hls_cfg,
-        optimization_level=opt,
-    )
+    try:
+        qc_final = transpile(
+            qc_lin,
+            basis_gates=basis,
+            coupling_map=coupling,
+            layout_method=layout_method,
+            routing_method=routing_method,
+            hls_config=hls_cfg,
+            optimization_level=3,
+        )
+    except Exception as e:
+        print("High-opt transpile failed, retrying with a safer pipeline:", e)
+        # Mitigates consolidate blocks which can introduce minor errors
+        qc_final = transpile(
+            qc_lin,
+            basis_gates=basis,
+            coupling_map=coupling,
+            layout_method=layout_method,
+            routing_method=routing_method,
+            hls_config=hls_cfg,
+            optimization_level=1,  # or 0
+        )
+
+    # qc_final = transpile(
+    #     qc_lin,
+    #     basis_gates=basis,
+    #     coupling_map=coupling,
+    #     layout_method=layout_method,
+    #     routing_method=routing_method,
+    #     hls_config=hls_cfg,
+    #     optimization_level=opt,
+    # )
+
+
 
     if draw:
+        print("drawing...")
         qc_final.draw(output='mpl',
                         fold=40,
                         style="iqp"
                         )
-        plt.savefig(f"images/Circuits/Decomposed_minimal_recommendation_circuit.png", dpi=300, bbox_inches="tight")
+        plt.savefig(f"images/Circuits/Decomposed_hhl_circ.png", dpi=300, bbox_inches="tight")
+        plt.show()
+
+
+        qc.draw(output='mpl',
+                        fold=40,
+                        style="iqp"
+                        )
+        plt.savefig(f"images/Circuits/nonDecomposed_hhl_circ.png", dpi=300, bbox_inches="tight")
         plt.show()
 
     print("post-HLS :", qc_final.count_ops())
