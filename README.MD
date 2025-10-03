@@ -9,7 +9,7 @@ The generated brickwork graph will be used for simulating UBQC (https://arxiv.or
 
 # Brickwork Transpiler
 
-[![Build](https://img.shields.io/github/actions/workflow/status/<org>/<repo>/ci.yml?branch=main)](https://github.com/<org>/<repo>/actions)
+[![Build](https://img.shields.io/github/actions/workflow/status/Nonsens24/brickwork_transpiler/ci.yml?branch=main)](https://github.com/Nonsens24/brickwork_transpiler/actions)
 [![codecov](https://codecov.io/gh/Nonsens24/brickwork_transpiler/branch/main/graph/badge.svg)](https://app.codecov.io/gh/Nonsens24/brickwork_transpiler)
 [![PyPI](https://img.shields.io/pypi/v/brickwork-transpiler.svg)](https://pypi.org/project/brickwork-transpiler/)
 [![Python](https://img.shields.io/pypi/pyversions/brickwork-transpiler.svg)](https://pypi.org/project/brickwork-transpiler/)

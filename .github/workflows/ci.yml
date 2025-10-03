@@ -34,4 +34,6 @@ jobs:
         uses: codecov/codecov-action@v4
         with:
           files: coverage.xml
-          fail_ci_if_error: true  # make CI red if upload fails
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true
+
