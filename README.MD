@@ -155,12 +155,6 @@ sv_pad = utils.pad_with_plus_for_transpiled(input_vector, qc, qc_tr)
 
 Extract a **full physical→logical** map (length = `qc_tr.num_qubits`; ancillas as `None`), then undo the layout on any state prepared in physical wire order:
 
-```python
-phys_to_log = utils.extract_logical_to_physical(qc, qc_tr)  # [log_idx or None] per physical wire
-
-# Move logicals first (0..L-1), ancillas after them
-state_in_logical_first = utils.undo_layout_on_state(state_in_physical_order, phys_to_log)
-```
 
 ### Reference state (layout-aware)
 

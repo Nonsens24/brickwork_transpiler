@@ -567,148 +567,148 @@ logger = logging.getLogger(__name__)
 
 
 # ----------------------------- OLder alignment versions -- Not used! ----------------------------- #
-
-def align_bricks_insert_blank(matrix):
-    """
-    Align CX and rotation operations into parity-based bricks.
-
-    Args:
-        matrix (List[List[Instruction]]): A list of qubit rows, each containing
-            time-ordered columns of gate instructions. Instruction names include
-            'rz', 'rx', 'cx{n}c' (control), or 'cx{n}t' (target). Suffix and role
-            are parsed directly from instr.name.
-
-    Returns:
-        List[List[List[Instruction]]]: Reorganized matrix with shape [n_qubits][n_bricks].
-    """
-
-    # print("Aligning bricks...", end=" ")
-
-    n_q = len(matrix)
-    if not matrix:
-        return []
-
-    # Transpose to iterate columns
-    cols = list(zip(*matrix))
-    bricks = []
-    brick_idx = 0
-
-    for col in cols:
-        # Collect single-qubit rotations
-        rotations = [[instr for instr in row if instr.name in ('rz', 'rx')]
-                     for row in col]
-
-        # Map CX suffix to top-qubit index regardless of control/target role
-        suffix_top = {}
-        for i, row in enumerate(col):
-            for instr in row:
-                if instr.name.startswith('cx'):
-                    suffix = instr.name[2:-1]
-                    suffix_top[suffix] = min(suffix_top.get(suffix, i), i)
-
-        # If no CX, schedule pure-rotation brick
-        if not suffix_top:
-            bricks.append(rotations)
-            brick_idx += 1
-            continue
-
-        # Schedule CX bricks by parity of top-qubit row
-        unscheduled = set(suffix_top)
-        while unscheduled:
-            parity = brick_idx % 2
-            # select suffixes whose top row matches current parity
-            to_place = {s for s, top in suffix_top.items() if top % 2 == parity and s in unscheduled}
-
-            if not to_place:
-                # insert empty brick to flip parity
-                bricks.append([[] for _ in range(n_q)])
-                brick_idx += 1
-                continue
-
-            # build a brick: combine rotations + all cx instructions with these suffixes
-            layer = []
-            for row in col:
-                ops = [instr for instr in row if instr.name in ('rz', 'rx')]
-                for suffix in to_place:
-                    ops.extend(instr for instr in row if instr.name.startswith(f'cx{suffix}'))
-                layer.append(ops)
-
-            bricks.append(layer)
-            brick_idx += 1
-            unscheduled -= to_place
-
-    # print("Done")
-    # transpose back to [qubit][brick]
-    return [[brick[i] for brick in bricks] for i in range(n_q)]
-
-
-def align_bricks_two_phase(matrix):
-    n_q = len(matrix)
-    if n_q == 0:
-        return []
-
-    # Transpose to get columns
-    cols = list(zip(*matrix))
-
-    # Phase 1: schedule CX bricks
-    # --------------------------------
-    # bricks_cx: list of layers; each layer is a list-of-lists for each qubit
-    bricks_cx = []
-    # for each suffix, remember its top-qubit index
-    for col in cols:
-        # collect all CX suffixes in this column
-        suffix_top = {}
-        for i, row in enumerate(col):
-            for instr in row:
-                if instr.name.startswith('cx'):
-                    s = instr.name[2:-1]
-                    suffix_top[s] = min(suffix_top.get(s, i), i)
-
-        # assign each suffix to a brick of matching parity
-        # we track: next brick index for parity 0 and parity 1
-        next_brick = {0: 0, 1: 0}
-        for suffix, top in sorted(suffix_top.items(), key=lambda x: x[1]):
-            p = top % 2
-            bidx = next_brick[p]
-            # if we need a new brick, append an empty layer
-            while bidx >= len(bricks_cx):
-                bricks_cx.append([[] for _ in range(n_q)])
-            # place BOTH control and target into that layer
-            for i, row in enumerate(col):
-                for instr in row:
-                    if instr.name.startswith(f'cx{suffix}'):
-                        bricks_cx[bidx][i].append(instr)
-            # increment for next same‐parity suffix
-            next_brick[p] += 1
-
-    # Phase 2: pack rotations
-    # --------------------------------
-    # we'll build bricks_full starting from a deep copy of bricks_cx
-    from copy import deepcopy
-    bricks_full = deepcopy(bricks_cx)
-
-    for col in cols:
-        # extract single‐qubit rotations in this column
-        rotations = [(i, instr)
-                     for i, row in enumerate(col)
-                     for instr in row
-                     if instr.name in ('rz', 'rx')]
-        for q_idx, rot in rotations:
-            # try to insert into earliest brick with no CX at q_idx
-            placed = False
-            for layer in bricks_full:
-                # check if this qubit is free of CX here
-                if not any(op.name.startswith('cx') for op in layer[q_idx]):
-                    layer[q_idx].append(rot)
-                    placed = True
-                    break
-            if not placed:
-                # need a brand‐new brick
-                new_layer = [[] for _ in range(n_q)]
-                new_layer[q_idx].append(rot)
-                bricks_full.append(new_layer)
-
-    # transpose back to [qubit][brick]
-    return [[layer[q] for layer in bricks_full] for q in range(n_q)]
-
-
+#
+# def align_bricks_insert_blank(matrix):
+#     """
+#     Align CX and rotation operations into parity-based bricks.
+#
+#     Args:
+#         matrix (List[List[Instruction]]): A list of qubit rows, each containing
+#             time-ordered columns of gate instructions. Instruction names include
+#             'rz', 'rx', 'cx{n}c' (control), or 'cx{n}t' (target). Suffix and role
+#             are parsed directly from instr.name.
+#
+#     Returns:
+#         List[List[List[Instruction]]]: Reorganized matrix with shape [n_qubits][n_bricks].
+#     """
+#
+#     # print("Aligning bricks...", end=" ")
+#
+#     n_q = len(matrix)
+#     if not matrix:
+#         return []
+#
+#     # Transpose to iterate columns
+#     cols = list(zip(*matrix))
+#     bricks = []
+#     brick_idx = 0
+#
+#     for col in cols:
+#         # Collect single-qubit rotations
+#         rotations = [[instr for instr in row if instr.name in ('rz', 'rx')]
+#                      for row in col]
+#
+#         # Map CX suffix to top-qubit index regardless of control/target role
+#         suffix_top = {}
+#         for i, row in enumerate(col):
+#             for instr in row:
+#                 if instr.name.startswith('cx'):
+#                     suffix = instr.name[2:-1]
+#                     suffix_top[suffix] = min(suffix_top.get(suffix, i), i)
+#
+#         # If no CX, schedule pure-rotation brick
+#         if not suffix_top:
+#             bricks.append(rotations)
+#             brick_idx += 1
+#             continue
+#
+#         # Schedule CX bricks by parity of top-qubit row
+#         unscheduled = set(suffix_top)
+#         while unscheduled:
+#             parity = brick_idx % 2
+#             # select suffixes whose top row matches current parity
+#             to_place = {s for s, top in suffix_top.items() if top % 2 == parity and s in unscheduled}
+#
+#             if not to_place:
+#                 # insert empty brick to flip parity
+#                 bricks.append([[] for _ in range(n_q)])
+#                 brick_idx += 1
+#                 continue
+#
+#             # build a brick: combine rotations + all cx instructions with these suffixes
+#             layer = []
+#             for row in col:
+#                 ops = [instr for instr in row if instr.name in ('rz', 'rx')]
+#                 for suffix in to_place:
+#                     ops.extend(instr for instr in row if instr.name.startswith(f'cx{suffix}'))
+#                 layer.append(ops)
+#
+#             bricks.append(layer)
+#             brick_idx += 1
+#             unscheduled -= to_place
+#
+#     # print("Done")
+#     # transpose back to [qubit][brick]
+#     return [[brick[i] for brick in bricks] for i in range(n_q)]
+#
+#
+# def align_bricks_two_phase(matrix):
+#     n_q = len(matrix)
+#     if n_q == 0:
+#         return []
+#
+#     # Transpose to get columns
+#     cols = list(zip(*matrix))
+#
+#     # Phase 1: schedule CX bricks
+#     # --------------------------------
+#     # bricks_cx: list of layers; each layer is a list-of-lists for each qubit
+#     bricks_cx = []
+#     # for each suffix, remember its top-qubit index
+#     for col in cols:
+#         # collect all CX suffixes in this column
+#         suffix_top = {}
+#         for i, row in enumerate(col):
+#             for instr in row:
+#                 if instr.name.startswith('cx'):
+#                     s = instr.name[2:-1]
+#                     suffix_top[s] = min(suffix_top.get(s, i), i)
+#
+#         # assign each suffix to a brick of matching parity
+#         # we track: next brick index for parity 0 and parity 1
+#         next_brick = {0: 0, 1: 0}
+#         for suffix, top in sorted(suffix_top.items(), key=lambda x: x[1]):
+#             p = top % 2
+#             bidx = next_brick[p]
+#             # if we need a new brick, append an empty layer
+#             while bidx >= len(bricks_cx):
+#                 bricks_cx.append([[] for _ in range(n_q)])
+#             # place BOTH control and target into that layer
+#             for i, row in enumerate(col):
+#                 for instr in row:
+#                     if instr.name.startswith(f'cx{suffix}'):
+#                         bricks_cx[bidx][i].append(instr)
+#             # increment for next same‐parity suffix
+#             next_brick[p] += 1
+#
+#     # Phase 2: pack rotations
+#     # --------------------------------
+#     # we'll build bricks_full starting from a deep copy of bricks_cx
+#     from copy import deepcopy
+#     bricks_full = deepcopy(bricks_cx)
+#
+#     for col in cols:
+#         # extract single‐qubit rotations in this column
+#         rotations = [(i, instr)
+#                      for i, row in enumerate(col)
+#                      for instr in row
+#                      if instr.name in ('rz', 'rx')]
+#         for q_idx, rot in rotations:
+#             # try to insert into earliest brick with no CX at q_idx
+#             placed = False
+#             for layer in bricks_full:
+#                 # check if this qubit is free of CX here
+#                 if not any(op.name.startswith('cx') for op in layer[q_idx]):
+#                     layer[q_idx].append(rot)
+#                     placed = True
+#                     break
+#             if not placed:
+#                 # need a brand‐new brick
+#                 new_layer = [[] for _ in range(n_q)]
+#                 new_layer[q_idx].append(rot)
+#                 bricks_full.append(new_layer)
+#
+#     # transpose back to [qubit][brick]
+#     return [[layer[q] for layer in bricks_full] for q in range(n_q)]
+#
+#

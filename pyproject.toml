@@ -70,6 +70,7 @@ omit = [
   "src/brickwork_transpiler/bricks.py",
   "src/brickwork_transpiler/gx_angle_extractor.py",
   "src/brickwork_transpiler/main.py",
+    "src/brickwork_transpiler/noise.py",
 ]
 exclude_lines = [
   "pragma: no cover",
