@@ -7,7 +7,7 @@ graph generator is mainly used to calculate the Z/X correction dependencies.
 The generated brickwork graph will be used for simulating UBQC (https://arxiv.org/abs/0807.4154).
 
 
-# Brickwork Transpiler
+# 🧱 Brickwork Transpiler
 
 [![Build](https://img.shields.io/github/actions/workflow/status/Nonsens24/brickwork_transpiler/ci.yml?branch=main)](https://github.com/Nonsens24/brickwork_transpiler/actions)
 [![codecov](https://codecov.io/gh/Nonsens24/brickwork_transpiler/branch/main/graph/badge.svg)](https://app.codecov.io/gh/Nonsens24/brickwork_transpiler)
@@ -25,7 +25,7 @@ A layout-aware transpiler that converts **Qiskit circuits** into **brickwork (MB
 
 ---
 
-## Table of Contents
+## 📖 Table of Contents
 
 - [Features](#features)
 - [Installation](#installation)
@@ -45,7 +45,7 @@ A layout-aware transpiler that converts **Qiskit circuits** into **brickwork (MB
 
 ---
 
-## Features
+## 🚀 Features
 
 - **Qiskit → Brickwork** translation that emits an MBQC pattern plus an optional color map for visualization.
 - **Layout awareness:** uses `final_index_layout()` when available, or reconstructs from `initial_layout` and `routing_permutation()` (e.g., SABRE).
@@ -55,8 +55,12 @@ A layout-aware transpiler that converts **Qiskit circuits** into **brickwork (MB
 - **Robust tests:** helpers for global-phase equivalence, mixed-state detection, and layout synchronization.
 
 ---
+## 📄 Papers
 
-## Installation
+---
+
+
+## ⚙️ Installation
 
 ### From PyPI
 ```bash
@@ -81,7 +85,8 @@ pip install -e ".[dev,docs]"
 
 ---
 
-## Quick Start
+## 🏃 Quick Start
+
 
 ```python
 from qiskit import QuantumCircuit
@@ -130,7 +135,7 @@ print("Equivalent up to global phase!")
 
 ---
 
-## Usage
+## 🧑‍💻 Usage
 
 ### Transpile
 
@@ -174,7 +179,8 @@ ref = utils.calculate_ref_state_from_qiskit_circuit_layout_aware(
 
 ---
 
-## Testing
+## 🧪 Testing
+
 
 Run tests:
 
@@ -193,7 +199,7 @@ pytest -q
 
 ---
 
-## Design Notes
+## 📝 Design Notes
 
 * **Permutation convention.** We adopt Qiskit’s `PermutationGate` convention `perm[src] = dest`. Human “order lists” (what appears at positions 0..N−1) are the **inverse** permutation.
 * **Ancilla policy.** New wires introduced by transpilation are treated as ancillas and placed **after** the logical block. Padding uses `( |+>^{⊗k} ) ⊗ |ψ⟩`.
@@ -201,7 +207,7 @@ pytest -q
 
 ---
 
-## Roadmap
+## 🗺️ Roadmap
 
 * [ ] Clifford-only fast path for reference evaluation
 * [ ] Noise-aware fidelity comparison (Kraus channels)
@@ -211,7 +217,7 @@ pytest -q
 ---
 
 
-## Citation
+## 📚 Citation
 
 If this package supports your research, please cite:
 
@@ -226,13 +232,13 @@ If this package supports your research, please cite:
 
 ---
 
-## License
+## 📜 License
 
 This project is licensed under the **MIT License**. See [LICENSE](./LICENSE).
 
 ---
 
-## Acknowledgements
+## 💡 Acknowledgements
 
 * The Qiskit team for the layout and transpiler infrastructure.
 * The MBQC/Graphix community for pattern simulation and tooling.
