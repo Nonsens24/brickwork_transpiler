@@ -1,5 +1,11 @@
-import numpy as np
+import math
+import itertools
 from qiskit import QuantumCircuit
+import csv
+import os
+from qiskit.quantum_info import Statevector
+from qiskit.circuit.library import PermutationGate
+import numpy as np
 
 
 def reorder_via_transpose(psi: np.ndarray) -> np.ndarray:
@@ -174,12 +180,6 @@ def get_qiskit_permutation(bw_pattern):
     return perm
 
 
-
-import itertools
-import numpy as np
-from qiskit import QuantumCircuit
-from qiskit.quantum_info import Statevector
-
 def _final_p2v(qc_virtual, qc_transpiled):
     layraw = getattr(qc_transpiled, "layout", None)
     n = qc_virtual.num_qubits
@@ -321,10 +321,15 @@ def reference_state_auto(bw_pattern, qc_virtual, input_vec, qc_transpiled, tn,
 
 
 
-def calculate_ref_state_from_qiskit_circuit(bw_pattern, qc,
+def calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, transpiled_qc,
                                             input_vector):
     if bw_pattern is None:
         raise AssertionError("bw_pattern is None")
+
+    # Extend input vector based on ancillae
+    extended_input_vector = pad_with_plus_for_transpiled(input_vector=input_vector, qc=qc, transpiled_qc=transpiled_qc)
+
+    print("EVEQWEVQWEQWE: ", extended_input_vector.dim)
 
     qubit_entries = [t[0] for t in bw_pattern.output_nodes]
 
@@ -335,12 +340,9 @@ def calculate_ref_state_from_qiskit_circuit(bw_pattern, qc,
     # invert it: for each Qiskit qubit j, find its position in list
     perm = [qubit_entries.index(j) for j in range(len(qubit_entries))]
 
-    qc_perm = permute_qubits(qc, perm=perm)
-    return input_vector.evolve(qc_perm)
+    qc_perm = permute_qubits(transpiled_qc, perm=perm)
+    return extended_input_vector.evolve(qc_perm)
 
-
-
-# Given:
 
 
 def pad_with_plus_for_transpiled(input_vector, qc, transpiled_qc):
@@ -531,10 +533,6 @@ def time_complexity_knn_grover(q: int, l: int, c: int) -> dict[str, int]:
     }
 
 
-import csv
-import os
-
-
 class BufferedCSVWriter:
     def __init__(self, filename, headers):
         self.filename = filename
@@ -651,12 +649,6 @@ def calculate_ref_state_from_qiskit_circuit2424(
     ref_state_preroute_physical = ref_state_logical.evolve(PermutationGate(perm_j_to_p0))
     return ref_state_preroute_physical
 
-
-
-
-from qiskit.quantum_info import Statevector
-from qiskit.circuit.library import PermutationGate
-import numpy as np
 
 # 1) Logical (qc_in order)  →  FINAL physical indices (after SABRE)
 def logical_to_final_physical(qc_in, transpiled_qc):
@@ -798,10 +790,6 @@ def extract_logical_to_physical24(qc_in, qc_out):
 
 
 
-from qiskit.quantum_info import Statevector
-from qiskit.circuit.library import PermutationGate
-import numpy as np, math
-
 def _invert_perm(pi):
     """Return inverse permutation inv with inv[pi[i]] = i."""
     inv = [None] * len(pi)
@@ -877,7 +865,6 @@ def undo_sabre_to_preroute_physical24(state, logical_to_physical, qc_in, qc_out,
 
 
 
-# 1) Extract physical -> logical (full length, with None for non-logical/ancilla if any)
 def extract_physical_to_logical(qc_in, qc_out):
     """
     Returns a list `p2l` of length N = qc_out.num_qubits such that:
@@ -1016,109 +1003,3 @@ def extract_logical_to_physical(qc_in, qc_out):
     n = min(qc_in.num_qubits, qc_out.num_qubits)
     return list(range(n))
 
-
-# # --- 1) Save the mapping (call this once, right after transpile) -----------------
-# def extract_logical_to_physical(qc_in, qc_out):
-#     """
-#     Returns a list `logical_to_physical` such that logical_to_physical[j]
-#     is the *output wire index* in qc_out where logical qubit j (of qc_in) ended up.
-#     """
-#     layout = getattr(qc_out, "layout", None)
-#
-#     print("layout", layout)
-#
-#     # Preferred: Transpiler provides a dict {Qubit_in -> int(out_index)}
-#     # if layout is not None and getattr(layout, "input_qubit_mapping", None) is not None:
-#     #     return [layout.input_qubit_mapping[q] for q in qc_in.qubits]
-#
-#     # Fallback: try to compose initial_layout with routing_permutation()
-#     if layout is not None and getattr(layout, "initial_layout", None) is not None:
-#         print("initial_layout", layout.initial_layout)
-#         init = layout.initial_layout  # {Qubit_in -> int(pre-route index)}
-#         print("init", init)
-#         pre = [init[q] for q in qc_in.qubits]
-#         try:
-#             route = list(layout.routing_permutation())  # maps pre-route index -> final index
-#         except Exception:
-#             route = list(range(qc_out.num_qubits))
-#         return [route[p] for p in pre]
-#
-#     # Last resort: assume identity (no layout/routing applied)
-#     return list(range(min(qc_in.num_qubits, qc_out.num_qubits)))
-
-# def undo_layout_on_state(state, logical_to_physical, total_qubits=None):
-#     """
-#     Given a state in the *transpiled circuit's wire order*, return a Statevector
-#     reordered so that the original logical qubits come first.
-#
-#     Qiskit PermutationGate expects a source->destination map:
-#       perm[i] = j  means "move qubit at index i to position j".
-#
-#     Here, logical_to_physical[j] = p says "logical j ended up at physical p".
-#     To undo, we must move physical p -> position j, i.e. perm[p] = j.
-#
-#     `state` can be:
-#       - qiskit.quantum_info.Statevector
-#       - a 1D numpy array/list of amplitudes
-#     If you pass a numpy array, also pass `total_qubits` (or it will be inferred).
-#     """
-#     # Ensure Statevector, infer N if needed
-#     if isinstance(state, Statevector):
-#         sv = state
-#         N = sv.num_qubits
-#     else:
-#         arr = np.asarray(state, dtype=complex)
-#         N = total_qubits if total_qubits is not None else int(round(math.log2(arr.size)))
-#         sv = Statevector(arr, dims=[2]*N)
-#
-#     logical_idx = list(logical_to_physical)
-#     L = len(logical_idx)
-#
-#     # Put any extra qubits (ancillas) after the logical ones, preserving physical order
-#     anc_idx = [i for i in range(N) if i not in logical_idx]
-#
-#     # Build the source->dest permutation:
-#     #   - logicals: physical p -> logical position j  (perm[p] = j)
-#     #   - ancillas: remaining physical indices -> positions L, L+1, ...
-#     perm = [None] * N
-#     for j, p in enumerate(logical_idx):
-#         perm[p] = j
-#     for k, p in enumerate(anc_idx):
-#         perm[p] = L + k
-#
-#     # Validate we produced a complete permutation
-#     if any(x is None for x in perm):
-#         missing = [i for i, x in enumerate(perm) if x is None]
-#         raise ValueError(f"Incomplete permutation; missing assignments for physical indices {missing}.")
-#     if sorted(perm) != list(range(N)):
-#         raise ValueError(f"Invalid permutation {perm} (must be a permutation of 0..{N-1}).")
-#
-#     return sv.evolve(PermutationGate(perm))
-
-# # --- 2) Undo the mapping on a statevector after simulation ----------------------
-# def undo_layout_on_state(state, logical_to_physical, total_qubits=None):
-#     """
-#     Given a state in the *transpiled circuit's wire order*, return a Statevector
-#     reordered so that the original logical qubits come first.
-#
-#     `state` can be:
-#       - qiskit.quantum_info.Statevector
-#       - a 1D numpy array/list of amplitudes
-#     If you pass a numpy array, also pass `total_qubits` (or it will be inferred from len(state)).
-#     """
-#     # Ensure Statevector, infer N if needed
-#     if isinstance(state, Statevector):
-#         sv = state
-#         N = sv.num_qubits
-#     else:
-#         arr = np.asarray(state, dtype=complex)
-#         N = total_qubits if total_qubits is not None else int(round(math.log2(arr.size)))
-#         sv = Statevector(arr, dims=[2]*N)
-#
-#     logical_idx = list(logical_to_physical)
-#     # Put any extra qubits (ancillas) after the logical ones, preserving their order
-#     anc_idx = [i for i in range(N) if i not in logical_idx]
-#
-#     # PermutationGate(pattern): pattern[k] = m  means "move qubit m to position k"
-#     pattern = logical_idx + anc_idx
-#     return sv.evolve(PermutationGate(pattern))

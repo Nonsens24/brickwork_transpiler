@@ -1,6 +1,9 @@
 import unittest
 
 import pytest
+from qiskit import QuantumCircuit
+from qiskit.quantum_info import Statevector
+
 from src.brickwork_transpiler import utils
 import numpy as np
 
@@ -82,7 +85,8 @@ def test_global_phase_4d():
     assert utils.assert_equal_up_to_global_phase(state, phased) is True
 
 
-from src.brickwork_transpiler.utils import feature_to_generator
+from src.brickwork_transpiler.utils import feature_to_generator, pad_with_plus_for_transpiled
+
 
 class TestFeatureMatrixToGenerator(unittest.TestCase):
 
@@ -201,3 +205,43 @@ class TestFeatureMatrixToGenerator(unittest.TestCase):
             bits = [(i >> k) & 1 for k in range(q)]
             reconstructed = [sum(G1[j][k] * bits[k] for k in range(q)) % 2 for j in range(l)]
             assert reconstructed == row
+
+
+class TestInputStateVectorExtender(unittest.TestCase):
+    def test_returns_same_object_when_widths_match(self):
+        """If transpiled width equals original, the function should return the same object."""
+        qc = QuantumCircuit(2)
+        transpiled_qc = QuantumCircuit(2)
+        sv_in = Statevector.from_label('++')
+
+        sv_out = pad_with_plus_for_transpiled(sv_in, qc, transpiled_qc)
+
+        assert sv_out is sv_in  # exact same object
+        assert sv_out.num_qubits == 2
+
+
+    def test_raises_when_transpiled_smaller_than_original(self):
+        """If transpiled circuit has fewer qubits, raise ValueError."""
+        qc = QuantumCircuit(3)
+        transpiled_qc = QuantumCircuit(2)
+        sv_in = Statevector.from_label('+++')
+
+        with pytest.raises(ValueError, match="fewer qubits"):
+            _ = pad_with_plus_for_transpiled(sv_in, qc, transpiled_qc)
+
+
+    def test_input_is_unmodified_and_output_is_distinct_when_padding_occurs(self):
+        """When k>0, the function must not mutate sv_in, and must return a different object."""
+        qc = QuantumCircuit(1)
+        transpiled_qc = QuantumCircuit(3)
+        sv_in = Statevector.from_label('0')
+        sv_in_copy = Statevector(sv_in.data.copy(), dims=[2])
+
+        sv_out = pad_with_plus_for_transpiled(sv_in, qc, transpiled_qc)
+
+        # Original unchanged
+        assert np.allclose(sv_in.data, sv_in_copy.data)
+        # Different object when padding happens
+        assert sv_out is not sv_in
+        # Correct dimension
+        assert sv_out.num_qubits == 3

@@ -1,0 +1,114 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "brickwork-transpiler"
+version = "0.1.0"
+description = "Layout-aware transpiler between Qiskit circuits and brickwork (MBQC) patterns."
+readme = "README.MD"
+requires-python = ">=3.9"
+license = { file = "LICENSE" }
+authors = [{ name = "Your Name" }]
+dependencies = [
+  "numpy>=1.23",
+  "qiskit-terra>=0.25",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=7.4",
+  "pytest-cov>=4.1",
+  "coverage[toml]>=7.4",
+  "pytest-xdist>=3.3",
+  "black>=24.3",
+  "isort>=5.12",
+  "mypy>=1.8",
+  "pre-commit>=3.5",
+]
+mbqc = [
+  "graphix>=0.8",
+  "tensornetwork>=0.4",
+  "matplotlib>=3.7",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["brickwork_transpiler*"]
+
+# -----------------------
+# Pytest + Coverage
+# -----------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = [
+  "--cov=src/brickwork_transpiler",
+  "--cov-branch",
+  "--cov-report=term-missing:skip-covered",
+  "--cov-report=xml",
+  "--cov-report=html",
+  "-q",
+]
+
+[tool.coverage.run]
+branch = true
+parallel = true
+source = ["src/brickwork_transpiler"]
+# Ignore the top-level duplicate package directory if it stays around:
+omit = [
+  "brickwork_transpiler/*",
+]
+concurrency = ["multiprocessing", "thread"]
+
+[tool.coverage.report]
+# Exclude specific files from coverage *reporting*
+omit = [
+  "src/brickwork_transpiler/visualiser.py",
+  "src/brickwork_transpiler/circuits.py",
+  "src/brickwork_transpiler/QRS_variations.py",
+  "src/brickwork_transpiler/bricks.py",
+  "src/brickwork_transpiler/gx_angle_extractor.py",
+]
+exclude_lines = [
+  "pragma: no cover",
+  "if TYPE_CHECKING:",
+  "raise NotImplementedError",
+  "if __name__ == .__main__.:",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
+title = "Brickwork Transpiler coverage"
+
+# -----------------------
+# Formatting & Linting
+# -----------------------
+[tool.black]
+line-length = 100
+target-version = ["py39", "py310", "py311"]
+extend-exclude = """
+(
+  ^/build/
+| ^/dist/
+| ^/images/
+| ^/old_tests/
+)
+"""
+
+[tool.isort]
+profile = "black"
+line_length = 100
+src_paths = ["src", "tests"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_unused_configs = true
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+pretty = true
+show_error_codes = true
+exclude = "(^build/|^dist/|^docs/|^images/|^old_tests/)"
+mypy_path = ["src"]

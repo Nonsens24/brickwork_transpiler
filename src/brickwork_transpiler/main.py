@@ -1,5 +1,3 @@
-from qiskit import QuantumCircuit
-from qiskit.quantum_info import Statevector
 import visualiser
 from src.brickwork_transpiler import brickwork_transpiler, utils
 import circuits
@@ -11,6 +9,8 @@ def main():
     qc, input_vector = circuits.minimal_qrs([0, 0])
     # qc, input_vector = circuits.h_and_cx_circ()
     # qc, input_vector = circuits.big_shifter_both_up_low_rotation_brick_shifted()
+
+    iv2 = input_vector.copy()
 
     qc.draw(output='mpl',
                         fold=40,
@@ -46,10 +46,11 @@ def main():
     psi = tn.to_statevector()
 
     # Extend input vector with new ancillae qubits
-    extended_input_vector = pad_with_plus_for_transpiled(input_vector, qc, transpiled_qc)
-    print(extended_input_vector)
-    reference_output = utils.calculate_ref_state_from_qiskit_circuit(bw_pattern, transpiled_qc, extended_input_vector)
+    reference_output = utils.calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, transpiled_qc, input_vector)
 
+    # Now compare against the MBQC simulator output `psi`
+    if utils.assert_equal_up_to_global_phase(reference_output, psi):
+        print("Equivalent up to global phase!")
 
     print(f"Qiskit ref_state: {reference_output}")
     print(f"Simulated output state: {psi}")

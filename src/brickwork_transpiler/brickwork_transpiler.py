@@ -34,7 +34,4 @@ def transpile(qc: QuantumCircuit, input_vector=None, routing_method=None, layout
     print("Calculating measurement dependencies...")
     bw_pattern, col_map = pattern_converter.to_pattern(qc_mat_aligned, bw_nx_graph)
 
-    # Calculate reference statevector
-    # reference_output = utils.calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vector)
-
-    return bw_pattern, col_map, decomposed_qc#, reference_output
+    return bw_pattern, col_map, decomposed_qc

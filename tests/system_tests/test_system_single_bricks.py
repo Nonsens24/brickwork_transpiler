@@ -6,7 +6,7 @@ from qiskit.quantum_info import Statevector
 
 from src.brickwork_transpiler import visualiser, utils, brickwork_transpiler
 from src.brickwork_transpiler.utils import get_qubit_entries, calculate_ref_state_from_qiskit_circuit, \
-    extract_logical_to_physical, undo_layout_on_state
+    extract_logical_to_physical, undo_layout_on_state, pad_with_plus_for_transpiled
 
 
 class TestSingleGates(unittest.TestCase):
@@ -38,18 +38,10 @@ class TestSingleGates(unittest.TestCase):
         tn = bw_pattern.simulate_pattern(backend="tensornetwork", graph_prep="parallel")
         psi = tn.to_statevector()  # state on your declared outputs
 
-        # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-
-        mapping = extract_logical_to_physical(qc, transpiled_qc)
-
-        sv_phys = Statevector(input_vec).evolve(transpiled_qc)
-        undo_layout_on_state(sv_phys, mapping)
-
-        # If you simulated with your MBQC engine and got a flat numpy array `psi`:
-        sv_logical_from_mbqc = undo_layout_on_state(psi, mapping, total_qubits=transpiled_qc.num_qubits)
+        reference_output = utils.calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, transpiled_qc, input_vec)
 
         # Compare output up to global phase
-        assert utils.assert_equal_up_to_global_phase(sv_logical_from_mbqc.data, psi)
+        assert utils.assert_equal_up_to_global_phase(reference_output.data, psi)
 
 
     def test_single_CX_bottom_top(self):
@@ -79,18 +71,11 @@ class TestSingleGates(unittest.TestCase):
         tn = bw_pattern.simulate_pattern(backend="tensornetwork", graph_prep="parallel")
         psi = tn.to_statevector()  # state on your declared outputs
 
-        # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-
-        mapping = extract_logical_to_physical(qc, transpiled_qc)
-
-        sv_phys = Statevector(input_vec).evolve(transpiled_qc)
-        undo_layout_on_state(sv_phys, mapping)
-
-        # If you simulated with your MBQC engine and got a flat numpy array `psi`:
-        sv_logical_from_mbqc = undo_layout_on_state(psi, mapping, total_qubits=transpiled_qc.num_qubits)
+        reference_output = utils.calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, transpiled_qc, input_vec)
 
         # Compare output up to global phase
-        assert utils.assert_equal_up_to_global_phase(sv_logical_from_mbqc.data, psi)
+        assert utils.assert_equal_up_to_global_phase(reference_output.data, psi)
+
 
     def test_single_CX_target_bot_input_diff(self):
         # Initialise to |++>
@@ -119,18 +104,12 @@ class TestSingleGates(unittest.TestCase):
         tn = bw_pattern.simulate_pattern(backend="tensornetwork", graph_prep="parallel")
         psi = tn.to_statevector()  # state on your declared outputs
 
-        # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-
-        mapping = extract_logical_to_physical(qc, transpiled_qc)
-
-        sv_phys = Statevector(input_vec).evolve(transpiled_qc)
-        undo_layout_on_state(sv_phys, mapping)
-
-        # If you simulated with your MBQC engine and got a flat numpy array `psi`:
-        sv_logical_from_mbqc = undo_layout_on_state(psi, mapping, total_qubits=transpiled_qc.num_qubits)
+        reference_output = utils.calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, transpiled_qc, input_vec)
 
         # Compare output up to global phase
-        assert utils.assert_equal_up_to_global_phase(sv_logical_from_mbqc.data, psi)
+        assert utils.assert_equal_up_to_global_phase(reference_output.data, psi)
+
+
     def test_merge_rotations(self):
         # Initialise to |++>
         input_vec = Statevector.from_label('++')  # two-qubit plus state
@@ -174,18 +153,21 @@ class TestSingleGates(unittest.TestCase):
         tn = bw_pattern.simulate_pattern(backend="tensornetwork", graph_prep="parallel")
         psi = tn.to_statevector()  # state on your declared outputs
 
-        # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-
-        mapping = extract_logical_to_physical(qc, transpiled_qc)
-
-        sv_phys = Statevector(input_vec).evolve(transpiled_qc)
-        undo_layout_on_state(sv_phys, mapping)
-
-        # If you simulated with your MBQC engine and got a flat numpy array `psi`:
-        sv_logical_from_mbqc = undo_layout_on_state(psi, mapping, total_qubits=transpiled_qc.num_qubits)
+        reference_output = utils.calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, transpiled_qc, input_vec)
 
         # Compare output up to global phase
-        assert utils.assert_equal_up_to_global_phase(sv_logical_from_mbqc.data, psi)
+        assert utils.assert_equal_up_to_global_phase(reference_output.data, psi)
+
+        # mapping = extract_logical_to_physical(qc, transpiled_qc)
+        #
+        # sv_phys = Statevector(input_vec).evolve(transpiled_qc)
+        # undo_layout_on_state(sv_phys, mapping)
+        #
+        # # If you simulated with your MBQC engine and got a flat numpy array `psi`:
+        # sv_logical_from_mbqc = undo_layout_on_state(psi, mapping, total_qubits=transpiled_qc.num_qubits)
+        #
+        # # Compare output up to global phase
+        # assert utils.assert_equal_up_to_global_phase(sv_logical_from_mbqc.data, psi)
 
     def test_merge_rotations_before_cx(self):
         # Initialise to |++>
@@ -232,18 +214,10 @@ class TestSingleGates(unittest.TestCase):
         tn = bw_pattern.simulate_pattern(backend="tensornetwork", graph_prep="parallel")
         psi = tn.to_statevector()  # state on your declared outputs
 
-        # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-
-        mapping = extract_logical_to_physical(qc, transpiled_qc)
-
-        sv_phys = Statevector(input_vec).evolve(transpiled_qc)
-        undo_layout_on_state(sv_phys, mapping)
-
-        # If you simulated with your MBQC engine and got a flat numpy array `psi`:
-        sv_logical_from_mbqc = undo_layout_on_state(psi, mapping, total_qubits=transpiled_qc.num_qubits)
+        reference_output = utils.calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, transpiled_qc, input_vec)
 
         # Compare output up to global phase
-        assert utils.assert_equal_up_to_global_phase(sv_logical_from_mbqc.data, psi)
+        assert utils.assert_equal_up_to_global_phase(reference_output.data, psi)
 
     def test_merge_rotations_after_cx(self):
         # Initialise to |++>
@@ -276,12 +250,11 @@ class TestSingleGates(unittest.TestCase):
                                                                             routing_method="sabre",
                                                                             layout_method="sabre",
                                                                             with_ancillas=False)
-        # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-        visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
-                                                     node_colours=col_map,
-                                                     use_node_colours=True,
-                                                     title="test_cx_from_zero_upper",
-                                                     )
+        # visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+        #                                              node_colours=col_map,
+        #                                              use_node_colours=True,
+        #                                              title="test_cx_from_zero_upper",
+        #                                              )
 
         # Optimise for tensornetwork backand and simulation efficiency
         bw_pattern.standardize()  # puts commands into N-E-M-(X/Z/C) order
@@ -290,18 +263,11 @@ class TestSingleGates(unittest.TestCase):
         tn = bw_pattern.simulate_pattern(backend="tensornetwork", graph_prep="parallel")
         psi = tn.to_statevector()  # state on your declared outputs
 
-        # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-
-        mapping = extract_logical_to_physical(qc, transpiled_qc)
-
-        sv_phys = Statevector(input_vec).evolve(transpiled_qc)
-        undo_layout_on_state(sv_phys, mapping)
-
-        # If you simulated with your MBQC engine and got a flat numpy array `psi`:
-        sv_logical_from_mbqc = undo_layout_on_state(psi, mapping, total_qubits=transpiled_qc.num_qubits)
+        reference_output = utils.calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, transpiled_qc, input_vec)
 
         # Compare output up to global phase
-        assert utils.assert_equal_up_to_global_phase(sv_logical_from_mbqc.data, psi)
+        assert utils.assert_equal_up_to_global_phase(reference_output, psi)
+
 
     def test_single_CX_target_top_input_diff(self):
         # Initialise to |++>
@@ -316,12 +282,11 @@ class TestSingleGates(unittest.TestCase):
                                                                             routing_method="sabre",
                                                                             layout_method="sabre",
                                                                             with_ancillas=False)
-        # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-        visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
-                                                     node_colours=col_map,
-                                                     use_node_colours=True,
-                                                     title="test_cx_from_zero_upper",
-                                                     )
+        # visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+        #                                              node_colours=col_map,
+        #                                              use_node_colours=True,
+        #                                              title="test_cx_from_zero_upper",
+        #                                              )
 
         # Optimise for tensornetwork backand and simulation efficiency
         bw_pattern.standardize()  # puts commands into N-E-M-(X/Z/C) order
@@ -330,18 +295,10 @@ class TestSingleGates(unittest.TestCase):
         tn = bw_pattern.simulate_pattern(backend="tensornetwork", graph_prep="parallel")
         psi = tn.to_statevector()  # state on your declared outputs
 
-        # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-
-        mapping = extract_logical_to_physical(qc, transpiled_qc)
-
-        sv_phys = Statevector(input_vec).evolve(transpiled_qc)
-        undo_layout_on_state(sv_phys, mapping)
-
-        # If you simulated with your MBQC engine and got a flat numpy array `psi`:
-        sv_logical_from_mbqc = undo_layout_on_state(psi, mapping, total_qubits=transpiled_qc.num_qubits)
+        reference_output = utils.calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, transpiled_qc, input_vec)
 
         # Compare output up to global phase
-        assert utils.assert_equal_up_to_global_phase(sv_logical_from_mbqc.data, psi)
+        assert utils.assert_equal_up_to_global_phase(reference_output, psi)
 
 
     def test_hadamard_half_brick(self):
@@ -355,13 +312,12 @@ class TestSingleGates(unittest.TestCase):
         bw_pattern, col_map, transpiled_qc = brickwork_transpiler.transpile(qc, input_vec,
                                                                             routing_method="sabre",
                                                                             layout_method="sabre",
-                                                                            with_ancillas=False)
-        # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-        visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
-                                                     node_colours=col_map,
-                                                     use_node_colours=True,
-                                                     title="test_cx_from_zero_upper",
-                                                     )
+                                                                            with_ancillas=True)
+        # visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+        #                                              node_colours=col_map,
+        #                                              use_node_colours=True,
+        #                                              title="test_cx_from_zero_upper",
+        #                                              )
 
         # Optimise for tensornetwork backand and simulation efficiency
         bw_pattern.standardize()  # puts commands into N-E-M-(X/Z/C) order
@@ -370,18 +326,11 @@ class TestSingleGates(unittest.TestCase):
         tn = bw_pattern.simulate_pattern(backend="tensornetwork", graph_prep="parallel")
         psi = tn.to_statevector()  # state on your declared outputs
 
-        # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-
-        mapping = extract_logical_to_physical(qc, transpiled_qc)
-
-        sv_phys = Statevector(input_vec).evolve(transpiled_qc)
-        undo_layout_on_state(sv_phys, mapping)
-
-        # If you simulated with your MBQC engine and got a flat numpy array `psi`:
-        sv_logical_from_mbqc = undo_layout_on_state(psi, mapping, total_qubits=transpiled_qc.num_qubits)
+        reference_output = utils.calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, transpiled_qc, input_vec)
 
         # Compare output up to global phase
-        assert utils.assert_equal_up_to_global_phase(sv_logical_from_mbqc.data, psi)
+        assert utils.assert_equal_up_to_global_phase(reference_output, psi)
+
 
     def test_pauli_x_half_brick(self):
         # Initialise to |++>
@@ -394,13 +343,12 @@ class TestSingleGates(unittest.TestCase):
         bw_pattern, col_map, transpiled_qc = brickwork_transpiler.transpile(qc, input_vec,
                                                                             routing_method="sabre",
                                                                             layout_method="sabre",
-                                                                            with_ancillas=False)
-        # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-        visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
-                                                     node_colours=col_map,
-                                                     use_node_colours=True,
-                                                     title="test_cx_from_zero_upper",
-                                                     )
+                                                                            with_ancillas=True)
+        # visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+        #                                              node_colours=col_map,
+        #                                              use_node_colours=True,
+        #                                              title="test_cx_from_zero_upper",
+        #                                              )
 
         # Optimise for tensornetwork backand and simulation efficiency
         bw_pattern.standardize()  # puts commands into N-E-M-(X/Z/C) order
@@ -409,18 +357,12 @@ class TestSingleGates(unittest.TestCase):
         tn = bw_pattern.simulate_pattern(backend="tensornetwork", graph_prep="parallel")
         psi = tn.to_statevector()  # state on your declared outputs
 
-        # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
 
-        mapping = extract_logical_to_physical(qc, transpiled_qc)
-
-        sv_phys = Statevector(input_vec).evolve(transpiled_qc)
-        undo_layout_on_state(sv_phys, mapping)
-
-        # If you simulated with your MBQC engine and got a flat numpy array `psi`:
-        sv_logical_from_mbqc = undo_layout_on_state(psi, mapping, total_qubits=transpiled_qc.num_qubits)
+        reference_output = utils.calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, transpiled_qc, input_vec)
 
         # Compare output up to global phase
-        assert utils.assert_equal_up_to_global_phase(sv_logical_from_mbqc.data, psi)
+        assert utils.assert_equal_up_to_global_phase(reference_output, psi)
+
 
     def test_euler_rotation_half_brick(self):
         # Initialise to |++>
@@ -437,13 +379,12 @@ class TestSingleGates(unittest.TestCase):
         bw_pattern, col_map, transpiled_qc = brickwork_transpiler.transpile(qc, input_vec,
                                                                             routing_method="sabre",
                                                                             layout_method="sabre",
-                                                                            with_ancillas=False)
-        # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-        visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
-                                                     node_colours=col_map,
-                                                     use_node_colours=True,
-                                                     title="test_cx_from_zero_upper",
-                                                     )
+                                                                            with_ancillas=True)
+        # visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+        #                                              node_colours=col_map,
+        #                                              use_node_colours=True,
+        #                                              title="test_cx_from_zero_upper",
+        #                                              )
 
         # Optimise for tensornetwork backand and simulation efficiency
         bw_pattern.standardize()  # puts commands into N-E-M-(X/Z/C) order
@@ -452,18 +393,11 @@ class TestSingleGates(unittest.TestCase):
         tn = bw_pattern.simulate_pattern(backend="tensornetwork", graph_prep="parallel")
         psi = tn.to_statevector()  # state on your declared outputs
 
-        # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-
-        mapping = extract_logical_to_physical(qc, transpiled_qc)
-
-        sv_phys = Statevector(input_vec).evolve(transpiled_qc)
-        undo_layout_on_state(sv_phys, mapping)
-
-        # If you simulated with your MBQC engine and got a flat numpy array `psi`:
-        sv_logical_from_mbqc = undo_layout_on_state(psi, mapping, total_qubits=transpiled_qc.num_qubits)
+        reference_output = utils.calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, transpiled_qc, input_vec)
 
         # Compare output up to global phase
-        assert utils.assert_equal_up_to_global_phase(sv_logical_from_mbqc.data, psi)
+        assert utils.assert_equal_up_to_global_phase(reference_output, psi)
+
 
     def test_euler_rotation_id_full_brick(self):
         # Initialise to |++>
@@ -475,14 +409,13 @@ class TestSingleGates(unittest.TestCase):
 
         bw_pattern, col_map, transpiled_qc = brickwork_transpiler.transpile(qc, input_vec,
                                                                             routing_method="sabre",
-                                                                            layout_method="sabre",
-                                                                            with_ancillas=False)
-        # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-        visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
-                                                     node_colours=col_map,
-                                                     use_node_colours=True,
-                                                     title="test_cx_from_zero_upper",
-                                                     )
+                                                                            layout_method="trivial",
+                                                                            with_ancillas=True)
+        # visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+        #                                              node_colours=col_map,
+        #                                              use_node_colours=True,
+        #                                              title="test_cx_from_zero_upper",
+        #                                              )
 
         # Optimise for tensornetwork backand and simulation efficiency
         bw_pattern.standardize()  # puts commands into N-E-M-(X/Z/C) order
@@ -491,18 +424,11 @@ class TestSingleGates(unittest.TestCase):
         tn = bw_pattern.simulate_pattern(backend="tensornetwork", graph_prep="parallel")
         psi = tn.to_statevector()  # state on your declared outputs
 
-        # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-
-        mapping = extract_logical_to_physical(qc, transpiled_qc)
-
-        sv_phys = Statevector(input_vec).evolve(transpiled_qc)
-        undo_layout_on_state(sv_phys, mapping)
-
-        # If you simulated with your MBQC engine and got a flat numpy array `psi`:
-        sv_logical_from_mbqc = undo_layout_on_state(psi, mapping, total_qubits=transpiled_qc.num_qubits)
+        reference_output = utils.calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, transpiled_qc, input_vec)
 
         # Compare output up to global phase
-        assert utils.assert_equal_up_to_global_phase(sv_logical_from_mbqc.data, psi)
+        assert utils.assert_equal_up_to_global_phase(reference_output, psi)
+
 
 class TestmultipleGates(unittest.TestCase):
 
@@ -517,7 +443,7 @@ class TestmultipleGates(unittest.TestCase):
 
         bw_pattern, col_map, transpiled_qc = brickwork_transpiler.transpile(qc, input_vec,
                                                                             routing_method="sabre",
-                                                                            layout_method="sabre",
+                                                                            layout_method="trivial",
                                                                             with_ancillas=False)
         # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
         visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
@@ -533,18 +459,11 @@ class TestmultipleGates(unittest.TestCase):
         tn = bw_pattern.simulate_pattern(backend="tensornetwork", graph_prep="parallel")
         psi = tn.to_statevector()  # state on your declared outputs
 
-        # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-
-        mapping = extract_logical_to_physical(qc, transpiled_qc)
-
-        sv_phys = Statevector(input_vec).evolve(transpiled_qc)
-        undo_layout_on_state(sv_phys, mapping)
-
-        # If you simulated with your MBQC engine and got a flat numpy array `psi`:
-        sv_logical_from_mbqc = undo_layout_on_state(psi, mapping, total_qubits=transpiled_qc.num_qubits)
+        reference_output = utils.calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, transpiled_qc, input_vec)
 
         # Compare output up to global phase
-        assert utils.assert_equal_up_to_global_phase(sv_logical_from_mbqc.data, psi)
+        assert utils.assert_equal_up_to_global_phase(reference_output, psi)
+
 
     def test_different_arbitrary_rotations_full_brick(self):
         # Initialise to |++>
@@ -562,14 +481,13 @@ class TestmultipleGates(unittest.TestCase):
 
         bw_pattern, col_map, transpiled_qc = brickwork_transpiler.transpile(qc, input_vec,
                                                                             routing_method="sabre",
-                                                                            layout_method="sabre",
+                                                                            layout_method="trivial",
                                                                             with_ancillas=False)
-        # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-        visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
-                                                     node_colours=col_map,
-                                                     use_node_colours=True,
-                                                     title="test_cx_from_zero_upper",
-                                                     )
+        # visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+        #                                              node_colours=col_map,
+        #                                              use_node_colours=True,
+        #                                              title="test_cx_from_zero_upper",
+        #                                              )
 
         # Optimise for tensornetwork backand and simulation efficiency
         bw_pattern.standardize()  # puts commands into N-E-M-(X/Z/C) order
@@ -578,18 +496,11 @@ class TestmultipleGates(unittest.TestCase):
         tn = bw_pattern.simulate_pattern(backend="tensornetwork", graph_prep="parallel")
         psi = tn.to_statevector()  # state on your declared outputs
 
-        # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-
-        mapping = extract_logical_to_physical(qc, transpiled_qc)
-
-        sv_phys = Statevector(input_vec).evolve(transpiled_qc)
-        undo_layout_on_state(sv_phys, mapping)
-
-        # If you simulated with your MBQC engine and got a flat numpy array `psi`:
-        sv_logical_from_mbqc = undo_layout_on_state(psi, mapping, total_qubits=transpiled_qc.num_qubits)
+        reference_output = utils.calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, transpiled_qc, input_vec)
 
         # Compare output up to global phase
-        assert utils.assert_equal_up_to_global_phase(sv_logical_from_mbqc.data, psi)
+        assert utils.assert_equal_up_to_global_phase(reference_output, psi)
+
 
     def test_three_same_arbitrary_rotations_full_brick(self):
         # Initialise to |+++>
@@ -613,12 +524,11 @@ class TestmultipleGates(unittest.TestCase):
                                                                             routing_method="sabre",
                                                                             layout_method="sabre",
                                                                             with_ancillas=False)
-        # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-        visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
-                                                     node_colours=col_map,
-                                                     use_node_colours=True,
-                                                     title="test_cx_from_zero_upper",
-                                                     )
+        # visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+        #                                              node_colours=col_map,
+        #                                              use_node_colours=True,
+        #                                              title="test_cx_from_zero_upper",
+        #                                              )
 
         # Optimise for tensornetwork backand and simulation efficiency
         bw_pattern.standardize()  # puts commands into N-E-M-(X/Z/C) order
@@ -627,18 +537,10 @@ class TestmultipleGates(unittest.TestCase):
         tn = bw_pattern.simulate_pattern(backend="tensornetwork", graph_prep="parallel")
         psi = tn.to_statevector()  # state on your declared outputs
 
-        # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-
-        mapping = extract_logical_to_physical(qc, transpiled_qc)
-
-        sv_phys = Statevector(input_vec).evolve(transpiled_qc)
-        undo_layout_on_state(sv_phys, mapping)
-
-        # If you simulated with your MBQC engine and got a flat numpy array `psi`:
-        sv_logical_from_mbqc = undo_layout_on_state(psi, mapping, total_qubits=transpiled_qc.num_qubits)
+        reference_output = utils.calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, transpiled_qc, input_vec)
 
         # Compare output up to global phase
-        assert utils.assert_equal_up_to_global_phase(sv_logical_from_mbqc.data, psi)
+        assert utils.assert_equal_up_to_global_phase(reference_output, psi)
 
 
     def test_three_different_arbitrary_rotations_full_brick(self):
@@ -663,12 +565,11 @@ class TestmultipleGates(unittest.TestCase):
                                                                             routing_method="sabre",
                                                                             layout_method="sabre",
                                                                             with_ancillas=False)
-        # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-        visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
-                                                     node_colours=col_map,
-                                                     use_node_colours=True,
-                                                     title="test_cx_from_zero_upper",
-                                                     )
+        # visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+        #                                              node_colours=col_map,
+        #                                              use_node_colours=True,
+        #                                              title="test_cx_from_zero_upper",
+        #                                              )
 
         # Optimise for tensornetwork backand and simulation efficiency
         bw_pattern.standardize()  # puts commands into N-E-M-(X/Z/C) order
@@ -677,18 +578,11 @@ class TestmultipleGates(unittest.TestCase):
         tn = bw_pattern.simulate_pattern(backend="tensornetwork", graph_prep="parallel")
         psi = tn.to_statevector()  # state on your declared outputs
 
-        # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-
-        mapping = extract_logical_to_physical(qc, transpiled_qc)
-
-        sv_phys = Statevector(input_vec).evolve(transpiled_qc)
-        undo_layout_on_state(sv_phys, mapping)
-
-        # If you simulated with your MBQC engine and got a flat numpy array `psi`:
-        sv_logical_from_mbqc = undo_layout_on_state(psi, mapping, total_qubits=transpiled_qc.num_qubits)
+        reference_output = utils.calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, transpiled_qc, input_vec)
 
         # Compare output up to global phase
-        assert utils.assert_equal_up_to_global_phase(sv_logical_from_mbqc.data, psi)
+        assert utils.assert_equal_up_to_global_phase(reference_output, psi)
+
 
     def test_three_symmetric_rows_arbitrary_rotations(self):
         # Initialise to |+++>
@@ -712,12 +606,11 @@ class TestmultipleGates(unittest.TestCase):
                                                                             routing_method="sabre",
                                                                             layout_method="sabre",
                                                                             with_ancillas=False)
-        # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-        visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
-                                                     node_colours=col_map,
-                                                     use_node_colours=True,
-                                                     title="test_cx_from_zero_upper",
-                                                     )
+        # visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+        #                                              node_colours=col_map,
+        #                                              use_node_colours=True,
+        #                                              title="test_cx_from_zero_upper",
+        #                                              )
 
         # Optimise for tensornetwork backand and simulation efficiency
         bw_pattern.standardize()  # puts commands into N-E-M-(X/Z/C) order
@@ -726,18 +619,11 @@ class TestmultipleGates(unittest.TestCase):
         tn = bw_pattern.simulate_pattern(backend="tensornetwork", graph_prep="parallel")
         psi = tn.to_statevector()  # state on your declared outputs
 
-        # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-
-        mapping = extract_logical_to_physical(qc, transpiled_qc)
-
-        sv_phys = Statevector(input_vec).evolve(transpiled_qc)
-        undo_layout_on_state(sv_phys, mapping)
-
-        # If you simulated with your MBQC engine and got a flat numpy array `psi`:
-        sv_logical_from_mbqc = undo_layout_on_state(psi, mapping, total_qubits=transpiled_qc.num_qubits)
+        reference_output = utils.calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, transpiled_qc, input_vec)
 
         # Compare output up to global phase
-        assert utils.assert_equal_up_to_global_phase(sv_logical_from_mbqc.data, psi)
+        assert utils.assert_equal_up_to_global_phase(reference_output, psi)
+
 
     def test_three_updif_arbitrary_rotations_full_brick(self):
         # 1) Create the |++> state directly
@@ -761,12 +647,11 @@ class TestmultipleGates(unittest.TestCase):
                                                                             routing_method="sabre",
                                                                             layout_method="sabre",
                                                                             with_ancillas=False)
-        # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-        visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
-                                                     node_colours=col_map,
-                                                     use_node_colours=True,
-                                                     title="test_cx_from_zero_upper",
-                                                     )
+        # visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+        #                                              node_colours=col_map,
+        #                                              use_node_colours=True,
+        #                                              title="test_cx_from_zero_upper",
+        #                                              )
 
         # Optimise for tensornetwork backand and simulation efficiency
         bw_pattern.standardize()  # puts commands into N-E-M-(X/Z/C) order
@@ -775,18 +660,11 @@ class TestmultipleGates(unittest.TestCase):
         tn = bw_pattern.simulate_pattern(backend="tensornetwork", graph_prep="parallel")
         psi = tn.to_statevector()  # state on your declared outputs
 
-        # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-
-        mapping = extract_logical_to_physical(qc, transpiled_qc)
-
-        sv_phys = Statevector(input_vec).evolve(transpiled_qc)
-        undo_layout_on_state(sv_phys, mapping)
-
-        # If you simulated with your MBQC engine and got a flat numpy array `psi`:
-        sv_logical_from_mbqc = undo_layout_on_state(psi, mapping, total_qubits=transpiled_qc.num_qubits)
+        reference_output = utils.calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, transpiled_qc, input_vec)
 
         # Compare output up to global phase
-        assert utils.assert_equal_up_to_global_phase(sv_logical_from_mbqc.data, psi)
+        assert utils.assert_equal_up_to_global_phase(reference_output, psi)
+
 
     def test_four_arbitrary_rotations_full_arb_bricks(self):
 
@@ -813,12 +691,11 @@ class TestmultipleGates(unittest.TestCase):
                                                                             routing_method="sabre",
                                                                             layout_method="sabre",
                                                                             with_ancillas=False)
-        # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-        visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
-                                                     node_colours=col_map,
-                                                     use_node_colours=True,
-                                                     title="test_cx_from_zero_upper",
-                                                     )
+        # visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+        #                                              node_colours=col_map,
+        #                                              use_node_colours=True,
+        #                                              title="test_cx_from_zero_upper",
+        #                                              )
 
         # Optimise for tensornetwork backand and simulation efficiency
         bw_pattern.standardize()  # puts commands into N-E-M-(X/Z/C) order
@@ -827,18 +704,10 @@ class TestmultipleGates(unittest.TestCase):
         tn = bw_pattern.simulate_pattern(backend="tensornetwork", graph_prep="parallel")
         psi = tn.to_statevector()  # state on your declared outputs
 
-        # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-
-        mapping = extract_logical_to_physical(qc, transpiled_qc)
-
-        sv_phys = Statevector(input_vec).evolve(transpiled_qc)
-        undo_layout_on_state(sv_phys, mapping)
-
-        # If you simulated with your MBQC engine and got a flat numpy array `psi`:
-        sv_logical_from_mbqc = undo_layout_on_state(psi, mapping, total_qubits=transpiled_qc.num_qubits)
+        reference_output = utils.calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, transpiled_qc, input_vec)
 
         # Compare output up to global phase
-        assert utils.assert_equal_up_to_global_phase(sv_logical_from_mbqc.data, psi)
+        assert utils.assert_equal_up_to_global_phase(reference_output, psi)
 
 
     def test_five_arbitrary_rotations_full_arb_bricks(self):
@@ -869,12 +738,11 @@ class TestmultipleGates(unittest.TestCase):
                                                                             routing_method="sabre",
                                                                             layout_method="sabre",
                                                                             with_ancillas=False)
-        # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-        visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
-                                                     node_colours=col_map,
-                                                     use_node_colours=True,
-                                                     title="test_cx_from_zero_upper",
-                                                     )
+        # visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+        #                                              node_colours=col_map,
+        #                                              use_node_colours=True,
+        #                                              title="test_cx_from_zero_upper",
+        #                                              )
 
         # Optimise for tensornetwork backand and simulation efficiency
         bw_pattern.standardize()  # puts commands into N-E-M-(X/Z/C) order
@@ -883,18 +751,10 @@ class TestmultipleGates(unittest.TestCase):
         tn = bw_pattern.simulate_pattern(backend="tensornetwork", graph_prep="parallel")
         psi = tn.to_statevector()  # state on your declared outputs
 
-        # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-
-        mapping = extract_logical_to_physical(qc, transpiled_qc)
-
-        sv_phys = Statevector(input_vec).evolve(transpiled_qc)
-        undo_layout_on_state(sv_phys, mapping)
-
-        # If you simulated with your MBQC engine and got a flat numpy array `psi`:
-        sv_logical_from_mbqc = undo_layout_on_state(psi, mapping, total_qubits=transpiled_qc.num_qubits)
+        reference_output = utils.calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, transpiled_qc, input_vec)
 
         # Compare output up to global phase
-        assert utils.assert_equal_up_to_global_phase(sv_logical_from_mbqc.data, psi)
+        assert utils.assert_equal_up_to_global_phase(reference_output, psi)
 
 
     def test_six_arbitrary_rotations_full_arb_bricks(self):
@@ -929,12 +789,11 @@ class TestmultipleGates(unittest.TestCase):
                                                              routing_method="sabre",
                                                              layout_method="sabre",
                                                              with_ancillas=False)
-        # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-        visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
-                                                     node_colours=col_map,
-                                                     use_node_colours=True,
-                                                     title="test_cx_from_zero_upper",
-                                                     )
+        # visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+        #                                              node_colours=col_map,
+        #                                              use_node_colours=True,
+        #                                              title="test_cx_from_zero_upper",
+        #                                              )
 
         # Optimise for tensornetwork backand and simulation efficiency
         bw_pattern.standardize()  # puts commands into N-E-M-(X/Z/C) order
@@ -943,15 +802,7 @@ class TestmultipleGates(unittest.TestCase):
         tn = bw_pattern.simulate_pattern(backend="tensornetwork", graph_prep="parallel")
         psi = tn.to_statevector()  # state on your declared outputs
 
-        # ref_state = calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, input_vec)
-
-        mapping = extract_logical_to_physical(qc, transpiled_qc)
-
-        sv_phys = Statevector(input_vec).evolve(transpiled_qc)
-        undo_layout_on_state(sv_phys, mapping)
-
-        # If you simulated with your MBQC engine and got a flat numpy array `psi`:
-        sv_logical_from_mbqc = undo_layout_on_state(psi, mapping, total_qubits=transpiled_qc.num_qubits)
+        reference_output = utils.calculate_ref_state_from_qiskit_circuit(bw_pattern, qc, transpiled_qc, input_vec)
 
         # Compare output up to global phase
-        assert utils.assert_equal_up_to_global_phase(sv_logical_from_mbqc.data, psi)
+        assert utils.assert_equal_up_to_global_phase(reference_output, psi)

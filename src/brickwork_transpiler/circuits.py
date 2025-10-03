@@ -4,33 +4,6 @@ from qiskit.circuit.library import PhaseGate
 from qiskit.quantum_info import Statevector
 
 
-#
-# input_vector = Statevector.from_label('+++++')
-#
-# qc = QuantumCircuit(5)
-#
-# qc.cx(0, 1)
-#
-# qc.rz(np.pi / 4, 1)
-# qc.rx(np.pi / 4, 1)
-# qc.rz(np.pi / 4, 1)
-# qc.cx(0, 1)
-#
-# qc.rz(np.pi / 4, 2)
-# qc.rx(np.pi / 4, 2)
-# qc.rz(np.pi / 4, 2)
-# qc.cx(2, 1)
-#
-# qc.rz(np.pi / 4, 3)
-# qc.rx(np.pi / 4, 3)
-# qc.rz(np.pi / 4, 3)
-# qc.cx(2, 3)
-#
-# qc.rz(np.pi / 4, 4)
-# qc.rx(np.pi / 4, 4)
-# qc.rz(np.pi / 4, 4)
-# qc.cx(4, 3)
-
 def mcu1_circuit():
     input_vector = Statevector.from_label('++')
 
@@ -47,7 +20,7 @@ def mcu1_circuit():
 
     print(qc.count_ops())
 
-    return qc
+    return qc, input_vector
 
 
 def h_and_cx_circ():
@@ -470,7 +443,7 @@ def qft(n):
     """
     Returns a QuantumCircuit implementing the n-qubit Quantum Fourier Transform.
     """
-    # input_vector = Statevector.from_label('+' * n)
+    input_vector = Statevector.from_label('+' * n)
 
     qc = QuantumCircuit(n, name='QFT')
     # Apply QFT
@@ -483,7 +456,7 @@ def qft(n):
     for i in range(n // 2):
         qc.swap(i, n - i - 1)
 
-    return qc#, input_vector
+    return qc, input_vector
 
 
 def minimal_qrs(user_feature):

@@ -1,6 +1,5 @@
 from matplotlib import pyplot as plt
 
-from qiskit.visualization import dag_drawer
 from qiskit import transpile
 from qiskit.transpiler import CouplingMap
 from qiskit.transpiler.passes.synthesis import HLSConfig
@@ -10,7 +9,6 @@ from qiskit.circuit.library import MCXRecursive, MCXGate, PhaseGate
 
 from collections import defaultdict
 import heapq
-from qiskit.converters import circuit_to_dag
 from qiskit.dagcircuit.dagnode import DAGOpNode
 from qiskit.circuit import QuantumCircuit
 
@@ -261,107 +259,9 @@ def decompose_qc_to_bricks_qiskit(
     return qc_final
 
 
-
-def group_with_dag_atomic_rotations_layers(qc: QuantumCircuit):
-    """
-    DAG + saturated two-phase scheduling:
-      • In the rotation phase we IGNORE qubit conflicts,
-        so that rz–rx–rz (or any chain) on the *same* qubit
-        all go into the *same* rotation column.
-      • In the CX phase does pack non-overlapping CXs per column.
-    """
-    # print("Building dependency graph...", end=" ")
-
-    dag = circuit_to_dag(qc)
-    op_nodes = list(dag.topological_op_nodes())
-    total = len(op_nodes)
-    scheduled = set()
-    columns = []
-
-    dag_drawer(dag) #Vis
-    # Save the DAGDependency graph to a file
-    if True:   # add save option
-        dag_drawer(dag,  filename='dag_dependency.png')
-
-    while len(scheduled) < total:
-        # --- rotation phase: drain *all* ready rotations (rz/rx) ---
-        rot_layer = []
-        while True:
-            added = False
-            for node in op_nodes:
-                if node in scheduled or node in rot_layer:
-                    continue
-                if node.op.name not in ('rz', 'rx'):
-                    continue
-                # only consider op-node predecessors
-                preds = [p for p in dag.predecessors(node)
-                         if isinstance(p, DAGOpNode)]
-                # all preds must be already in scheduled OR in this layer
-                if any((p not in scheduled and p not in rot_layer) for p in preds):
-                    continue
-
-                # *no* busy/conflict check here — allow multiple on same qubit
-                rot_layer.append(node)
-                added = True
-
-            if not added:
-                break
-
-        if rot_layer:
-            columns.append([
-                (node.op, node.qargs, node.cargs) for node in rot_layer
-            ])
-            scheduled.update(rot_layer)
-
-        # --- CX phase: drain all ready non-conflicting CXs ---
-        cx_layer = []
-        busy_qubits = set()
-        while True:
-            added = False
-            for node in op_nodes:
-                if node in scheduled or node in cx_layer:
-                    continue
-                if node.op.name != 'cx':
-                    continue
-                preds = [p for p in dag.predecessors(node)
-                         if isinstance(p, DAGOpNode)]
-                if any((p not in scheduled and p not in cx_layer) for p in preds):
-                    continue
-                qs = [q._index for q in node.qargs]
-                if any(q in busy_qubits for q in qs):
-                    continue
-
-                cx_layer.append(node)
-                busy_qubits.update(qs)
-                added = True
-
-            if not added:
-                break
-
-        if cx_layer:
-            columns.append([
-                (node.op, node.qargs, node.cargs) for node in cx_layer
-            ])
-            scheduled.update(cx_layer)
-
-        # sanity check: if we got *nothing* in both phases, there's a real stall
-        if not rot_layer and not cx_layer:
-            raise RuntimeError(
-                "Stalled scheduling: no ready rotations or CXs; "
-                "circuit may have a cycle"
-            )
-
-    # print("Done")
-    return columns
-
-
-
 def group_with_dag_atomic_mixed(qc: QuantumCircuit):
     """
-    Faster but behaviour‑identical version of the ‘DAG + saturated single‑phase
-    scheduling’ algorithm.  Complexity: Θ(V + E) instead of Θ(V·d).
 
-    See original docstring for semantics (unchanged).
     """
     dag = circuit_to_dag(qc)
     op_nodes = list(dag.topological_op_nodes())
@@ -653,116 +553,20 @@ def insert_rotations_adjecant_to_cx(
     return new_mat
 
 
-def insert_rotations(
-    cx_matrix: List[List[List[Instruction]]],
-    orig_matrix: List[List[List[Instruction]]]
-) -> List[List[List[Instruction]]]:
-    """
-    Given:
-      - cx_matrix   : the output of align_cx_matrix (only cx* in each cell)
-      - orig_matrix : the original grid (cx* + rotations in each cell)
-    Returns a new grid where every rotation list from orig_matrix[i][j]
-    has been re-inserted into row i either just after its “prev” CX or
-    just before its “next” CX, in the aligned cx_matrix.
-    """
-    n_rows = len(cx_matrix)
-    if n_rows == 0:
-        return []
-
-    # ensure all rows of cx_matrix are the same width
-    aligned_ncols = max(len(r) for r in cx_matrix)
-    for row in cx_matrix:
-        row.extend([[]] * (aligned_ncols - len(row)))
-
-    # deep-copy the cx_matrix so we can append rotations
-    new_mat: List[List[List[Instruction]]] = [
-        [list(cell) for cell in row]
-        for row in cx_matrix
-    ]
-
-    for i in range(n_rows):
-        # collect the original CX positions & names in this row
-        orig_row = orig_matrix[i]
-        cx_positions: List[tuple[int,str]] = []
-        for j, cell in enumerate(orig_row):
-            for instr in cell:
-                if instr.name.startswith('cx'):
-                    cx_positions.append((j, instr.name))
-
-        # for each rotation-only cell in the original:
-        for j, cell in enumerate(orig_row):
-            rots = [ins for ins in cell if not ins.name.startswith('cx')]
-            if not rots:
-                continue
-
-            # find prev CX (max pos < j) and next CX (min pos > j)
-            prev: Optional[tuple[int,str]] = None
-            next_: Optional[tuple[int,str]] = None
-            for pos, name in cx_positions:
-                if pos < j and (prev is None or pos > prev[0]):
-                    prev = (pos, name)
-                if pos > j and (next_ is None or pos < next_[0]):
-                    next_ = (pos, name)
-
-            # decide insertion column in the aligned matrix
-            if prev:
-                # insert just after the aligned prev CX
-                _, prev_name = prev
-                dest = next(
-                    idx for idx, c in enumerate(new_mat[i])
-                    if any(ins.name == prev_name for ins in c)
-                ) + 1
-            elif next_:
-                # no prev, but there's a next → insert just before it
-                _, next_name = next_
-                dest = next(
-                    idx for idx, c in enumerate(new_mat[i])
-                    if any(ins.name == next_name for ins in c)
-                )
-            else:
-                # no CX in this row at all → stick at column 0
-                dest = 0
-
-            # grow matrix if we fell off the right edge
-            if dest >= len(new_mat[i]):
-                extra = dest - len(new_mat[i]) + 1
-                for row in new_mat:
-                    row.extend([[]] * extra)
-
-            # if that slot is already a CX (collision), try the other side
-            cell_at_dest = new_mat[i][dest]
-            if any(ins.name.startswith('cx') for ins in cell_at_dest):
-                if prev and next_:
-                    # try before the next CX
-                    _, next_name = next_
-                    dest = next(
-                        idx for idx, c in enumerate(new_mat[i])
-                        if any(ins.name == next_name for ins in c)
-                    )
-                else:
-                    # lone prev or lone next: flip direction
-                    if prev:
-                        dest -= 1
-                    else:
-                        dest += 1
-                if dest < 0:
-                    dest = 0
-                if dest >= len(new_mat[i]):
-                    extra = dest - len(new_mat[i]) + 1
-                    for row in new_mat:
-                        row.extend([[]] * extra)
-
-            # finally, append the rotations in order
-            new_mat[i][dest].extend(rots)
-
-    return new_mat
+from typing import List, Dict
 
 
+def align_bricks(cx_mat, orig):
+    cx_mat_aligned = align_cx_matrix(cx_mat)
+    qc_mat_aligned = insert_rotations_adjecant_to_cx(cx_mat_aligned, orig)
 
-from typing import List
+    return qc_mat_aligned
 
 import logging
 logger = logging.getLogger(__name__)
+
+
+# ----------------------------- OLder alignment versions -- Not used! ----------------------------- #
 
 def align_bricks_insert_blank(matrix):
     """
@@ -908,182 +712,3 @@ def align_bricks_two_phase(matrix):
     return [[layer[q] for layer in bricks_full] for q in range(n_q)]
 
 
-
-
-from typing import List, Set, Dict, Optional
-
-
-def align_bricks(cx_mat, orig):
-    cx_mat_aligned = align_cx_matrix(cx_mat)
-    qc_mat_aligned = insert_rotations_adjecant_to_cx(cx_mat_aligned, orig)
-
-    return qc_mat_aligned
-
-
-def align_bricks_with_insertion(matrix):
-    """
-    Align CX and rotation operations into parity-based bricks,
-    pushing CX operations forward rather than inserting empty bricks.
-
-    If parity doesn't match at a given column, remaining CXs are moved to the next
-    column; they overwrite identity slots or push further if conflicts occur.
-
-    Args:
-        matrix (List[List[Instruction]]): Each sublist is a qubit's time-ordered
-            list of gate instructions per column; Instruction.name in
-            {'rz', 'rx', 'cx{n}c', 'cx{n}t'}.
-
-    Returns:
-        List[List[List[Instruction]]]: Scheduled bricks [n_qubits][n_bricks].
-    """
-    n_q = len(matrix)
-    if n_q == 0:
-        return []
-
-    # Transpose and copy matrix into mutable column structure
-    cols = [[list(instrs) for instrs in col] for col in zip(*matrix)]
-    bricks = []
-    brick_idx = 0
-    col_idx = 0
-
-    while col_idx < len(cols):
-        col = cols[col_idx]
-        # Extract single-qubit rotations for this column
-        rotations = [[instr for instr in row if instr.name in ('rz', 'rx')] for row in col]
-
-        # Map CX suffix to its top-qubit index
-        suffix_top = {}
-        for i, row in enumerate(col):
-            for instr in row:
-                if instr.name.startswith('cx'):
-                    suffix = instr.name[2:-1]
-                    suffix_top[suffix] = min(suffix_top.get(suffix, i), i)
-
-        # If no CX in this column, schedule pure-rotation brick
-        if not suffix_top:
-            bricks.append(rotations)
-            brick_idx += 1
-            col_idx += 1
-            continue
-
-        # Try to schedule all CX suffix-groups
-        unscheduled = set(suffix_top)
-        while unscheduled:
-            parity = brick_idx % 2
-            # Find suffixes matching current parity
-            to_place = {s for s, top in suffix_top.items() if (top % 2) == parity and s in unscheduled}
-
-            if not to_place:
-                # Push remaining CXs to next column instead of empty brick
-                next_idx = col_idx + 1
-                # Extend columns if needed
-                if next_idx >= len(cols):
-                    cols.append([[] for _ in range(n_q)])
-                # Move unscheduled CX instructions
-                for suffix in unscheduled:
-                    for qi, row in enumerate(col):
-                        for instr in row:
-                            if instr.name.startswith(f'cx{suffix}'):
-                                cols[next_idx][qi].append(instr)
-                # Stop scheduling this column
-                break
-
-            # Build and append this brick
-            layer = []
-            for row in col:
-                ops = [instr for instr in row if instr.name in ('rz', 'rx')]
-                for suffix in to_place:
-                    ops.extend(instr for instr in row if instr.name.startswith(f'cx{suffix}'))
-                layer.append(ops)
-            bricks.append(layer)
-            brick_idx += 1
-            unscheduled -= to_place
-
-        # Move to next column
-        col_idx += 1
-
-    # Transpose back to [qubit][brick]
-    return [[brick[i] for brick in bricks] for i in range(n_q)]
-
-
-##### Iterative method below -- not used #####
-
-def group_into_columns(qc: QuantumCircuit):
-    """
-    Takes a circuit already transpiled to ['rz','rx','cx']
-    and returns a list of "columns", each column containing
-    either all single-qubit rotations (RZ/RX) or all CX gates,
-    alternating between the two.
-
-    Args:
-        qc (QuantumCircuit): Transpiled circuit with only 'rz', 'rx', and 'cx' gates.
-
-    Returns:
-        List[List[Tuple[instruction, qargs, cargs]]]:
-            A list of columns, where each column is a list of
-            (instruction, qargs, cargs) tuples.
-    """
-    data = qc.data  # Flattened list of (instruction, qargs, cargs)
-    columns = []    # To store completed columns
-    current = []    # Accumulates instructions for the current column
-    collecting_singles = True  # Start by collecting single-qubit rotations
-
-    for instr, qargs, cargs in data:
-        is_cx = (instr.name == 'cx')  # Check if this is a CX gate
-
-        # Transition from collecting singles to CXs
-        if collecting_singles and is_cx:
-            if current:
-                columns.append(current)  # Save completed single-qubit column
-            current = [(instr, qargs, cargs)]
-            collecting_singles = False  # Now collect CX gates
-
-        # Transition from collecting CXs to singles
-        elif not collecting_singles and not is_cx:
-            if current:
-                columns.append(current)  # Save completed CX column
-            current = [(instr, qargs, cargs)]
-            collecting_singles = True  # Now collect single-qubit rotations
-
-        else:
-            # Continue adding to the current column
-            current.append((instr, qargs, cargs))
-
-    # Append the final column if non-empty
-    if current:
-        columns.append(current)
-
-    return columns
-
-
-def instuctions_to_matrix(qc: QuantumCircuit):
-    """
-    Converts the grouped columns into a 2D matrix of shape
-    (num_qubits x num_columns), where each entry is a list of
-    Gate objects acting on that specific qubit at that stage.
-
-    This is the transpose of columns_as_matrix: rows now correspond
-    to qubits, and columns correspond to alternating RZ–RX–RZ or CX layers.
-
-    Args:
-        qc (QuantumCircuit): Transpiled circuit used for grouping.
-
-    Returns:
-        List[List[List[instruction]]]: A matrix where matrix[q][c]
-            is a list of instructions on qubit q in column c.
-    """
-    # First, get the raw columns grouping
-    cols = group_into_columns(qc)
-    n_qubits = qc.num_qubits
-    n_cols = len(cols)
-
-    # Initialize an empty matrix: one row per qubit, one column per stage
-    matrix = [[[] for _ in range(n_cols)] for _ in range(n_qubits)]
-
-    # Populate matrix[q][c] by inspecting each column's operations
-    for c_idx, col in enumerate(cols):
-        for instr, qargs, _ in col:
-            for qubit in qargs:
-                matrix[qubit._index][c_idx].append(instr)
-
-    return matrix

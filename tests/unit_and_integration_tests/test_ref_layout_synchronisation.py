@@ -69,61 +69,51 @@ def test_pipeline_identity_no_layout():
     assert_equiv_state(sv_fixed, sv_ref)
 
 
-# def test_pipeline_with_routing_and_layout(three_qubit_h_cx_circuit):
-#     """With a line coupling map, non-adjacent CX forces routing (SWAPs/permutation).
-#     After undoing the layout on the transpiled state, we should recover the logical state.
-#     """
-#     qc = three_qubit_h_cx_circuit
-#     cmap = line_coupling(3)
-#     transpiled_qc = transpile(
-#         qc,
-#         coupling_map=cmap,
-#         optimization_level=0,
-#         seed_transpiler=1234,   # deterministic routing/layout
-#     )
-#
-#     mapping = extract_logical_to_physical(qc, transpiled_qc)
-#     # mapping has one entry per logical qubit and should be a permutation of [0,1,2]
-#     assert sorted(mapping) == [0, 1, 2]
-#     assert len(mapping) == qc.num_qubits
-#
-#     # end-to-end check (Qiskit sim path)
-#     sv0 = Statevector.from_label("000")
-#     sv_ref = sv0.evolve(qc)
-#     sv_phys = sv0.evolve(transpiled_qc)
-#     sv_fixed = undo_layout_on_state(sv_phys, mapping)
-#     assert_equiv_state(sv_fixed, sv_ref)
-#
-#     # if the layout exposes input_qubit_mapping, it must agree with our extract()
-#     layout = getattr(transpiled_qc, "layout", None)
-#     if layout is not None and getattr(layout, "input_qubit_mapping", None) is not None:
-#         expected = [layout.input_qubit_mapping[q] for q in qc.qubits]
-#         assert mapping == expected
-
-
-
-# ---- tests: function-level edge cases ----------------------------------------
+# ---- tests: function-level edge cases ---------------------------------------
 
 def test_undo_layout_numpy_vs_statevector_equivalence():
-    """Passing a numpy array or a Statevector should produce identical results."""
+    """Passing a numpy array or a Statevector should produce identical results
+    when using a full physical->logical map with ancillas as None.
+    """
     # 4-qubit random(ish) state (fixed seed)
     rng = np.random.default_rng(7)
     raw = rng.normal(size=16) + 1j * rng.normal(size=16)
     raw = raw / np.linalg.norm(raw)
 
     N = 4
-    mapping = [2, 0]  # only two logical qubits; remaining two are ancillas
-    # pattern should be [2,0,1,3] (ancillas appended in-order)
-    sv_from_np = undo_layout_on_state(raw, mapping, total_qubits=N)
-    sv_from_sv = undo_layout_on_state(Statevector(raw, dims=[2]*N), mapping)
+
+    # Full physical->logical map:
+    # physical 0 -> logical 1
+    # physical 1 -> ancilla
+    # physical 2 -> logical 0
+    # physical 3 -> ancilla
+    mapping_full = [1, None, 0, None]
+
+    # Expected permutation perm[p] = destination index:
+    # logical block j=0..L-1 first (L=2: logicals {0,1}), ancillas appended in physical order
+    # => perm = [2, 0, 1, 3]
+    expected_perm = [1, 2, 0, 3]
+
+    sv_from_np = undo_layout_on_state(raw, mapping_full, total_qubits=N)
+    sv_from_sv = undo_layout_on_state(Statevector(raw, dims=[2] * N), mapping_full)
     assert_equiv_state(sv_from_np, sv_from_sv)
 
-    # # double-check the implied permutation pattern matches our expectation
-    # expected = Statevector(raw, dims=[2]*N).evolve(PermutationGate([2, 0, 1, 3]))
-    # assert_equiv_state(sv_from_np, expected)
-    expected_perm = [1, 2, 0, 3]  # perm[2]=0, perm[0]=1, perm[1]=2, perm[3]=3
     expected = Statevector(raw, dims=[2] * N).evolve(PermutationGate(expected_perm))
     assert_equiv_state(sv_from_np, expected)
+
+
+def test_undo_layout_rejects_short_logical_to_physical_map():
+    """Document current behavior: short logical->physical lists are not accepted."""
+    rng = np.random.default_rng(7)
+    raw = rng.normal(size=16) + 1j * rng.normal(size=16)
+    raw = raw / np.linalg.norm(raw)
+
+    N = 4
+    short_mapping = [2, 0]  # logical->physical (invalid for current API)
+
+    with pytest.raises(ValueError, match=r"Provide a full-length map"):
+        _ = undo_layout_on_state(raw, short_mapping, total_qubits=N)
+
 
 
 def test_extract_mapping_is_permutation_and_within_bounds():
@@ -325,8 +315,8 @@ ALL_CIRCS = make_circuits()
 
 def test_layout_mapping_agrees_with_qiskit_layout_fields_when_present():
     """
-    If the returned 'transpiled_qc' carries a Layout with 'input_qubit_mapping',
-    verify our extracted mapping matches it exactly.
+    If the returned 'transpiled_qc' carries a Layout with final information,
+    verify our extracted physical->logical map matches Qiskit's layout.
     """
     qc = ALL_CIRCS["cx_long_range_3q"]
     input_vec = zero_state_vec(qc.num_qubits)
@@ -339,16 +329,41 @@ def test_layout_mapping_agrees_with_qiskit_layout_fields_when_present():
         with_ancillas=False,
     )
 
+    # Our function returns PHYSICAL -> LOGICAL
     mapping = extract_logical_to_physical(qc, transpiled_qc)
+
     layout = getattr(transpiled_qc, "layout", None)
-    if layout is not None and getattr(layout, "input_qubit_mapping", None) is not None:
-        expected = [layout.input_qubit_mapping[q] for q in qc.qubits]
-        assert mapping == expected
+    if layout is None:
+        pytest.skip("No layout info on transpiled circuit")
+
+    # Prefer the canonical helper if available (Qiskit >= 0.45 / 1.0 API)
+    if hasattr(layout, "final_index_layout"):
+        # logical -> physical (indices in the *output* circuit)
+        logical_to_physical = list(layout.final_index_layout())
+    else:
+        # Reconstruct: initial layout (virtual -> pre-route physical)
+        init = getattr(layout, "initial_layout", None)
+        if init is None:
+            pytest.skip("No initial_layout available to reconstruct mapping")
+
+        pre = [init[q] for q in qc.qubits]  # logical -> pre-physical
+        # routing permutation: pre-physical -> final-physical
+        route = list(getattr(layout, "routing_permutation", lambda: range(len(pre)))())
+        logical_to_physical = [route[p] for p in pre]
+
+    # Our mapping is physical->logical, so invert the logical->physical list
+    physical_to_logical_expected = [None] * len(logical_to_physical)
+    for j, p in enumerate(logical_to_physical):
+        physical_to_logical_expected[p] = j
+
+    assert mapping == physical_to_logical_expected
+
 
 
 def test_numpy_and_statevector_inputs_produce_identical_undo_results():
     """
     Passing a numpy array or a Qiskit Statevector into undo_layout_on_state must be equivalent.
+    Uses a full physical->logical map (None = ancilla).
     """
     n = 4
     # Random but fixed state
@@ -356,11 +371,24 @@ def test_numpy_and_statevector_inputs_produce_identical_undo_results():
     raw = rng.normal(size=2**n) + 1j * rng.normal(size=2**n)
     raw = raw / np.linalg.norm(raw)
 
-    # A nontrivial mapping for the first two logical qubits
+    # Original short mapping (logical->physical)
     logical_to_physical = [2, 0]
-    out_np = undo_layout_on_state(raw, logical_to_physical, total_qubits=n)
-    out_sv = undo_layout_on_state(Statevector(raw, dims=[2]*n), logical_to_physical)
+
+    # Convert to full physical->logical with ancillas as None
+    phys_to_log = [None] * n
+    for j, p in enumerate(logical_to_physical):
+        phys_to_log[p] = j
+
+    out_np = undo_layout_on_state(raw, phys_to_log, total_qubits=n)
+    out_sv = undo_layout_on_state(Statevector(raw, dims=[2]*n), phys_to_log)
     assert_equiv_state(out_np, out_sv)
+
+    # Optional: verify the actual permutation behavior for this mapping.
+    # For phys_to_log = [1, None, 0, None], perm[p] = destination = [1, 2, 0, 3].
+    expected_perm = [1, 2, 0, 3]
+    expected = Statevector(raw, dims=[2]*n).evolve(PermutationGate(expected_perm))
+    assert_equiv_state(out_np, expected)
+
 
 
 def test_infer_qubit_count_from_numpy_length():

@@ -37,9 +37,9 @@ def build_graph():
     pattern_writer.flush()
     log_writer.flush()
 
-    visualiser.plot_brickwork_graph_locked(encoded_pattern, use_locks=False,
-                                           title="Brickwork Graph: Minimal QRS Encoded",
-                                           show_angles=True)
+    visualiser.plot_brickwork_graph_encrypted(encoded_pattern, use_locks=False,
+                                              title="Brickwork Graph: Minimal QRS Encoded",
+                                              show_angles=True)
 
     # Minimal runner: execute from given input statevector and plot filtered histogram
 

@@ -1,9 +1,4 @@
 from graphix import Pattern
-from graphix.command import M
-import numpy as np
-from copy import deepcopy
-
-from graphix import Pattern
 from graphix.command import M, X, Z
 import numpy as np
 from copy import deepcopy
