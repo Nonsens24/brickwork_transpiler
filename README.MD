@@ -210,20 +210,6 @@ pytest -q
 
 ---
 
-## Contributing
-
-Contributions are welcome! Please:
-
-1. Open an issue with a minimal reproducer / proposal.
-2. Run tests and linters locally:
-
-   ```bash
-   black . && isort . && mypy ubqc_brickwork_transpiler
-   pytest -q
-   ```
-3. Submit a PR with clear commit messages and comments where behavior may be non-obvious.
-
----
 
 ## Citation
 
@@ -231,10 +217,10 @@ If this package supports your research, please cite:
 
 ```bibtex
 @software{brickwork_transpiler,
-  author  = {<Your Name> and contributors},
+  author  = {R. Fleur},
   title   = {Brickwork Transpiler},
   year    = {2025},
-  url     = {https://github.com/<org>/<repo>}
+  url     = {https://github.com/Nonsens24/brickwork_transpiler}
 }
 ```
 
