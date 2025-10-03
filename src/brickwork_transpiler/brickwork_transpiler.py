@@ -1,5 +1,6 @@
 from qiskit import QuantumCircuit
-from src.brickwork_transpiler import decomposer, graph_builder, pattern_converter, utils, visualiser
+from . import decomposer, graph_builder, pattern_converter, utils, visualiser
+
 
 
 def transpile(qc: QuantumCircuit, input_vector=None, routing_method=None, layout_method=None, return_mat: bool = False,
