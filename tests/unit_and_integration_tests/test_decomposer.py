@@ -4,8 +4,8 @@ import unittest
 from qiskit import QuantumCircuit
 from qiskit.quantum_info import Statevector
 
-from brickwork_transpiler import (visualiser, decomposer, brickwork_transpiler)
-from brickwork_transpiler.decomposer import instructions_to_matrix_dag, align_cx_matrix, \
+from src.brickwork_transpiler import (visualiser, decomposer, brickwork_transpiler)
+from src.brickwork_transpiler.decomposer import instructions_to_matrix_dag, align_cx_matrix, \
     insert_rotations_adjecant_to_cx
 
 
@@ -535,25 +535,25 @@ class TestInsertRotations(unittest.TestCase):
         expected = [[['cx0c'], ['rz']], [['cx0t'], []]]
         self.assertEqual(names(result), expected)
 
-    # def test_multiple_mixed_rotations_preserve_order(self):
-    #     qc = QuantumCircuit(2)
-    #     qc.rz(np.pi/3, 1)
-    #     qc.rx(np.pi/4, 1)
-    #     qc.rz(np.pi/5, 1)
-    #
-    #     qc.cx(0, 1)
-    #     qc.rz(np.pi/3, 0)
-    #     qc.rx(np.pi/4, 0)
-    #     qc.rz(np.pi/5, 0)
-    #
-    #     aligned, original = get_aligned_and_original_from_circ(qc)
-    #     result = insert_rotations_adjecant_to_cx(aligned, original)
-    #     # visualiser.print_matrix(result)
+    def test_multiple_mixed_rotations_preserve_order(self):
+        qc = QuantumCircuit(2)
+        qc.rz(np.pi/3, 1)
+        qc.rx(np.pi/4, 1)
+        qc.rz(np.pi/5, 1)
 
-        # expected = [[[], ['rx'], ['cx0c'], ['rz', 'rx', 'rz']],
-        #         [[], ['rz', 'rx', 'rz'], ['cx0t'], ['rz', 'rx']]]
-        #
-        # self.assertEqual(names(result), expected)
+        qc.cx(0, 1)
+        qc.rz(np.pi/3, 0)
+        qc.rx(np.pi/4, 0)
+        qc.rz(np.pi/5, 0)
+
+        aligned, original = get_aligned_and_original_from_circ(qc)
+        result = insert_rotations_adjecant_to_cx(aligned, original)
+        # visualiser.print_matrix(result)
+
+        expected = [[[], ['rx'], ['cx0c'], ['rz', 'rx', 'rz']],
+                [[], ['rz', 'rx', 'rz'], ['cx0t'], ['rz', 'rx']]]
+
+        self.assertEqual(names(result), expected)
 
     def test_duplication_bug(self):
         qc = QuantumCircuit(5)

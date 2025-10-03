@@ -11,9 +11,11 @@ The generated brickwork graph will be used for simulating UBQC (https://arxiv.or
 
 [![Build](https://img.shields.io/github/actions/workflow/status/Nonsens24/brickwork_transpiler/ci.yml?branch=main)](https://github.com/Nonsens24/brickwork_transpiler/actions)
 [![codecov](https://codecov.io/gh/Nonsens24/brickwork_transpiler/branch/main/graph/badge.svg)](https://app.codecov.io/gh/Nonsens24/brickwork_transpiler)
-[![PyPI](https://img.shields.io/pypi/v/brickwork-transpiler.svg)](https://pypi.org/project/brickwork-transpiler/)
-[![Python](https://img.shields.io/pypi/pyversions/brickwork-transpiler.svg)](https://pypi.org/project/brickwork-transpiler/)
-[![License](https://img.shields.io/github/license/<org>/<repo>.svg)](./LICENSE)
+[![PyPI](https://img.shields.io/badge/pypi-not_released-lightgrey.svg)](#)
+
+[![Python](https://img.shields.io/badge/python-3.9%20|%203.10%20|%203.11-blue.svg)](https://www.python.org/)
+
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE)
 [![Docs](https://img.shields.io/badge/docs-latest-blue.svg)](https://<org>.github.io/<repo>/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://black.readthedocs.io/)
 [![mypy](https://img.shields.io/badge/mypy-checked-informational)](http://mypy-lang.org/)
