@@ -3,26 +3,19 @@ import math
 import numpy as np
 import pytest
 
-from brickwork_transpiler import brickwork_transpiler
-
 graphix = pytest.importorskip("graphix")
-from graphix import Pattern
+
+from brickwork_transpiler import brickwork_transpiler
 from graphix.command import M, X, Z
-
 from brickwork_transpiler.bfk_encoder import encode_pattern
-
 import pytest
 
 graphix = pytest.importorskip("graphix")
 from graphix import Pattern
 from graphix.command import M
-import src.brickwork_transpiler.circuits as circuits
+import brickwork_transpiler.circuits as circuits
 
-# Project-specific imports; will be skipped if unavailable
-# ubqc_brickwork_transpiler = pytest.importorskip("ubqc_brickwork_transpiler")
-# circuits = pytest.importorskip("circuits")
 
-# CHANGE THIS to where bfk_encoder lives:
 
 def _angles_close(a, b, tol=1e-12):
     # a, b are in units of π; equality up to mod 2.
@@ -326,21 +319,6 @@ def test_mod2_wraparound_of_delta():
     r = info[0]["r"]
     expected = (phi + theta + r) % 2
     assert _angles_close(new_M.angle, expected), "δ must be computed modulo 2 (units of π)"
-
-
-
-# tests/test_bfk_encoder_edge_cases.py
-# -*- coding: utf-8 -*-
-
-import math
-import numpy as np
-import pytest
-
-graphix = pytest.importorskip("graphix")
-from graphix import Pattern
-from graphix.command import M, X, Z
-
-
 
 def _mk_pattern(seq):
     p = Pattern()
