@@ -322,7 +322,7 @@ def reference_state_auto(bw_pattern, qc_virtual, input_vec, qc_transpiled, tn,
 
 
 def calculate_ref_state_from_qiskit_circuit(bw_pattern, qc,
-                                            input_vector):  # TODO: One param when merged to computation_graph obj
+                                            input_vector):
     if bw_pattern is None:
         raise AssertionError("bw_pattern is None")
 
@@ -337,6 +337,33 @@ def calculate_ref_state_from_qiskit_circuit(bw_pattern, qc,
 
     qc_perm = permute_qubits(qc, perm=perm)
     return input_vector.evolve(qc_perm)
+
+
+
+# Given:
+
+
+def pad_with_plus_for_transpiled(input_vector, qc, transpiled_qc):
+    """
+    Args:
+        input_vector: Statevector for qc (e.g., Statevector.from_label('++'))
+        qc: original circuit
+        transpiled_qc: transpiled circuit
+
+    Returns: Input vector that matches the new circuit width with ancillae
+
+    """
+    n_in = qc.num_qubits
+    n_tr = transpiled_qc.num_qubits
+    if n_tr < n_in:
+        raise ValueError(f"Transpiled circuit has fewer qubits ({n_tr}) than original ({n_in}).")
+    k = n_tr - n_in
+    if k == 0:
+        return input_vector  # already matches
+    anc = Statevector.from_label('+' * k)
+    # Place ancillas on higher indices to match usual transpiler behavior.
+    return anc.expand(input_vector)  # == (|+>^{⊗k}) ⊗ input_vector
+
 
 
 def feature_to_generator(feature_mat):

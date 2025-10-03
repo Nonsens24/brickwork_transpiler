@@ -246,6 +246,8 @@ def plot_brickwork_graph_from_pattern(
     if node_colours is None:
         node_colours = {}
 
+    print("Visualising from pattern structure...")
+
     nodes, edges = bw_pattern.get_graph()
     G = nx.Graph()
     G.add_nodes_from(nodes)

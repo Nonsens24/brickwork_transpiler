@@ -178,14 +178,12 @@ def decompose_qc_to_bricks_qiskit(
     print("[orig] d_max per column (few entries):", dmax_cols0[:10])
     print("[orig] brick-depth estimate:", stats0["brick_depth_est"])
 
-    qc_sel = selective_decompose(qc)
-    print("Selectively decomposed: ", qc_sel.count_ops())
 
     # ---- Non-decomposed (logical) circuit ----
     qc_sel = selective_decompose(qc)
     print("Selectively decomposed: ", qc_sel.count_ops())
 
-    # >>> Distance metrics on the *logical* circuit (for your theorem)
+    # Distance metrics on the *logical* circuit
     H_logical, dmax_cols_logical, stats_logical = compute_brick_distances(qc_sel)
     print("[logical] distance histogram H(d):", H_logical)
     print("[logical] max d over columns:", stats_logical["max_d"])
@@ -193,8 +191,8 @@ def decompose_qc_to_bricks_qiskit(
     print("[logical] columns:", stats_logical["num_columns"])
     print("[logical] brick-depth estimate (from d_max):", stats_logical["brick_depth_est"])
 
-    file_writer.set("d_avg", stats_logical["avg_d"])
-
+    if file_writer:
+        file_writer.set("d_avg", stats_logical["avg_d"])
 
 
     if with_ancillas:
@@ -220,24 +218,14 @@ def decompose_qc_to_bricks_qiskit(
 
     print("Transpiling...")
     try:
-        # qc_final = transpile(
-        #     qc_lin,
-        #     basis_gates=basis,
-        #     coupling_map=coupling,
-        #     layout_method=layout_method,
-        #     routing_method=routing_method,
-        #     hls_config=hls_cfg,
-        #     optimization_level=opt, #CHANGE BACK TO 3 AFTYER HHL DATA COLLECTION
-        # )
-
         qc_final = transpile(
             qc_lin,
-            basis_gates=["rz", "rx", "cx", "id"],
-            coupling_map=coupling,  # line
-            layout_method="trivial",
-            routing_method="basic",
-            optimization_level=0,  # <- no global resynthesis / barrier removal
-            seed_transpiler=0,
+            basis_gates=basis,
+            coupling_map=coupling,
+            layout_method=layout_method,
+            routing_method=routing_method,
+            hls_config=hls_cfg,
+            optimization_level=opt, # 3 for consistent merging of single qubit gates
         )
 
     except Exception as e:
@@ -250,20 +238,8 @@ def decompose_qc_to_bricks_qiskit(
             layout_method=layout_method,
             routing_method=routing_method,
             hls_config=hls_cfg,
-            optimization_level=1,  # or 0
+            optimization_level=1, # prevents block encodings
         )
-
-    # qc_final = transpile(
-    #     qc_lin,
-    #     basis_gates=basis,
-    #     coupling_map=coupling,
-    #     layout_method=layout_method,
-    #     routing_method=routing_method,
-    #     hls_config=hls_cfg,
-    #     optimization_level=opt,
-    # )
-
-
 
     if draw:
         print("drawing...")
@@ -272,14 +248,6 @@ def decompose_qc_to_bricks_qiskit(
                         style="iqp"
                         )
         plt.savefig(f"images/Circuits/Decomposed_hhl_circ.png", dpi=300, bbox_inches="tight")
-        plt.show()
-
-
-        qc.draw(output='mpl',
-                        fold=40,
-                        style="iqp"
-                        )
-        plt.savefig(f"images/Circuits/nonDecomposed_hhl_circ.png", dpi=300, bbox_inches="tight")
         plt.show()
 
     print("post-HLS :", qc_final.count_ops())
