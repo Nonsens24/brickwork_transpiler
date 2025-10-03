@@ -8,8 +8,8 @@ version = "0.1.0"
 description = "Layout-aware transpiler between Qiskit circuits and brickwork (MBQC) patterns."
 readme = "README.MD"
 requires-python = ">=3.9"
-license = { file = "LICENSE" }
-authors = [{ name = "Your Name" }]
+license = { file = "MIT" }
+authors = [{ name = "Rex Fleur" }]
 dependencies = [
   "numpy>=1.23",
   "qiskit-terra>=0.25",
