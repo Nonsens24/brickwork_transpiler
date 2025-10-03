@@ -4,7 +4,9 @@ import numpy as np
 from qiskit import QuantumCircuit
 from qiskit.quantum_info import Statevector
 
-from src.brickwork_transpiler import visualiser, utils, brickwork_transpiler
+# from src.brickwork_transpiler import visualiser, utils, brickwork_transpiler
+from brickwork_transpiler import brickwork_transpiler, visualiser, utils, circuits
+
 from src.brickwork_transpiler.utils import get_qubit_entries, calculate_ref_state_from_qiskit_circuit, \
     extract_logical_to_physical, undo_layout_on_state, pad_with_plus_for_transpiled
 
