@@ -542,7 +542,17 @@ def minimal_qrs(user_feature):
 
     return qc, input_vector
 
+from qiskit.circuit.library import phase_estimation
+from qiskit import QuantumCircuit
 
+
+def QPE(n):
+
+    qc = QuantumCircuit(n)
+    qc.h(range(0, n))
+    qpe_circ = phase_estimation.PhaseEstimation(num_evaluation_qubits=n, unitary=qc)
+
+    return qpe_circ
 
 
 

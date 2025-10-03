@@ -88,6 +88,79 @@ def linearise_multi_ctrl(qc: QuantumCircuit) -> QuantumCircuit:
     return out
 
 
+from collections import Counter
+from typing import Dict, List, Tuple, Optional
+import json
+from qiskit.converters import circuit_to_dag
+from qiskit.circuit import QuantumCircuit, Qubit
+
+def compute_brick_distances(
+    qc: QuantumCircuit,
+    row_map: Optional[Dict[Qubit, int]] = None,
+    ignore_1q: bool = True,
+) -> Tuple[Dict[int, int], List[int], Dict[str, int]]:
+    """
+    Compute:
+      - H(d): histogram of vertical row separations d for multi-qubit ops
+      - d_max(c): per-column (layer) maximum separation
+      - summary stats including a brickwork-depth estimate: 2 * sum_c (6 d_max(c) + 2)
+
+    Args:
+        qc:           circuit to analyze (typically the *non-decomposed* logical circuit)
+        row_map:      optional mapping Qubit -> row index (0..m-1). If None, use enumeration order.
+        ignore_1q:    ignore single-qubit ops (True by default)
+
+    Returns:
+        (hist, dmax_per_col, stats) where
+          - hist is a dict {d: count}
+          - dmax_per_col is a list [d_max(0), d_max(1), ...]
+          - stats has keys:
+                'brick_depth_est', 'avg_d', 'max_d', 'multiq_gate_count', 'num_columns'
+    """
+    # default row assignment: circuit order
+    if row_map is None:
+        row_map = {q: i for i, q in enumerate(qc.qubits)}
+
+    dag = circuit_to_dag(qc)
+    hist = Counter()
+    dmax_per_col: List[int] = []
+
+    # Qiskit DAG layers: each item is {'graph': DAGCircuit,...}
+    for layer in dag.layers():
+        G = layer["graph"]
+        layer_dmax = 0
+        # consider only operation nodes (skip barriers, measures if you wish)
+        for node in G.op_nodes():
+            qargs = list(node.qargs)
+            if ignore_1q and len(qargs) < 2:
+                continue
+            # Distance = row-span of the qubits this op touches
+            rows = [row_map[q] for q in qargs]
+            d = max(rows) - min(rows) if rows else 0
+            if d > 0:
+                hist[d] += 1
+                if d > layer_dmax:
+                    layer_dmax = d
+        dmax_per_col.append(layer_dmax)
+
+    # Brickwork depth estimate from per-column maxima
+    brick_depth_est = 2 * sum(6 * d + 2 for d in dmax_per_col)
+    multiq_total = sum(hist.values())
+    avg_d = (sum(d * c for d, c in hist.items()) / multiq_total) if multiq_total else 0
+    max_d = max(dmax_per_col) if dmax_per_col else 0
+
+    stats = dict(
+        brick_depth_est=brick_depth_est,
+        avg_d=avg_d,
+        max_d=max_d,
+        multiq_gate_count=multiq_total,
+        num_columns=len(dmax_per_col),
+    )
+    # Return a plain dict for H(d), sorted by d for readability
+    hist_dict = dict(sorted(hist.items()))
+    return hist_dict, dmax_per_col, stats
+
+
 def decompose_qc_to_bricks_qiskit(
         qc: QuantumCircuit,
         opt: int = 3,
@@ -99,8 +172,30 @@ def decompose_qc_to_bricks_qiskit(
 ):
     print("before:", qc.count_ops())  # {'mcphase': 1}
 
+    # BEFORE selective_decompose:
+    H0, dmax_cols0, stats0 = compute_brick_distances(qc)  # <— use qc, not qc_sel
+    print("[orig] H(d):", H0)
+    print("[orig] d_max per column (few entries):", dmax_cols0[:10])
+    print("[orig] brick-depth estimate:", stats0["brick_depth_est"])
+
     qc_sel = selective_decompose(qc)
     print("Selectively decomposed: ", qc_sel.count_ops())
+
+    # ---- Non-decomposed (logical) circuit ----
+    qc_sel = selective_decompose(qc)
+    print("Selectively decomposed: ", qc_sel.count_ops())
+
+    # >>> Distance metrics on the *logical* circuit (for your theorem)
+    H_logical, dmax_cols_logical, stats_logical = compute_brick_distances(qc_sel)
+    print("[logical] distance histogram H(d):", H_logical)
+    print("[logical] max d over columns:", stats_logical["max_d"])
+    print("[logical] avg d:", f'{stats_logical["avg_d"]:.3f}')
+    print("[logical] columns:", stats_logical["num_columns"])
+    print("[logical] brick-depth estimate (from d_max):", stats_logical["brick_depth_est"])
+
+    file_writer.set("d_avg", stats_logical["avg_d"])
+
+
 
     if with_ancillas:
         qc_lin = linearise_multi_ctrl(qc_sel)
@@ -112,26 +207,41 @@ def decompose_qc_to_bricks_qiskit(
     # only MCX needs a plug-in now (Qiskit 0.46.3 already has it)
     hls_cfg = HLSConfig()#mcx={'synthesis_method': 'recursion'})
 
-    # simple line-coupling (swap for backend.target if you have one)
+    # simple line-coupling (up and down)
     basis = ["rz", "rx", "cx", "id"]
     coupling = (CouplingMap(
         [[i, i + 1] for i in range(qc_lin.num_qubits - 1)]
         + [[i + 1, i] for i in range(qc_lin.num_qubits - 1)]
     ) if qc_lin.num_qubits > 1 else None)
 
+    print("opt: ", opt)
+    print("Layout: ", layout_method)
+    print("routing: ", routing_method)
+
     print("Transpiling...")
     try:
+        # qc_final = transpile(
+        #     qc_lin,
+        #     basis_gates=basis,
+        #     coupling_map=coupling,
+        #     layout_method=layout_method,
+        #     routing_method=routing_method,
+        #     hls_config=hls_cfg,
+        #     optimization_level=opt, #CHANGE BACK TO 3 AFTYER HHL DATA COLLECTION
+        # )
+
         qc_final = transpile(
             qc_lin,
-            basis_gates=basis,
-            coupling_map=coupling,
-            layout_method=layout_method,
-            routing_method=routing_method,
-            hls_config=hls_cfg,
-            optimization_level=3,
+            basis_gates=["rz", "rx", "cx", "id"],
+            coupling_map=coupling,  # line
+            layout_method="trivial",
+            routing_method="basic",
+            optimization_level=0,  # <- no global resynthesis / barrier removal
+            seed_transpiler=0,
         )
+
     except Exception as e:
-        print("High-opt transpile failed, retrying with a safer pipeline:", e)
+        print("High-opt transpile failed, retrying with a safer pipeline:", e, " -- Sometimes required for small errors in huge block encodings")
         # Mitigates consolidate blocks which can introduce minor errors
         qc_final = transpile(
             qc_lin,

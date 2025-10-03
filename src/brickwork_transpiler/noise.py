@@ -56,7 +56,8 @@ class DepolarisingInjector:
                 # Depolarising noise on measurement angles (simple model)
                 if np.random.rand() < self.single_prob:
                     # With depolarizing noise, measurement angle randomly flips (X,Y-plane).
-                    noisy_angle = cmd.angle + np.random.choice([0, 1])
+                    # noisy_angle = cmd.angle + np.random.choice([0, 1])
+                    noisy_angle = cmd.angle + np.random.uniform(0, 2)
                     # print("CMD ANGLE", cmd.angle)
                 else:
                     noisy_angle = cmd.angle

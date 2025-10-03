@@ -3,10 +3,10 @@ from src.brickwork_transpiler import decomposer, graph_builder, pattern_converte
 
 
 def transpile(qc: QuantumCircuit, input_vector=None, routing_method=None, layout_method=None, return_mat: bool = False,
-              file_writer=None, with_ancillas=True, plot_decomposed: bool = False):
+              file_writer=None, with_ancillas=True, plot_decomposed: bool = False, opt = 3):
 
     # Decompose to CX, rzrxrz, id   -   Need opt = 3 for SU(2) rotation merging
-    decomposed_qc = decomposer.decompose_qc_to_bricks_qiskit(qc, opt=3, routing_method=routing_method,
+    decomposed_qc = decomposer.decompose_qc_to_bricks_qiskit(qc, opt=opt, routing_method=routing_method,
                                                               layout_method=layout_method, file_writer=file_writer,
                                                              with_ancillas=with_ancillas, draw=plot_decomposed)
 

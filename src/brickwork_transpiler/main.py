@@ -500,10 +500,43 @@ def undo_qubit_permutation(
 
 def main():
 
+    # input_vec = Statevector.from_label('+++++')  # three-qubit plus state
+    # qc = QuantumCircuit(4)
+    # qc.cx(0, 3)
+    #
+    # qc.draw(output='mpl',
+    #                     fold=40,
+    #                     style="iqp"
+    #                     )
+    #
+    #
+    #
+    # bw_pattern, col_map, transpiled_qc = brickwork_transpiler.transpile(
+    #     qc, input_vec,
+    #     routing_method="sabre",
+    #     layout_method="trivial",
+    #     with_ancillas=False
+    # )
+    #
+    # # Plot informative graph
+    # visualiser.plot_brickwork_graph_from_pattern(bw_pattern,
+    #                                              show_angles=True,
+    #                                              node_colours=col_map,
+    #                                              use_node_colours=True,
+    #                                              title="Brickwork graph: sel_decomp_test",
+    #                                              save_plot=True)
 
-    hhl_transpilation.experiment_hhl_transpilation(7)
-    hhl_transpilation.plot_single_hhl_dataset("HHL_Fixed_comp")
 
+
+
+    # hhl_transpilation.experiment_hhl_transpilation(7)
+    # hhl_transpilation.plot_single_hhl_dataset("HHL_logN_sq")
+    # hhl_transpilation.plot_hhl_from_multiple_files("thesis_hhl_final_plots_unopt_dense_d_avg")
+    # qft_transpilation.plot_single_qft_dataset("thesis_qft_log3_bound")
+    # plot_qrs_data.plot_qrs_with_db_scaling_from_files("qrs_with_db_L_no_decomp")
+    # hhl_transpilation.plot_depth_per_gate_vs_m_logfit("vs_m_plot")
+    hhl_transpilation.plot_scaling_with_m_as_width("d_or_m_overlay_hhl_exp_toeplitz_raw_no_log")
+    # hhl_transpilation.plot_hhl_davg_three()
     return 0
 
     # 1) Create the |++> state directly

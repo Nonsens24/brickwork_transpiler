@@ -81,14 +81,15 @@ def plot_single_qft_dataset(name_of_plot: str = "qft_default.png"):
     df = df[df["num_gates_original"] > 0]
 
     n                = df["num_gates_original"].to_numpy()
-    decomposed_depth = df["decomposed_depth"].to_numpy()
+    num_gates_orig = df["num_gates_original"].to_numpy()
     transpiled_depth = df["transpiled_depth"].to_numpy()
 
     n_qubits = np.arange(3, 3 + len(df))  # 3,4,5,...
 
     # Reference curve  c·√n·log²n
     c         = 50
-    nlogn_ref = c * np.sqrt(n_qubits) * np.log(n_qubits)**2
+    # nlogn_ref = c * np.sqrt(n_qubits) * np.log(n_qubits)**
+    nlogn_ref = c * np.log(n_qubits)**3
 
     # -------------------------------------------------------
     # NEW: qubit-count reference  log²(n_qubits)
@@ -100,25 +101,25 @@ def plot_single_qft_dataset(name_of_plot: str = "qft_default.png"):
     # -------------------------------------------------------
     # Styling
     # -------------------------------------------------------
-    colours = {"decomposed_depth": "orange",
+    colours = {"num_gates_orig": "orange",
                "transpiled_depth": "green",
                "nlogn_ref":        "blue",
                "log2_ref":         "red"}        # NEW colour
-    markers = {"decomposed_depth": "s",
+    markers = {#"num_gates_orig": "s",
                "transpiled_depth": "^"}
-    labels  = {"decomposed_depth": "Decomposed circuit depth",
+    labels  = {#"num_gates_orig": "Number of gates original circuit",
                "transpiled_depth": "Brickwork graph depth",
-               "nlogn_ref":        r"$c_1 \cdot \sqrt{N}\,\log^2 N$",
+               "nlogn_ref":        r"$c_1 \cdot \log^3 N$",
                "log2_ref":         r"$c_2 \cdot \log^{2} N$"}
 
     # show at most ~8 markers per curve
     mark_every = max(1, len(n) // 8)
 
-    y_min = max(1, np.min([*decomposed_depth,
+    y_min = max(1, np.min([*num_gates_orig,
                            *transpiled_depth,
                            *nlogn_ref,
                            *log2_ref]))
-    y_max = np.max([*decomposed_depth,
+    y_max = np.max([*num_gates_orig,
                     *transpiled_depth,
                     *nlogn_ref,
                     *log2_ref]) * 1.3
@@ -128,18 +129,18 @@ def plot_single_qft_dataset(name_of_plot: str = "qft_default.png"):
     # -------------------------------------------------------
     fig, ax = plt.subplots(figsize=(8, 6))
 
-    for key in ("decomposed_depth", "transpiled_depth"):
-        ax.plot(n, locals()[key],
-                label=labels[key],
-                marker=markers[key],
-                markevery=mark_every,
-                linestyle="-",
-                color=colours[key],
-                linewidth=2.7,
-                markersize=8,
-                alpha=0.97,
-                markeredgecolor="white",
-                markeredgewidth=1.7)
+    key = "transpiled_depth"
+    ax.plot(n, locals()[key],
+            label=labels[key],
+            marker=markers[key],
+            markevery=mark_every,
+            linestyle="-",
+            color=colours[key],
+            linewidth=2.7,
+            markersize=8,
+            alpha=0.97,
+            markeredgecolor="white",
+            markeredgewidth=1.7)
 
     # Guide curves (no markers)
     ax.plot(n, nlogn_ref,
@@ -179,10 +180,10 @@ def plot_single_qft_dataset(name_of_plot: str = "qft_default.png"):
     ax.grid(axis="y", which="both", linestyle=":", alpha=0.35)
 
     legend_handles = [
-        Line2D([0], [0], color=colours["decomposed_depth"],
-               marker=markers["decomposed_depth"], linestyle="-",
-               markersize=8, label=labels["decomposed_depth"],
-               markeredgecolor="white", markeredgewidth=1.7),
+        # Line2D([0], [0], color=colours["num_gates_orig"],
+        #        marker=markers["num_gates_orig"], linestyle="-",
+        #        markersize=8, label=labels["num_gates_orig"],
+        #        markeredgecolor="white", markeredgewidth=1.7),
         Line2D([0], [0], color=colours["transpiled_depth"],
                marker=markers["transpiled_depth"], linestyle="-",
                markersize=8, label=labels["transpiled_depth"],

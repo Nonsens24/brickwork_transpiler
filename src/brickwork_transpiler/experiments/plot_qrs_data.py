@@ -260,22 +260,22 @@ import os
 
 def plot_qrs_with_db_scaling_from_files(name_of_plot="default.png"):
     base_dir = "src/brickwork_transpiler/experiments/data/output_data/"
-    file_map = {
-        "No db -- one match": "experiments_qrs_no_db_one_match.csv",
-        "No db -- no match": "experiment_qrs_no_db_no_matching_element.csv",
-        "No db -- subset match": "experiment_qrs_no_db_subset_grover.csv",
-        "No db -- one match duplicates": "experiment_qrs_no_db_one_match_duplicates.csv",
-    }
-
     # file_map = {
-    #     "Full -- one match": "experiments_qrs_full_one_match.csv",
-    #     "Full -- no match": "experiment_qrs_full_no_matching_element.csv",
-    #     "Full -- subset match": "experiment_qrs_full_subset_grover.csv",
-    #     "Full -- one match duplicates": "experiment_qrs_full_one_match_duplicates.csv",
+    #     "No db -- one match": "experiments_qrs_no_db_one_match.csv",
+    #     "No db -- no match": "experiment_qrs_no_db_no_matching_element.csv",
+    #     "No db -- subset match": "experiment_qrs_no_db_subset_grover.csv",
+    #     "No db -- one match duplicates": "experiment_qrs_no_db_one_match_duplicates.csv",
     # }
 
-    # plot_exps = ["Full -- one match", "Full -- no match", "Full -- subset match", "Full -- one match duplicates"]
-    plot_exps = ["No db -- one match", "No db -- no match", "No db -- subset match", "No db -- one match duplicates"]
+    file_map = {
+        "Full -- one match": "experiments_qrs_full_one_match.csv",
+        "Full -- no match": "experiment_qrs_full_no_matching_element.csv",
+        "Full -- subset match": "experiment_qrs_full_subset_grover.csv",
+        "Full -- one match duplicates": "experiment_qrs_full_one_match_duplicates.csv",
+    }
+
+    plot_exps = ["Full -- one match", "Full -- no match", "Full -- subset match", "Full -- one match duplicates"]
+    # plot_exps = ["No db -- one match", "No db -- no match", "No db -- subset match", "No db -- one match duplicates"]
     # plot_exps = ["No db -- no match", "No db -- subset match", "No db -- one match duplicates"]
     data = {}
 
@@ -286,7 +286,7 @@ def plot_qrs_with_db_scaling_from_files(name_of_plot="default.png"):
         data[exp] = {
             "iterations": df['num_iterations'].to_numpy(),
             "orig_depth": df['original_depth'].to_numpy(),
-            "decomposed_depth": df['decomposed_depth'].to_numpy(),
+            "nlogn_orig_gates": df['num_gates_original'].to_numpy(),
             "transpiled_depth": df['transpiled_depth'].to_numpy(),
             "num_gates_original": df['num_gates_original'].to_numpy(),
             "num_gates_transpiled": df['num_gates_transpiled'].to_numpy(),
@@ -301,28 +301,29 @@ def plot_qrs_with_db_scaling_from_files(name_of_plot="default.png"):
 
     colours = {
         "L": "red",
-        "decomposed_depth": "orange",
         "transpiled_depth": "green",
         "nlogn_orig": "blue",  # now dark blue
+        "nlogn_orig_gates": "orange",
     }
     markers = {
         "L": "o",
-        "decomposed_depth": "s",
+        "nlogn_orig_gates": "s",
         "transpiled_depth": "^",
     }
     depth_labels = {
         "L": "Database size (L)",
-        "decomposed_depth": "Decomposed circuit depth",
         "transpiled_depth": "Brickwork graph depth",
-        # "nlogn_orig": r"$c \cdot n \log n$ (original gates)",  # c is explained below
-        "nlogn_orig": r"$c \cdot \sqrt{L} \log L$",
+        "nlogn_orig_gates": r"$c_1 \cdot n \log n$ (original gates)",  # c is explained below
+        "nlogn_orig": r"$c_2 \cdot \sqrt{L} \log L$",
     }
 
     # Set this constant to scale the nlogn line
-    scaling_const = 5000  # <-- CHANGE THIS VALUE as needed
+    c1 = 10000
+    c2 = 70
 
     all_yvals = []
     nlogn_orig_dict = {}
+    nlogn_orig_dict_gates = {}
     for exp, exp_data in data.items():
         n_gates_orig = exp_data["num_gates_original"]
         _L = exp_data["L"]
@@ -330,11 +331,13 @@ def plot_qrs_with_db_scaling_from_files(name_of_plot="default.png"):
         # Multiply by scaling constant here
         # nlogn_orig = scaling_const * 396 * n_gates_orig * np.log(n_gates_orig) + np.sqrt(_L/_g)
         # nlogn_orig = scaling_const * 396 * np.log2(n_gates_orig)**2 + np.log2(n_gates_orig) * 400* np.sqrt(_L / _g)
-        # nlogn_orig = scaling_const * n_gates_orig * np.log2(n_gates_orig)
-        nlogn_orig = scaling_const * np.sqrt(_L)*np.log(_L)
+        nlogn_orig_gates = c2 * n_gates_orig * np.log(n_gates_orig)
+        nlogn_orig_dict_gates[exp] = nlogn_orig_gates
+        # nlogn_orig = scaling_const * np.sqrt(_L)*np.log(_L)
+        nlogn_orig = c1 * _L*_L*np.log(_L)
         nlogn_orig_dict[exp] = nlogn_orig
         all_yvals.extend(exp_data["L"])
-        all_yvals.extend(exp_data["decomposed_depth"])
+        all_yvals.extend(exp_data["nlogn_orig_gates"])
         all_yvals.extend(exp_data["transpiled_depth"])
         all_yvals.extend(nlogn_orig)
     ymin = max(1, min(all_yvals))
@@ -348,7 +351,7 @@ def plot_qrs_with_db_scaling_from_files(name_of_plot="default.png"):
         ax = axs[idx]
         exp_data = data[exp]
         x = database_sizes[:len(exp_data["L"])]
-        for key in ['L', 'decomposed_depth', 'transpiled_depth']:
+        for key in ['L', 'transpiled_depth']:
             ax.plot(
                 x, exp_data[key],
                 label=depth_labels[key],
@@ -361,6 +364,15 @@ def plot_qrs_with_db_scaling_from_files(name_of_plot="default.png"):
                 markeredgecolor='white',
                 markeredgewidth=1.7,
             )
+        nlogn_orig_gates = nlogn_orig_dict_gates[exp]
+        ax.plot(
+            x, nlogn_orig_gates,
+            label=depth_labels['nlogn_orig_gates'],
+            color=colours['nlogn_orig_gates'],
+            linestyle='solid',
+            linewidth=2.4,
+            alpha=0.9,
+        )
         nlogn_orig = nlogn_orig_dict[exp]
         ax.plot(
             x, nlogn_orig,
@@ -393,8 +405,8 @@ def plot_qrs_with_db_scaling_from_files(name_of_plot="default.png"):
     legend_elements = [
         Line2D([0], [0], color=colours['L'], marker=markers['L'], linestyle='-',
                markersize=11, label=depth_labels['L'], markeredgecolor='white', markeredgewidth=1.7),
-        Line2D([0], [0], color=colours['decomposed_depth'], marker=markers['decomposed_depth'], linestyle='-',
-               markersize=11, label=depth_labels['decomposed_depth'], markeredgecolor='white', markeredgewidth=1.7),
+        Line2D([0], [0], color=colours['nlogn_orig_gates'], marker=markers['nlogn_orig_gates'], linestyle='-',
+               markersize=11, label=depth_labels['nlogn_orig_gates'], markeredgecolor='white', markeredgewidth=1.7),
         Line2D([0], [0], color=colours['transpiled_depth'], marker=markers['transpiled_depth'], linestyle='-',
                markersize=11, label=depth_labels['transpiled_depth'], markeredgecolor='white', markeredgewidth=1.7),
         # Only one nlogn line, now dark blue
