@@ -9,13 +9,8 @@ graphix = pytest.importorskip("graphix")
 from graphix import Pattern
 from graphix.command import M, X, Z
 
-from src.brickwork_transpiler.bfk_encoder import encode_pattern
+from brickwork_transpiler.bfk_encoder import encode_pattern
 
-# tests/test_bfk_encoder_integration.py
-# -*- coding: utf-8 -*-
-
-import math
-import numpy as np
 import pytest
 
 graphix = pytest.importorskip("graphix")

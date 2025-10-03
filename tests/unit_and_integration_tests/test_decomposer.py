@@ -371,7 +371,6 @@ class TestInstructionsToMatrixDAG(unittest.TestCase):
 
 class TestAlignCXMatrix(unittest.TestCase):
 
-    from src.brickwork_transpiler.decomposer import align_cx_matrix
 
     class DummyInstr:
         def __init__(self, name):

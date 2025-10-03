@@ -2,6 +2,7 @@ import unittest
 
 import pytest
 from qiskit import QuantumCircuit
+from brickwork_transpiler.utils import feature_to_generator, pad_with_plus_for_transpiled
 from qiskit.quantum_info import Statevector
 
 from brickwork_transpiler import utils
@@ -85,7 +86,7 @@ def test_global_phase_4d():
     assert utils.assert_equal_up_to_global_phase(state, phased) is True
 
 
-from src.brickwork_transpiler.utils import feature_to_generator, pad_with_plus_for_transpiled
+
 
 
 class TestFeatureMatrixToGenerator(unittest.TestCase):
