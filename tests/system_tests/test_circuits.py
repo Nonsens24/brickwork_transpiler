@@ -6,8 +6,8 @@ from brickwork_transpiler import brickwork_transpiler, visualiser, utils, circui
 
 # from brickwork_transpiler import utils, brickwork_transpiler, circuits  # etc.
 
-from src.brickwork_transpiler.utils import calculate_ref_state_from_qiskit_circuit, undo_layout_on_state, \
-    extract_logical_to_physical, reference_state_auto
+# from src.brickwork_transpiler.utils import calculate_ref_state_from_qiskit_circuit, undo_layout_on_state, \
+#     extract_logical_to_physical, reference_state_auto
 
 
 #
