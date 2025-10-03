@@ -724,47 +724,47 @@ class BufferedCSVWriter:
 #         p2l[p] = j
 #     return p2l
 
-# # 2) Undo the layout on a statevector using the physical->logical map
-# def undo_layout_on_state(state, physical_to_logical, total_qubits=None):
-#     """
-#     Given a state in the transpiled circuit's *wire order* (physical ordering),
-#     return a Statevector re-ordered so that the original logical qubits
-#     (0,1,2,...) come first. `physical_to_logical[p] = j` says:
-#     "wire p carries logical j". We then set PermutationGate perm[p] = j.
-#
-#     Any wires with physical_to_logical[p] is None are treated as ancillas and
-#     moved to positions L, L+1, ... after the logical block.
-#     """
-#     # Normalize input to a Statevector
-#     if isinstance(state, Statevector):
-#         sv = state
-#         N = sv.num_qubits
-#     else:
-#         arr = np.asarray(state, dtype=complex)
-#         N = total_qubits if total_qubits is not None else int(round(math.log2(arr.size)))
-#         sv = Statevector(arr, dims=[2] * N)
-#
-#     if len(physical_to_logical) != N:
-#         raise ValueError(f"physical_to_logical has length {len(physical_to_logical)}, "
-#                          f"but state has {N} qubits. Provide a full-length map.")
-#
-#     # Logical count L = number of non-None entries
-#     logical_positions = [(p, j) for p, j in enumerate(physical_to_logical) if j is not None]
-#     L = len(logical_positions)
-#
-#     # Build source->dest permutation for PermutationGate
-#     perm = [None] * N
-#     for p, j in logical_positions:
-#         perm[p] = j
-#     anc_phys = [p for p, j in enumerate(physical_to_logical) if j is None]
-#     for k, p in enumerate(anc_phys):
-#         perm[p] = L + k
-#
-#     # Validate permutation
-#     if sorted(perm) != list(range(N)):
-#         raise ValueError(f"Invalid permutation {perm} (must be a permutation of 0..{N-1}).")
-#
-#     return sv.evolve(PermutationGate(perm))
+# 2) Undo the layout on a statevector using the physical->logical map
+def undo_layout_on_state(state, physical_to_logical, total_qubits=None):
+    """
+    Given a state in the transpiled circuit's *wire order* (physical ordering),
+    return a Statevector re-ordered so that the original logical qubits
+    (0,1,2,...) come first. `physical_to_logical[p] = j` says:
+    "wire p carries logical j". We then set PermutationGate perm[p] = j.
+
+    Any wires with physical_to_logical[p] is None are treated as ancillas and
+    moved to positions L, L+1, ... after the logical block.
+    """
+    # Normalize input to a Statevector
+    if isinstance(state, Statevector):
+        sv = state
+        N = sv.num_qubits
+    else:
+        arr = np.asarray(state, dtype=complex)
+        N = total_qubits if total_qubits is not None else int(round(math.log2(arr.size)))
+        sv = Statevector(arr, dims=[2] * N)
+
+    if len(physical_to_logical) != N:
+        raise ValueError(f"physical_to_logical has length {len(physical_to_logical)}, "
+                         f"but state has {N} qubits. Provide a full-length map.")
+
+    # Logical count L = number of non-None entries
+    logical_positions = [(p, j) for p, j in enumerate(physical_to_logical) if j is not None]
+    L = len(logical_positions)
+
+    # Build source->dest permutation for PermutationGate
+    perm = [None] * N
+    for p, j in logical_positions:
+        perm[p] = j
+    anc_phys = [p for p, j in enumerate(physical_to_logical) if j is None]
+    for k, p in enumerate(anc_phys):
+        perm[p] = L + k
+
+    # Validate permutation
+    if sorted(perm) != list(range(N)):
+        raise ValueError(f"Invalid permutation {perm} (must be a permutation of 0..{N-1}).")
+
+    return sv.evolve(PermutationGate(perm))
 
 
 
