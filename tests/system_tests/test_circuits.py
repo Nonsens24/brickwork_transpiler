@@ -171,11 +171,6 @@ def test_minimal_qrs():
 
     qc, input_vec = circuits.minimal_qrs([0, 0])
 
-    qc.draw(output='mpl',
-                        fold=40,
-                        style="iqp"
-                        )
-
 
     bw_pattern, col_map, transpiled_qc = brickwork_transpiler.transpile(qc, input_vec,
                                                                         routing_method="sabre",
@@ -205,12 +200,6 @@ def test_minimal_qrs_no_ancillae():
 
     qc, input_vec = circuits.minimal_qrs([0, 0])
 
-    qc.draw(output='mpl',
-                        fold=40,
-                        style="iqp"
-                        )
-
-
     bw_pattern, col_map, transpiled_qc = brickwork_transpiler.transpile(qc, input_vec,
                                                                         routing_method="sabre",
                                                                         layout_method="trivial",
@@ -239,11 +228,6 @@ def test_small_with_ancillae_not_required():
 
     qc, input_vec = circuits.h_and_cx_circ()
 
-    qc.draw(output='mpl',
-                        fold=40,
-                        style="iqp"
-                        )
-
 
     bw_pattern, col_map, transpiled_qc = brickwork_transpiler.transpile(qc, input_vec,
                                                                         routing_method="sabre",
@@ -268,11 +252,6 @@ def test_medium_circ_with_ancillae_not_required():
 
     qc, input_vector = circuits.big_shifter_both_up_low_rotation_brick_shifted()
 
-    qc.draw(output='mpl',
-                        fold=40,
-                        style="iqp"
-                        )
-
 
     bw_pattern, col_map, transpiled_qc = brickwork_transpiler.transpile(qc, input_vector,
                                                                         routing_method="sabre",
@@ -296,11 +275,6 @@ def test_medium_circ_with_ancillae_not_required():
 def test_qft_3_with_ancillae():
 
     qc, input_vector = circuits.qft(3)
-
-    qc.draw(output='mpl',
-                        fold=40,
-                        style="iqp"
-                        )
 
 
     bw_pattern, col_map, transpiled_qc = brickwork_transpiler.transpile(qc, input_vector,
@@ -330,11 +304,6 @@ def test_qft_3_with_ancillae():
 def test_qft_3_without_ancillae():
 
     qc, input_vector = circuits.qft(3)
-
-    qc.draw(output='mpl',
-                        fold=40,
-                        style="iqp"
-                        )
 
     bw_pattern, col_map, transpiled_qc = brickwork_transpiler.transpile(qc, input_vector,
                                                                         routing_method="sabre",
