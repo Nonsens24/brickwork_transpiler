@@ -1,8 +1,6 @@
 import visualiser
 from src.brickwork_transpiler import brickwork_transpiler, utils
 import circuits
-from src.brickwork_transpiler.utils import pad_with_plus_for_transpiled
-
 
 def main():
 

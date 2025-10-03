@@ -1,6 +1,6 @@
 import networkx as nx
 from graphix.generator import generate_from_graph
-from src.brickwork_transpiler import graph_builder, visualiser
+from . import graph_builder, visualiser
 
 
 #Follows a, b, c, 0 scheme
