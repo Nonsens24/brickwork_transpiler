@@ -222,7 +222,7 @@ Contributions are welcome! Please:
 2. Run tests and linters locally:
 
    ```bash
-   black . && isort . && mypy brickwork_transpiler
+   black . && isort . && mypy ubqc_brickwork_transpiler
    pytest -q
    ```
 3. Submit a PR with clear commit messages and comments where behavior may be non-obvious.

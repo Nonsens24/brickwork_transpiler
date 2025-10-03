@@ -17,7 +17,7 @@ from src.brickwork_transpiler import brickwork_transpiler, circuits
 # CSV helper – identical header to your QFT experiment
 # ---------------------------------------------------------------------------
 def get_writer(file_name: str,
-               file_path: str = "src/brickwork_transpiler/experiments/data/output_data/"):
+               file_path: str = "src/ubqc_brickwork_transpiler/experiments/data/output_data/"):
 
     header = ["decomposed_depth", "transpiled_depth", "original_depth",
               "num_gates_original", "num_gates_transpiled", "N", "kappa", "s_sparsity", "d_avg"]
@@ -410,7 +410,7 @@ def plot_single_hhl_dataset(name_of_plot: str = "hhl_default_laplacian.png"):
     # --------------------------------------------------------------------
     # Load data
     # --------------------------------------------------------------------
-    base_dir = "src/brickwork_transpiler/experiments/data/output_data/"
+    base_dir = "src/ubqc_brickwork_transpiler/experiments/data/output_data/"
     filename = "experiments_hhl.csv"
 
 
@@ -542,7 +542,7 @@ import matplotlib.pyplot as plt
 
 def plot_scaling_with_m_as_width(
     name_prefix="hhl_scaling_m_is_width",
-    base_dir="src/brickwork_transpiler/experiments/data/output_data/",
+    base_dir="src/ubqc_brickwork_transpiler/experiments/data/output_data/",
     filename="experiment_hhl_toeplitz_d_avf_opt0.csv",
     depth_key="transpiled_depth",
     gates_key="num_gates_original",  # or "num_gates_transpiled"
@@ -880,7 +880,7 @@ def plot_scaling_with_m_as_width(
 
 def plot_depth_per_gate_vs_m_logfit(
     name_of_plot: str = "hhl_depth_per_gate_vs_m.png",
-    base_dir: str = "src/brickwork_transpiler/experiments/data/output_data/",
+    base_dir: str = "src/ubqc_brickwork_transpiler/experiments/data/output_data/",
     filename: str = "experiments_hhl.csv",
     depth_key: str = "transpiled_depth",
     gates_key: str = "num_gates_original",   # set to "num_gates_transpiled" if you prefer
@@ -969,7 +969,7 @@ def plot_depth_per_gate_vs_m_logfit(
 #     Each file is plotted in a separate subplot (two side by side).
 #     """
 #
-#     base_dir = "src/brickwork_transpiler/experiments/data/output_data/"
+#     base_dir = "src/ubqc_brickwork_transpiler/experiments/data/output_data/"
 #     file_map = {
 #         "HHL experiment: Tridiagonal Toeplitz": "experiment_hhl_toeplize_trotter2_no_opt.csv",
 #         "HHL experiment: Normalised Laplacian": "experiment_hhl_d2_laplacian.csv",
@@ -1106,7 +1106,7 @@ def plot_hhl_from_multiple_files(name_of_plot="default_4_thesis.png"):
     Each file is plotted in a separate subplot.
     """
 
-    base_dir = "src/brickwork_transpiler/experiments/data/output_data/"
+    base_dir = "src/ubqc_brickwork_transpiler/experiments/data/output_data/"
     # file_map = {
     #     "HHL experiment: Tridiagonal Toeplitz": "experiment_hhl_toeplize_trotter2_no_opt.csv",
     #     "HHL experiment: Normalised Laplacian": "experiment_hhl_d2_laplacian.csv",
@@ -1270,7 +1270,7 @@ def plot_hhl_davg_three(files=None, name_of_plot="hhl_davg_3curves.png"):
     Load three experiment CSV files, extract N and d_avg, and
     plot the three d_avg curves on a single log-log figure.
     """
-    base_dir = "src/brickwork_transpiler/experiments/data/output_data/"
+    base_dir = "src/ubqc_brickwork_transpiler/experiments/data/output_data/"
 
     # Default three files (adjust names as needed)
     if files is None:

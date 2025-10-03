@@ -259,7 +259,7 @@ from matplotlib.lines import Line2D
 import os
 
 def plot_qrs_with_db_scaling_from_files(name_of_plot="default.png"):
-    base_dir = "src/brickwork_transpiler/experiments/data/output_data/"
+    base_dir = "src/ubqc_brickwork_transpiler/experiments/data/output_data/"
     # file_map = {
     #     "No db -- one match": "experiments_qrs_no_db_one_match.csv",
     #     "No db -- no match": "experiment_qrs_no_db_no_matching_element.csv",

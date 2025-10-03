@@ -2,7 +2,7 @@ from matplotlib import pyplot as plt
 
 from src.brickwork_transpiler import circuits, brickwork_transpiler, visualiser, utils
 from src.brickwork_transpiler.bfk_encoder import encode_pattern
-# from src.brickwork_transpiler.utils import extract_logical_to_physical, undo_layout_on_state
+# from src.ubqc_brickwork_transpiler.utils import extract_logical_to_physical, undo_layout_on_state
 
 
 def build_graph():
@@ -25,7 +25,7 @@ def build_graph():
                                                  use_node_colours=True,
                                                  title="Brickwork graph: Minimal QRS")
 
-    file_path = "src/brickwork_transpiler/experiments/data/output_data/"
+    file_path = "src/ubqc_brickwork_transpiler/experiments/data/output_data/"
 
     pattern_writer = utils.BufferedCSVWriter(file_path + "minimal_qrs_experiment_pattern.txt", ["pattern"])
     log_writer = utils.BufferedCSVWriter(file_path + "minimal_qrs_experiment_log.txt", ["log"])
@@ -458,7 +458,7 @@ def simulate_and_plot_from_statevector(qc, transpiled_qc, vector, save_path,
 #     """
 #     # --- build + transpile ---
 #     qc, input_vec = circuits.minimal_qrs(user_vector)
-#     bw_pattern, col_map, transpiled_qc = brickwork_transpiler.transpile(
+#     bw_pattern, col_map, transpiled_qc = ubqc_brickwork_transpiler.transpile(
 #         qc, input_vec, routing_method="sabre", layout_method="sabre", with_ancillas=False
 #     )
 #

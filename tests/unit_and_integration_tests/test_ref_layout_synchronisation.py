@@ -263,7 +263,7 @@ ALL_CIRCS = make_circuits()
 #     input_vec = zero_state_vec(n)   # |0...0>
 #
 #     # --- 1) Your transpiler returns (bw_pattern, col_map, transpiled_qc)
-#     bw_pattern, col_map, transpiled_qc = brickwork_transpiler.transpile(
+#     bw_pattern, col_map, transpiled_qc = ubqc_brickwork_transpiler.transpile(
 #         qc,
 #         input_vec,
 #         routing_method="sabre",

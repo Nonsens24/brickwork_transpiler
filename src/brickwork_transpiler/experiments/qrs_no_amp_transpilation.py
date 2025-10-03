@@ -289,7 +289,7 @@ def get_data():
 
     return feature_mat1, feature_mat2, feature_mat3, feature_mat4, feature_mat5, feature_mat6
 
-def get_writer(file_name: str, file_path: str="src/brickwork_transpiler/experiments/data/output_data/"):
+def get_writer(file_name: str, file_path: str="src/ubqc_brickwork_transpiler/experiments/data/output_data/"):
 
 
     header = ["num_iterations", "decomposed_depth", "transpiled_depth", "original_depth", "num_gates_original",

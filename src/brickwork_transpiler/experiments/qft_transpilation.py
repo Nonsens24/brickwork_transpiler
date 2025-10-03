@@ -10,7 +10,7 @@ from src.brickwork_transpiler import brickwork_transpiler, circuits
 import src.brickwork_transpiler.utils
 
 
-def get_writer(file_name: str, file_path: str = "src/brickwork_transpiler/experiments/data/output_data/"):
+def get_writer(file_name: str, file_path: str = "src/ubqc_brickwork_transpiler/experiments/data/output_data/"):
 
     header = ["decomposed_depth", "transpiled_depth", "original_depth", "num_gates_original",
               "num_gates_transpiled"]
@@ -47,7 +47,7 @@ def experiment_qft_transpilation():
     #                    name=f"QFT_{num_qubits}")
     #
     #     # print("Transpiling...")
-    #     instr_mat = brickwork_transpiler.transpile(qft_circ, routing_method='sabre', layout_method='sabre',
+    #     instr_mat = ubqc_brickwork_transpiler.transpile(qft_circ, routing_method='sabre', layout_method='sabre',
     #                                                return_mat=True, file_writer=writer)
     #
     #     writer.set("transpiled_depth", len(instr_mat[0]))
@@ -71,7 +71,7 @@ from matplotlib.lines import Line2D
 
 
 def plot_single_qft_dataset(name_of_plot: str = "qft_default.png"):
-    base_dir = "src/brickwork_transpiler/experiments/data/output_data/"
+    base_dir = "src/ubqc_brickwork_transpiler/experiments/data/output_data/"
     filename = "experiments_qft.csv"
 
     # -------------------------------------------------------

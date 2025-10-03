@@ -26,7 +26,7 @@ from graphix.command import M
 import src.brickwork_transpiler.circuits as circuits
 
 # Project-specific imports; will be skipped if unavailable
-# brickwork_transpiler = pytest.importorskip("brickwork_transpiler")
+# ubqc_brickwork_transpiler = pytest.importorskip("ubqc_brickwork_transpiler")
 # circuits = pytest.importorskip("circuits")
 
 # CHANGE THIS to where bfk_encoder lives:
