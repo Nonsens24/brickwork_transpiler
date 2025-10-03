@@ -1,7 +1,7 @@
 import numpy as np
 from qiskit import QuantumCircuit
 from qiskit.quantum_info import Statevector
-from src.brickwork_transpiler import bricks, utils
+from brickwork_transpiler import bricks, utils
 
 
 def test_random_rotation_constant_angles():

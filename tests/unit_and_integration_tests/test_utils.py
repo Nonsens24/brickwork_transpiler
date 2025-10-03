@@ -4,7 +4,7 @@ import pytest
 from qiskit import QuantumCircuit
 from qiskit.quantum_info import Statevector
 
-from src.brickwork_transpiler import utils
+from brickwork_transpiler import utils
 import numpy as np
 
 

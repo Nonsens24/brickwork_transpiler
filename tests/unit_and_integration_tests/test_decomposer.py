@@ -4,8 +4,8 @@ import unittest
 from qiskit import QuantumCircuit
 from qiskit.quantum_info import Statevector
 
-from src.brickwork_transpiler import visualiser, decomposer, brickwork_transpiler
-from src.brickwork_transpiler.decomposer import align_bricks, instructions_to_matrix_dag, align_cx_matrix, \
+from brickwork_transpiler import (visualiser, decomposer, brickwork_transpiler)
+from brickwork_transpiler.decomposer import instructions_to_matrix_dag, align_cx_matrix, \
     insert_rotations_adjecant_to_cx
 
 

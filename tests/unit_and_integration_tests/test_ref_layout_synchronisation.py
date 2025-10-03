@@ -8,9 +8,9 @@ from qiskit.transpiler import CouplingMap
 from qiskit.quantum_info import Statevector
 from qiskit.circuit.library import PermutationGate
 
-from src.brickwork_transpiler import brickwork_transpiler
-from src.brickwork_transpiler import visualiser
-from src.brickwork_transpiler.utils import extract_logical_to_physical, undo_layout_on_state
+from brickwork_transpiler import (brickwork_transpiler)
+from brickwork_transpiler import visualiser
+from brickwork_transpiler.utils import extract_logical_to_physical, undo_layout_on_state
 
 
 # Adjust this import to wherever you placed the two functions under test.

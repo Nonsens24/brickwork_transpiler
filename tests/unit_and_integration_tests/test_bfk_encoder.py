@@ -1,11 +1,9 @@
 # tests/test_bfk_encoder.py
-# -*- coding: utf-8 -*-
-
 import math
 import numpy as np
 import pytest
 
-from src.brickwork_transpiler import brickwork_transpiler
+from brickwork_transpiler import brickwork_transpiler
 
 graphix = pytest.importorskip("graphix")
 from graphix import Pattern

@@ -2,7 +2,7 @@ import numpy as np
 from qiskit import QuantumCircuit
 from qiskit.quantum_info import Statevector
 
-from src.brickwork_transpiler import decomposer, graph_builder, visualiser, pattern_converter, brickwork_transpiler
+from brickwork_transpiler import decomposer, graph_builder, visualiser
 
 
 def gen_test_graph(qc):
